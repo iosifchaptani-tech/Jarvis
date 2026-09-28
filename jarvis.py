@@ -19,7 +19,14 @@ import webbrowser
 HERE = os.path.dirname(os.path.abspath(__file__))
 KEY_FILE = os.path.join(HERE, "api_key.txt")
 
-MODEL = "claude-opus-5"
+# Easy questions go to the cheap, fast model; harder ones to the smart one.
+FAST_MODEL = "claude-haiku-4-5"
+SMART_MODEL = "claude-opus-5"
+HARD_WORDS = (
+    "explain", "why", "how does", "how do", "how can", "write", "code",
+    "program", "plan", "compare", "difference", "analy", "story", "essay",
+    "summar", "step by step", "calculate", "solve", "think hard", "advice",
+)
 SYSTEM_PROMPT = (
     "You are Jarvis, a friendly voice assistant. Your answers are read out "
     "loud, so keep them short (1-3 sentences), conversational, and never use "
@@ -134,17 +141,27 @@ class Brain:
                     "Try asking me the time, or say open YouTube.")
         anthropic = self.anthropic
         self.history.append({"role": "user", "content": text})
+        model = pick_model(text)
+        print("  (quick mode)" if model == FAST_MODEL else "  (smart mode)")
         try:
-            response = self.client.beta.messages.create(
-                model=MODEL,
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=self.history,
-                output_config={"effort": "low"},  # quick answers for voice
-                # If Claude declines a request, the API retries it on another model.
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
-            )
+            if model == FAST_MODEL:
+                response = self.client.messages.create(
+                    model=FAST_MODEL,
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    messages=self.history,
+                )
+            else:
+                response = self.client.beta.messages.create(
+                    model=SMART_MODEL,
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    messages=self.history,
+                    output_config={"effort": "low"},  # quick answers for voice
+                    # If Claude declines a request, the API retries it on another model.
+                    betas=["server-side-fallback-2026-07-01"],
+                    fallbacks="default",
+                )
         except anthropic.AuthenticationError:
             self.history.pop()
             return "My API key was rejected. Please check the key in api key dot t x t."
@@ -163,14 +180,23 @@ class Brain:
             self.history.pop()
             return "Sorry, I can't help with that."
 
-        # Keep the full reply (not just the text) so the conversation stays valid.
-        self.history.append({"role": "assistant", "content": response.content})
+        answer = " ".join(b.text for b in response.content if b.type == "text").strip()
+        answer = answer or "I'm not sure what to say to that."
+
+        # Only the spoken text is kept, since the two models can't share each
+        # other's thinking blocks.
+        self.history.append({"role": "assistant", "content": answer})
         self.history = self.history[-20:]
         while self.history and self.history[0]["role"] != "user":
             self.history.pop(0)
+        return answer
 
-        answer = " ".join(b.text for b in response.content if b.type == "text").strip()
-        return answer or "I'm not sure what to say to that."
+
+def pick_model(text):
+    t = text.lower()
+    if len(t.split()) > 25 or any(w in t for w in HARD_WORDS):
+        return SMART_MODEL
+    return FAST_MODEL
 
 
 # ---------------------------------------------------------------- commands

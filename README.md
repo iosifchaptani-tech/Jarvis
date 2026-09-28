@@ -33,6 +33,11 @@ separate from a claude.ai subscription, and the API is paid per use:
 
 `api_key.txt` is ignored by git, so it won't be uploaded to GitHub by accident.
 
+To save money, Jarvis answers simple questions with a cheap, fast model (**quick mode**)
+and only uses the smarter, pricier one (**smart mode**) when you ask him to explain, write,
+plan, compare or solve something, or ask a long question. Say "think hard" to force smart
+mode. The window shows which mode he used.
+
 ## If something doesn't work
 
 | What you see | What to do |
