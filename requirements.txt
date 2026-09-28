@@ -1,0 +1,4 @@
+anthropic>=1.8.0
+SpeechRecognition
+PyAudio
+pywin32; sys_platform == "win32"
