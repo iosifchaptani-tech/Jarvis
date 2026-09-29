@@ -1,1 +1,1 @@
-date,shopify_order_id,shopify_order_name,cj_order_id,revenue,cj_product_cost,cj_shipping_cost,est_fees,est_profit,status,tracking_number,carrier
+day,order_name,order_id,revenue,currency,items,skus,country

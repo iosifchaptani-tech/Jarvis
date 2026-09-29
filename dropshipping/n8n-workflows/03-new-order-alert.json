@@ -1,0 +1,146 @@
+{
+  "name": "03 · New order alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shopify-order-0f958bdf",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "edc38870-c85a-5e47-b144-570b4ac8414f",
+      "name": "Shopify: order paid",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "7647ec3e-c80b-562e-b60d-33c5916baa3b"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "50138c10-c218-5020-a58d-9d0a6083d643",
+              "name": "telegram_chat_id",
+              "value": "PASTE_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1f6386f1-270b-500b-986c-b75e8a2b9378",
+      "name": "⚙️ Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const o = $('Shopify: order paid').first().json.body || {};\nif (!o.id) return [];  // not an order payload\nconst items = (o.line_items || []).map(li => `${li.quantity}x ${li.title}${li.variant_title ? ' (' + li.variant_title + ')' : ''}`);\nreturn [{ json: {\n  day: $now.toFormat('yyyy-MM-dd'),\n  order_name: String(o.name || o.order_number || ''),\n  order_id: String(o.id),\n  revenue: Number(o.total_price) || 0,\n  currency: String(o.currency || ''),\n  items: items.join('; '),\n  skus: (o.line_items || []).map(li => li.sku).filter(Boolean).join(','),\n  country: String(o.shipping_address?.country_code || ''),\n} }];\n"
+      },
+      "id": "470ac690-2951-50e5-b5e2-52cf5ed5f826",
+      "name": "Order summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "orders"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "0ad0984f-d13b-5c81-83be-c1e6f3ab06a7",
+      "name": "Save order",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "=🛒 New paid order {{ $('Order summary').first().json.order_name }}: {{ $('Order summary').first().json.revenue }} {{ $('Order summary').first().json.currency }} ({{ $('Order summary').first().json.country }})\n{{ $('Order summary').first().json.items }}\n\nNext: open CJ -> My Orders and pay it (the CJ app imports Shopify orders automatically; if it is not there after 30 minutes, press Sync Orders). Pay the same day so it ships fast.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2f7e6458-7adc-5145-afec-c7f027669e49",
+      "name": "Tell owner to pay CJ",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Shopify: order paid": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Settings": {
+      "main": [
+        [
+          {
+            "node": "Order summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order summary": {
+      "main": [
+        [
+          {
+            "node": "Save order",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tell owner to pay CJ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

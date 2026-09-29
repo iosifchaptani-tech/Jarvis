@@ -1,7 +1,7 @@
-rule_id,agent,rule,status,version,evidence,created_at,approved_at
-R001,research,"Only pick products with CJ product + shipping cost at most one third of the selling price.",active,1,"Starting rule",2026-09-29,2026-09-29
-R002,research,"Prefer products in stock in a CJ warehouse in the customer's country (faster delivery = fewer refunds).",active,1,"Starting rule",2026-09-29,2026-09-29
-R003,research,"Never pick branded, trademarked, battery-powered, cosmetic, supplement, medical or children's products.",active,1,"Starting rule (legal/safety)",2026-09-29,2026-09-29
-R004,content,"Every video script starts with a 1-2 second hook that shows the problem, not the product name.",active,1,"Starting rule",2026-09-29,2026-09-29
-R005,content,"Never invent reviews, fake discounts or fake countdowns. Never claim delivery faster than the CJ estimate.",active,1,"Starting rule (legal)",2026-09-29,2026-09-29
-R006,support,"Anything about refunds, chargebacks, damaged items or angry customers goes to the owner, never answered alone.",active,1,"Starting rule",2026-09-29,2026-09-29
+rule_id,agent,rule,status,version,evidence
+R001,research,"Only pick products whose CJ product + shipping cost is at most one third of the selling price.",active,1,"Starting rule"
+R002,research,"Prefer products stocked in a CJ warehouse in the customer's country: faster delivery means fewer refunds and payment holds.",active,1,"Starting rule"
+R003,research,"Never pick branded, trademarked, battery-powered, cosmetic, supplement, medical or children's products.",active,1,"Starting rule (legal/safety, protected)"
+R004,content,"Every video starts with a 1-2 second shot of the problem or the finished result, never a logo or greeting.",active,1,"Starting rule"
+R005,content,"Never invent reviews, discounts, scarcity or countdowns, and never promise delivery faster than the CJ estimate.",active,1,"Starting rule (legal, protected)"
+R006,all,"Refunds, chargebacks, damaged items and angry customers always go to the owner. Agents never promise refunds.",active,1,"Starting rule (protected)"

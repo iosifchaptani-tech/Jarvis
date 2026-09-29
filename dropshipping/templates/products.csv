@@ -1,1 +1,1 @@
-date,cj_pid,cj_vid,name,cj_product_cost,cj_shipping_cost,warehouse,delivery_days,suggested_price,score,why,status,rule_versions
+day,pid,sku,name,image,cj_cost,ship_cost,ship_method,ship_days,sell_price,profit_per_order,score,why,angle,target_buyer,risks,prediction,status
