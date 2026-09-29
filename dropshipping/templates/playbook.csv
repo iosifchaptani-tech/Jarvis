@@ -1,0 +1,7 @@
+rule_id,agent,rule,status,version,evidence,created_at,approved_at
+R001,research,"Only pick products with CJ product + shipping cost at most one third of the selling price.",active,1,"Starting rule",2026-09-29,2026-09-29
+R002,research,"Prefer products in stock in a CJ warehouse in the customer's country (faster delivery = fewer refunds).",active,1,"Starting rule",2026-09-29,2026-09-29
+R003,research,"Never pick branded, trademarked, battery-powered, cosmetic, supplement, medical or children's products.",active,1,"Starting rule (legal/safety)",2026-09-29,2026-09-29
+R004,content,"Every video script starts with a 1-2 second hook that shows the problem, not the product name.",active,1,"Starting rule",2026-09-29,2026-09-29
+R005,content,"Never invent reviews, fake discounts or fake countdowns. Never claim delivery faster than the CJ estimate.",active,1,"Starting rule (legal)",2026-09-29,2026-09-29
+R006,support,"Anything about refunds, chargebacks, damaged items or angry customers goes to the owner, never answered alone.",active,1,"Starting rule",2026-09-29,2026-09-29
