@@ -5,3 +5,4 @@ R003,research,"Never pick branded, trademarked, battery-powered, cosmetic, suppl
 R004,content,"Every video starts with a 1-2 second shot of the problem or the finished result, never a logo or greeting.",active,1,"Starting rule"
 R005,content,"Never invent reviews, discounts, scarcity or countdowns, and never promise delivery faster than the CJ estimate.",active,1,"Starting rule (legal, protected)"
 R006,all,"Refunds, chargebacks, damaged items and angry customers always go to the owner. Agents never promise refunds.",active,1,"Starting rule (protected)"
+R007,support,"Keep replies under 120 words. Always include the order number, and the tracking number with its link when you have one.",active,1,"Starting rule"

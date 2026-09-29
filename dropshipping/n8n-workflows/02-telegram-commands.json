@@ -39,6 +39,18 @@
               "name": "cta_text",
               "value": "Link in bio",
               "type": "string"
+            },
+            {
+              "id": "a9e267c0-de21-5404-be2d-3a80946ae13d",
+              "name": "support_email",
+              "value": "PASTE_YOUR_SUPPORT_EMAIL",
+              "type": "string"
+            },
+            {
+              "id": "6c51f4a0-3b5f-5150-8641-11a59c22859a",
+              "name": "email_signature",
+              "value": "Best regards,\nThe support team",
+              "type": "string"
             }
           ]
         },
@@ -55,7 +67,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const s = $('⚙️ Settings').first().json;\nconst msg = $('Telegram message in').first().json.message || {};\nconst chatId = String(msg.chat?.id ?? '');\nconst text = String(msg.text || '').trim();\nconst [first, ...args] = text.split(/\\s+/);\nconst cmd = String(first || '').toLowerCase().replace(/^\\//, '').replace(/@.*$/, '');\n\nif (String(s.telegram_chat_id).startsWith('PASTE')) return [{ json: { route: 'setup', chatId, args, text } }];\nif (chatId !== String(s.telegram_chat_id)) return [];  // ignore everyone except the owner\n\nconst known = ['content', 'video', 'product', 'rules', 'clips', 'render'];\nreturn [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text } }];\n"
+        "jsCode": "const s = $('⚙️ Settings').first().json;\nconst msg = $('Telegram message in').first().json.message || {};\nconst chatId = String(msg.chat?.id ?? '');\nconst text = String(msg.text || '').trim();\nconst [first, ...args] = text.split(/\\s+/);\nconst cmd = String(first || '').toLowerCase().replace(/^\\//, '').replace(/@.*$/, '');\n\nif (String(s.telegram_chat_id).startsWith('PASTE')) return [{ json: { route: 'setup', chatId, args, text } }];\nif (chatId !== String(s.telegram_chat_id)) return [];  // ignore everyone except the owner\n\nconst known = ['content', 'video', 'product', 'rules', 'clips', 'render', 'send', 'reply', 'skip'];\nreturn [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text } }];\n"
       },
       "id": "a9e73da6-ae29-5fa5-8b0e-780ae08b2f27",
       "name": "Parse command",
@@ -261,6 +273,78 @@
               },
               "renameOutput": true,
               "outputKey": "render"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3d10a16b-17de-5454-960e-3ad524aa4852",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "635f86b7-0ef5-5c10-b1b4-418bfe158275",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "reply",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reply"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "bc273dc6-8e02-571c-bee6-debd13e6053a",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "skip",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "skip"
             }
           ]
         },
@@ -726,7 +810,7 @@
     {
       "parameters": {
         "chatId": "={{ $('Parse command').first().json.chatId }}",
-        "text": "🤖 Commands\n/content SKU - product page copy + 5 video scripts\n/clips SKU link1 link2 link3 - save your own phone clips (Google Drive/Dropbox links)\n/render ID - turn a script + your clips into a finished MP4\n/video ID views clicks sales - report how a video did\n/product SKU testing|winner|killed note - report how a product did\n/rules - show what the agents have learned\n\nResearch arrives every morning, the report every evening.",
+        "text": "🤖 Commands\n/content SKU - product page copy + 5 video scripts\n/clips SKU link1 link2 link3 - save your own phone clips (Google Drive/Dropbox links)\n/render ID - turn a script + your clips into a finished MP4\n/video ID views clicks sales - report how a video did\n/product SKU testing|winner|killed note - report how a product did\n/rules - show what the agents have learned\n/send T123 - send the support agent's draft reply\n/reply T123 your text - send your own reply instead (the agent learns from it)\n/skip T123 - close a support email without replying\n\nResearch arrives every morning, the report every evening.",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -1226,6 +1310,203 @@
         1980,
         1700
       ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support"
+        },
+        "returnAll": true
+      },
+      "id": "7f81d122-a091-59ac-b60d-85e3b4f795d0",
+      "name": "Load tickets",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        1900
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\n// Owner decisions on support emails: /send (the draft), /reply (own text), /skip.\nconst s = $('⚙️ Settings').first().json;\nconst cmd = $('Parse command').first().json;\nconst id = String(cmd.args[0] || '').toUpperCase();\nconst rows = rowsOf('Load tickets').filter(r => String(r.ticket_id).toUpperCase() === id);\nif (!id || !rows.length) return [{ json: { ok: false, reply: `I can't find ticket ${id || '(missing id)'}. Use the id from the support message, e.g. /send T0929153001` } }];\nconst first = rows[0];\nconst sent = rows.find(r => ['auto_sent', 'approved', 'owner_reply'].includes(r.decision));\nconst skipped = rows.find(r => r.decision === 'skipped');\nconst subject = /^re:/i.test(first.subject) ? first.subject : `Re: ${first.subject}`;\nconst day = $now.toFormat('yyyy-MM-dd');\nconst row = (decision, final_reply, note) => ({ day, ticket_id: first.ticket_id, from_email: first.from_email, from_name: first.from_name,\n  subject: first.subject, question: '', intent: first.intent, confidence: Number(first.confidence) || 0, order_name: first.order_name,\n  draft: '', final_reply, decision, note });\n\nif (cmd.route === 'send') {\n  if (sent) return [{ json: { ok: false, reply: `Ticket ${id} was already answered (${sent.decision}). Use /reply ${id} <text> to send a follow-up.` } }];\n  if (skipped) return [{ json: { ok: false, reply: `Ticket ${id} was skipped. Use /reply ${id} <text> if you still want to answer.` } }];\n  if (!first.draft) return [{ json: { ok: false, reply: `Ticket ${id} has no draft. Use /reply ${id} <text>.` } }];\n  return [{ json: { ok: true, send: true, to: first.from_email, subject, body: first.draft,\n    row: row('approved', first.draft, ''), reply: `✅ Sent the draft to ${first.from_email}.` } }];\n}\nif (cmd.route === 'reply') {\n  const text = String(cmd.text).replace(/^\\/reply(@\\S+)?\\s+\\S+\\s*/i, '').trim();\n  if (text.length < 5) return [{ json: { ok: false, reply: `Write your answer after the ticket id, e.g.\\n/reply ${id} Hi Anna, your parcel left our warehouse today...` } }];\n  const sig = String(s.email_signature || '').replace(/\\\\n/g, '\\n');\n  const body = sig && !text.includes(sig.split('\\n').pop()) ? `${text}\\n\\n${sig}` : text;\n  return [{ json: { ok: true, send: true, to: first.from_email, subject, body,\n    row: row('owner_reply', body, sent ? 'follow-up after ' + sent.decision : ''),\n    reply: `✅ Sent your reply to ${first.from_email}. The support agent will learn from it.` } }];\n}\nif (sent) return [{ json: { ok: false, reply: `Ticket ${id} was already answered, nothing to skip.` } }];\nreturn [{ json: { ok: true, send: false, row: row('skipped', '', ''), reply: `🗑️ Ticket ${id} closed without a reply.` } }];\n"
+      },
+      "id": "1094aba1-97af-5403-bf27-c0e7993d425a",
+      "name": "Build ticket action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "81f3452e-25e6-5e59-b689-b88e3b29552e",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c5b38d6d-a2b3-53f8-811e-f5cb2474e2c6",
+      "name": "Ticket ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        1900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "41469362-aa4c-5967-bd44-484e11d7e701",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "86a3dbd1-37f6-5e44-97ec-6e00cf0819dc",
+      "name": "Send an email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ Settings').first().json.support_email }}",
+        "toEmail": "={{ $('Build ticket action').first().json.to }}",
+        "subject": "={{ $('Build ticket action').first().json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $('Build ticket action').first().json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4a4523e3-7ca2-5782-b951-f3e2b648e799",
+      "name": "Email the customer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        1780
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $('Build ticket action').first().json.row }];\n"
+      },
+      "id": "99752759-2329-52d0-9ead-ebe98d1bcfea",
+      "name": "Ticket row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "780ee098-b3f9-53f7-8c39-2f551707f110",
+      "name": "Log ticket",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse command').first().json.chatId }}",
+        "text": "={{ $('Build ticket action').first().json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "028e7fcc-f408-52bf-a4dd-61a7ec34782d",
+      "name": "Confirm ticket",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        1840
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse command').first().json.chatId }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a074b6bc-2090-577e-87c1-87e50fc47cb4",
+      "name": "Ticket problem",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        2020
+      ]
     }
   ],
   "connections": {
@@ -1715,6 +1996,118 @@
         [
           {
             "node": "Load scripts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load tickets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load tickets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load tickets": {
+      "main": [
+        [
+          {
+            "node": "Build ticket action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build ticket action": {
+      "main": [
+        [
+          {
+            "node": "Ticket ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket ok?": {
+      "main": [
+        [
+          {
+            "node": "Send an email?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ticket problem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send an email?": {
+      "main": [
+        [
+          {
+            "node": "Email the customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ticket row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email the customer": {
+      "main": [
+        [
+          {
+            "node": "Ticket row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ticket row": {
+      "main": [
+        [
+          {
+            "node": "Log ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log ticket": {
+      "main": [
+        [
+          {
+            "node": "Confirm ticket",
             "type": "main",
             "index": 0
           }

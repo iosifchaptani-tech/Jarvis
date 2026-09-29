@@ -43,7 +43,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const o = $('Shopify: order paid').first().json.body || {};\nif (!o.id) return [];  // not an order payload\nconst items = (o.line_items || []).map(li => `${li.quantity}x ${li.title}${li.variant_title ? ' (' + li.variant_title + ')' : ''}`);\nreturn [{ json: {\n  day: $now.toFormat('yyyy-MM-dd'),\n  order_name: String(o.name || o.order_number || ''),\n  order_id: String(o.id),\n  revenue: Number(o.total_price) || 0,\n  currency: String(o.currency || ''),\n  items: items.join('; '),\n  skus: (o.line_items || []).map(li => li.sku).filter(Boolean).join(','),\n  country: String(o.shipping_address?.country_code || ''),\n} }];\n"
+        "jsCode": "const o = $('Shopify: order paid').first().json.body || {};\nif (!o.id) return [];  // not an order payload\nconst items = (o.line_items || []).map(li => `${li.quantity}x ${li.title}${li.variant_title ? ' (' + li.variant_title + ')' : ''}`);\nreturn [{ json: {\n  day: $now.toFormat('yyyy-MM-dd'),\n  order_name: String(o.name || o.order_number || ''),\n  order_id: String(o.id),\n  revenue: Number(o.total_price) || 0,\n  currency: String(o.currency || ''),\n  items: items.join('; '),\n  skus: (o.line_items || []).map(li => li.sku).filter(Boolean).join(','),\n  country: String(o.shipping_address?.country_code || ''),\n  email: String(o.email || o.contact_email || o.customer?.email || '').toLowerCase(),\n} }];\n"
       },
       "id": "470ac690-2951-50e5-b5e2-52cf5ed5f826",
       "name": "Order summary",

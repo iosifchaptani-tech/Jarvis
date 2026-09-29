@@ -190,12 +190,97 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(!v.ok && v.reply.includes('/clips CJ9'), JSON.stringify(v));
   });
 
+
+  // ------------------------------------------------ 06 support
+  const sup = '06-customer-support.json';
+  const s06 = [{ support_email: 'help@store.com', store_name: 'Desk Joy', email_signature: 'Best regards,\\nDesk Joy',
+    shipping_policy: '3-7 days', refund_policy: '30 days', auto_send: 'yes', min_confidence: 0.85,
+    ignore_senders: 'noreply,no-reply,mailer-daemon,shopify.com' }];
+  const emails = [
+    { from: 'Anna Smith <Anna@Example.com>', subject: 'Where is my order?', textPlain: 'Hi, where is my package?\n\nOn Mon, Sep 28 Desk Joy <help@store.com> wrote:\n> Thanks for your order' },
+    { from: 'Shopify <no-reply@shopify.com>', subject: 'New order', textPlain: 'x' },
+    { from: 'bob@example.com', subject: 'Re: Order #1002', textHtml: '<p>I want a refund or I will open a <b>chargeback</b></p>' },
+    { from: 'Anna Smith <anna@example.com>', subject: 'Automatic reply: away', textPlain: 'x' },
+  ];
+  const supOut = {
+    '⚙️ Settings': s06, 'New customer email': emails,
+    'Load orders': [{ day: '2026-09-27', order_name: '#1001', order_id: '555', items: '1x Organizer', country: 'US', email: 'anna@example.com' },
+                    { day: '2026-09-28', order_name: '#1002', order_id: '556', items: '1x Organizer', country: 'US', email: 'other@x.com' }],
+    'Load support history': [
+      { ticket_id: 'T1', decision: 'pending', draft: 'Your order ships soon.', question: 'where?', intent: 'where_is_my_order' },
+      { ticket_id: 'T1', decision: 'owner_reply', final_reply: 'Hi! It left our warehouse today, tracking below.', intent: 'where_is_my_order' }],
+    'Load playbook': [...playbook, { rule_id: 'R010', agent: 'support', rule: 'Max 120 words.', status: 'active', version: 1 }, { rule_id: 'R006', agent: 'all', rule: 'Refunds go to the owner.', status: 'active', version: 1 }],
+    'CJ: recent orders': [{ code: 200, data: { list: [{ orderNum: '1001', orderStatus: 'SHIPPED', trackNumber: 'YT2412345678901234', logisticName: 'YunExpress' }] } }],
+  };
+  let briefs;
+  await test('06 Build support briefs: filters, order facts, danger, learning', async () => {
+    briefs = await run(sup, 'Build support briefs', supOut, []);
+    assert(briefs.length === 2, 'expected 2 customer emails, got ' + briefs.length);
+    const [a, b] = briefs;
+    assert(a.from_email === 'anna@example.com' && a.from_name === 'Anna Smith' && a.order_name === '#1001', JSON.stringify(a).slice(0, 200));
+    assert(!a.question.includes('Thanks for your order') && a.question.includes('where is my package'), 'quote not stripped: ' + a.question);
+    assert(a.prompt.includes('Tracking number: YT2412345678901234') && a.prompt.includes('Status: shipped'), 'facts missing');
+    assert(a.known_ids.includes('YT2412345678901234') && !a.danger, 'known ids');
+    assert(a.prompt.includes('owner sent instead') && a.prompt.includes('[R010] Max 120 words.') && a.prompt.includes('[R006] Refunds go to the owner.') && !a.prompt.includes('[R001]'), 'learning/rules');
+    assert(b.danger && b.order_name === '#1002' && b.question.includes('chargeback'), 'danger/html ' + JSON.stringify(b).slice(0, 300));
+    assert(b.prompt.includes('no supplier update yet'), 'unsynced order');
+  });
+  const decide = (outs, settings = s06) => run(sup, 'Decide (safety check)', { '⚙️ Settings': settings, 'Build support briefs': briefs },
+    outs.map(o => ({ output: JSON.stringify(o) })));
+  await test('06 Decide: safe WISMO with real tracking is auto-sent, refund is not', async () => {
+    const [a, b] = await decide([
+      { intent: 'where_is_my_order', confidence: 0.93, needs_owner: false, summary: 's', reply: 'Hi Anna, your order #1001 shipped: YT2412345678901234 https://t.17track.net/en#nums=YT2412345678901234' },
+      { intent: 'refund_return', confidence: 0.95, needs_owner: true, reason: 'refund', summary: 's', reply: 'We are looking into it.' }]);
+    assert(a.auto === true && a.why === '', 'WISMO should auto-send: ' + a.why);
+    assert(b.auto === false && b.why.includes('refund_return') && b.why.includes('chargeback'), 'refund: ' + b.why);
+    assert(!('prompt' in a) && !('known_ids' in a), 'internal fields leaked');
+  });
+  await test('06 Decide: invented tracking, low confidence, promises, auto-send off', async () => {
+    let [a] = await decide([{ intent: 'where_is_my_order', confidence: 0.95, reply: 'Tracking: LX999999999CN' }, { intent: 'other', reply: 'x' }]);
+    assert(!a.auto && a.why.includes("can't verify"), a.why);
+    [a] = await decide([{ intent: 'shipping_time', confidence: 0.5, reply: 'Usually 3-7 days.' }, { intent: 'other', reply: 'x' }]);
+    assert(!a.auto && a.why.includes('50% sure'), a.why);
+    [a] = await decide([{ intent: 'product_question', confidence: 0.99, reply: 'Yes! And here is a discount code.' }, { intent: 'other', reply: 'x' }]);
+    assert(!a.auto && a.why.includes('refunds, discounts'), a.why);
+    [a] = await decide([{ intent: 'shipping_time', confidence: 0.99, reply: 'Usually 3-7 days.' }, { intent: 'other', reply: 'x' }], [{ ...s06[0], auto_send: 'no' }]);
+    assert(!a.auto && a.why.includes('auto-send is off'), a.why);
+    const bad = await run(sup, 'Decide (safety check)', { '⚙️ Settings': s06, 'Build support briefs': briefs }, [{ output: 'sorry, no json' }, { output: '' }]);
+    assert(!bad[0].auto && bad[0].why.includes('could not be read'), bad[0].why);
+  });
+  await test('06 log rows match the support table', async () => {
+    const cols = 'day,ticket_id,from_email,from_name,subject,question,intent,confidence,order_name,draft,final_reply,decision,note';
+    const t = { ticket_id: 'T9', from_email: 'a@b.c', from_name: 'A', subject: 's', question: 'q', intent: 'shipping_time', confidence: 0.9, order_name: '', draft: 'd', why: 'because' };
+    const [auto] = await run(sup, 'Auto-sent rows', { 'Safe to auto-send?': [t] }, []);
+    const [wait] = await run(sup, 'Waiting rows', {}, [t]);
+    assert(Object.keys(auto).join(',') === cols && Object.keys(wait).join(',') === cols, 'columns');
+    assert(auto.decision === 'auto_sent' && auto.final_reply === 'd' && wait.decision === 'pending' && wait.note === 'because', 'values');
+  });
+  await test('02 ticket commands: /send, /reply, /skip', async () => {
+    const hist = [{ ticket_id: 'T5', from_email: 'anna@example.com', from_name: 'Anna', subject: 'Where is it?', intent: 'where_is_my_order', confidence: 0.7, order_name: '#1001', draft: 'Hi Anna, it shipped.', decision: 'pending' }];
+    const s02 = [{ email_signature: 'Best regards,\\nDesk Joy' }];
+    const act = (route, text, h = hist) => run(cmds, 'Build ticket action', { '⚙️ Settings': s02, 'Load tickets': h,
+      'Parse command': [{ route, args: text.split(/\s+/).slice(1), text }] }, []);
+    let [r] = await act('send', '/send t5');
+    assert(r.ok && r.send && r.body === 'Hi Anna, it shipped.' && r.subject === 'Re: Where is it?' && r.row.decision === 'approved', JSON.stringify(r));
+    [r] = await act('send', '/send T5', [...hist, { ...hist[0], decision: 'approved' }]);
+    assert(!r.ok && r.reply.includes('already answered'), r.reply);
+    [r] = await act('reply', '/reply T5 Hi Anna,\nit left today.');
+    assert(r.ok && r.body === 'Hi Anna,\nit left today.\n\nBest regards,\nDesk Joy' && r.row.decision === 'owner_reply' && r.row.final_reply === r.body, JSON.stringify(r.body));
+    [r] = await act('skip', '/skip T5');
+    assert(r.ok && !r.send && r.row.decision === 'skipped', JSON.stringify(r));
+    [r] = await act('send', '/send T404');
+    assert(!r.ok && r.reply.includes('T404'), r.reply);
+    const cols = 'day,ticket_id,from_email,from_name,subject,question,intent,confidence,order_name,draft,final_reply,decision,note';
+    [r] = await act('send', '/send T5');
+    assert(Object.keys(r.row).join(',') === cols, 'row columns ' + Object.keys(r.row));
+  });
+
   // ------------------------------------------------ 03 / 04
   await test('03 Order summary', async () => {
     const [o] = await run('03-new-order-alert.json', 'Order summary', { 'Shopify: order paid': [{ body: {
       id: 555, name: '#1001', total_price: '29.99', currency: 'USD', shipping_address: { country_code: 'US' },
-      line_items: [{ quantity: 1, title: 'Cable Organizer', variant_title: 'Black', sku: 'CJ333-BK' }] } }] }, []);
-    assert(o.revenue === 29.99 && o.items === '1x Cable Organizer (Black)' && o.order_id === '555', JSON.stringify(o));
+      email: 'Anna@Example.com', line_items: [{ quantity: 1, title: 'Cable Organizer', variant_title: 'Black', sku: 'CJ333-BK' }] } }] }, []);
+    assert(o.email === 'anna@example.com' && o.revenue === 29.99 && o.items === '1x Cable Organizer (Black)' && o.order_id === '555', JSON.stringify(o));
     const none = await run('03-new-order-alert.json', 'Order summary', { 'Shopify: order paid': [{ body: {} }] }, []);
     assert(none.length === 0, 'non-order not ignored');
   });
@@ -224,6 +309,11 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     'Load feedback': [{ kind: 'video', ref: 'V1', views: 5000, clicks: 40, sales: 2 }, { kind: 'product', ref: 'CJ333-BK', status: 'testing' }],
     'Load content': [{ content_id: 'V1', day: today, hook: 'Result first', format: 'before-after', product: 'Org' }, { content_id: 'V9', day: '2020-01-01', hook: 'x' }],
     'Load products': priced, 'Load playbook': playbook, 'Load reports': [{}],
+    'Load support': [
+      { ticket_id: 'T1', day: today, decision: 'pending', intent: 'where_is_my_order', question: 'where?', draft: 'soon' },
+      { ticket_id: 'T1', day: today, decision: 'owner_reply', final_reply: 'It shipped today, tracking YT1.' },
+      { ticket_id: 'T2', day: today, decision: 'auto_sent', intent: 'shipping_time', draft: 'd', final_reply: 'd' },
+      { ticket_id: 'T3', day: today, decision: 'pending', intent: 'refund_return', draft: 'x' }],
   };
   let nums;
   await test('05 Compute numbers', async () => {
@@ -233,6 +323,8 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(Math.abs(n.est_profit_7d - (74.98 - 19.5 - (0.6 + 74.98 * 0.029))) < 0.02, 'profit ' + n.est_profit_7d);
     assert(nums.unmeasured === 1, 'unmeasured ' + nums.unmeasured);
     assert(nums.prompt.includes('R007') && nums.prompt.includes('IDEAS ALREADY REJECTED'), 'rejected list');
+    assert(nums.prompt.includes('3 emails: 1 auto-sent, 0 drafts approved as written, 1 rewritten by the owner, 0 skipped, 1 still waiting'), 'support line');
+    assert(nums.prompt.includes('owner sent: "It shipped today') && nums.waiting === 1, 'support corrections');
   });
   await test('05 Compute numbers when CJ is down', async () => {
     const [n2] = await run(coach, 'Compute numbers', { ...coachOutputs, 'CJ: paid orders (7 days)': [{ error: 'x' }] }, []);
@@ -255,7 +347,7 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const ids = g.changes.map(c => `${c.rule_id}:${c.status}:v${c.version}`);
     assert(JSON.stringify(ids) === '["R008:active:v1","R009:active:v1","R001:retired:v2"]', 'changes ' + ids);
     assert(g.has_changes && g.approval_text.includes('R008') && g.report_text.includes('Tomorrow:\n1. a'), 'texts');
-    assert(g.report_text.includes('1 videos have no stats'), 'nudge');
+    assert(g.report_text.includes('1 videos have no stats') && g.report_text.includes('1 customer email(s) are waiting'), 'nudges');
     assert(!g.changes.some(c => '_label' in c), 'label leaked into rows');
     const cols = 'day,orders_today,revenue_today,orders_7d,revenue_7d,cj_cost_7d,est_profit_7d,report';
     assert(Object.keys(g.report_row).join(',') === cols, 'report cols');

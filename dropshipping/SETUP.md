@@ -13,13 +13,16 @@ Do the parts in order. Plan on about 3-4 hours in total. Anything you have to ty
 | 3 | **CJ Shopify app** | Shopify admin → Apps → search "CJdropshipping" → install → connect your CJ account | free |
 | 4 | **Telegram bot** | In Telegram, message **@BotFather** → `/newbot` → pick a name → copy the **bot token** | free |
 | 5 | **Claude API key** | console.anthropic.com → API keys → create key. Add $10 credit and **set a monthly spend limit of $20** | pay per use, about $3-15/month for this system |
-| 6 | **JSON2Video** (Video agent, optional at first) | json2video.com → sign up → copy the API key | free tier for testing (watermarked, not for commercial posts); prepaid $49.95 = 7,200 credits ≈ 240 videos when you start posting |
+| 6 | **Support mailbox** (Support agent) | A **new, separate** email address just for customers, e.g. a free Gmail like `yourstore.help@gmail.com`. Turn on 2-Step Verification, then create an **App password** (Google Account → Security → App passwords) | free |
+| 7 | **JSON2Video** (Video agent, optional at first) | json2video.com → sign up → copy the API key | free tier for testing (watermarked, not for commercial posts); prepaid $49.95 = 7,200 credits ≈ 240 videos when you start posting |
 
 Then do these right away. They take days to clear, so don't leave them for later:
 
 - **Shopify → Settings → Payments:** turn on Shopify Payments and finish identity and bank verification. Add PayPal too.
 - **Shopify → Settings → Policies:** generate the refund, privacy, terms, shipping and contact policies.
   - EU customers: also turn on the withdrawal/cancellation button (a legal requirement since 19 June 2026).
+- **Shopify → Settings:** set the store's contact / customer email to the **support mailbox**, so replies to order emails land there.
+- **Privacy policy:** add one line saying customer emails are answered with the help of AI services (Anthropic). This matters for EU and UK customers (GDPR). Anthropic's API does not train on your data by default.
 - **CJ:** add a card or PayPal for paying orders. Then open the API page (under *Authorization → API* or *Developer*) and **generate an API key**. Copy it and keep it private.
 
 ---
@@ -61,7 +64,7 @@ Sign up at n8n.io. There's nothing to install. Skip to Part 3.
 
 ## Part 3: Create the agents' memory (Data Tables)
 
-In n8n: **Overview → Data tables → Create data table**. Create these 7 tables with **exactly** these names and columns.
+In n8n: **Overview → Data tables → Create data table**. Create these 8 tables with **exactly** these names and columns.
 
 - If n8n offers "Import CSV", use the matching file in `templates/`.
 - Otherwise add the columns by hand.
@@ -73,11 +76,12 @@ In n8n: **Overview → Data tables → Create data table**. Create these 7 table
 | `products` | day, pid, sku, name, image, cj_cost, ship_cost, ship_method, ship_days, sell_price, profit_per_order, score, why, angle, target_buyer, risks, prediction, status | cj_cost, ship_cost, sell_price, profit_per_order, score |
 | `content` | day, content_id, sku, product, format, hook, shots, on_screen_text, voiceover, caption, rules_version | none |
 | `feedback` | day, kind, ref, views, clicks, sales, status, note | views, clicks, sales |
-| `orders` | day, order_name, order_id, revenue, currency, items, skus, country | revenue |
+| `orders` | day, order_name, order_id, revenue, currency, items, skus, country, email | revenue |
 | `reports` | day, orders_today, revenue_today, orders_7d, revenue_7d, cj_cost_7d, est_profit_7d, report | every column except day and report |
 | `clips` | day, sku, url | none |
+| `support` | day, ticket_id, from_email, from_name, subject, question, intent, confidence, order_name, draft, final_reply, decision, note | confidence |
 
-**Important:** put the 6 starting rules from `templates/playbook.csv` into `playbook`, either by importing the CSV or by typing them in. These are the first things your agents "know". The coach adds to them every night.
+**Important:** put the 7 starting rules from `templates/playbook.csv` into `playbook`, either by importing the CSV or by typing them in. These are the first things your agents "know". The coach adds to them every night.
 
 ---
 
@@ -91,6 +95,10 @@ In n8n: **Overview → Data tables → Create data table**. Create these 7 table
 | **Telegram API** | `Telegram bot` | the BotFather token |
 | **Custom Auth** | `CJ API key` | `{"body": {"apiKey": "PASTE_YOUR_CJ_API_KEY"}}` |
 | **Header Auth** | `JSON2Video` | Name: `x-api-key` · Value: your JSON2Video API key |
+| **IMAP** | `Support inbox` | User: the support address · Password: the **App password** · Host: `imap.gmail.com` · Port: `993` · SSL on |
+| **SMTP** | `Support email` | User: the support address · Password: the **App password** · Host: `smtp.gmail.com` · Port: `465` · SSL on |
+
+These are Gmail's settings. For other providers, look up their IMAP and SMTP server names.
 
 The CJ key sits inside an n8n credential, so it's stored encrypted and never ends up in the workflow files.
 
@@ -104,10 +112,11 @@ The CJ key sits inside an n8n credential, so it's stored encrypted and never end
 |---|---|---|
 | `00-error-alerts.json` | Messages you on Telegram when any workflow breaks | on errors |
 | `01-product-research.json` | Research agent: CJ trending products → AI picks 3 → priced → Telegram | every day at 07:00 |
-| `02-telegram-commands.json` | Your remote control: `/content`, `/clips`, `/render` (Video agent), `/video`, `/product`, `/rules` | when you message the bot |
+| `02-telegram-commands.json` | Your remote control: `/content`, `/clips`, `/render` (Video agent), `/send` `/reply` `/skip` (support emails), `/video`, `/product`, `/rules` | when you message the bot |
 | `03-new-order-alert.json` | Shopify order → saved → "pay it in CJ" message | on every paid order |
 | `04-cj-order-check.json` | Warns about unpaid CJ orders and missing tracking | every 3 hours, 9:00-21:00 |
 | `05-daily-coach.json` | Daily report plus learning: proposes new playbook rules, which you approve | every day at 21:30 |
+| `06-customer-support.json` | Support agent: reads new customer emails, looks up their order and tracking, drafts a reply, and sends it only if safe; everything else goes to you on Telegram | every new email |
 
 In **each** workflow:
 1. Open every node with a red warning and pick the credential:
@@ -115,6 +124,8 @@ In **each** workflow:
    - Telegram nodes → **Telegram bot**
    - `CJ: get token` → **CJ API key**
    - `JSON2Video: start render` and `JSON2Video: check` (in 02) → **JSON2Video**
+   - `New customer email` (in 06) → **Support inbox**
+   - `Send reply email` (in 06) and `Email the customer` (in 02) → **Support email**
 2. If a Data Table node is red, pick the table from the dropdown.
 3. Open the **⚙️ Settings** node. It holds everything you might change: prices, markup, warehouse country, and so on.
 4. **Workflow menu → Settings → Error workflow → "00 · Error alerts"**.
@@ -122,7 +133,20 @@ In **each** workflow:
 ### Get your Telegram chat ID
 1. Activate workflow **02** (toggle top right).
 2. Send your bot any message. It replies: *"Your chat ID is 123456789"*.
-3. Paste that number into the **⚙️ Settings** node of **every** workflow (00-05) and save each one.
+3. Paste that number into the **⚙️ Settings** node of **every** workflow (00-06) and save each one.
+4. In the Settings of **02** and **06**, also fill in `support_email` and `email_signature`. In **06**, also fill in `store_name`, `shipping_policy` and `refund_policy`: the support agent may only promise what these say.
+
+### How the Support agent decides
+- **Every** customer email gets a draft on Telegram, with the order status and tracking number already looked up. Answer with:
+  - `/send T…` to send the draft
+  - `/reply T… your text` to send your own answer. The agent learns from it.
+  - `/skip T…` to close it without a reply
+- `auto_send` starts as **`no`**, so you approve every reply. After a week or two of good drafts, set it to `yes`. Even then, only these can go out without you, and only when the AI is at least 85% sure and every number in the reply is verified:
+  - "Where is my order?"
+  - "How long does shipping take?"
+  - simple product questions
+- **Always sent to you:** refunds, returns, damaged or wrong items, complaints, cancellations, address changes, chargebacks and legal threats. So is any draft that mentions refunds, discounts or replacements.
+- Shopify, CJ, PayPal and no-reply emails are ignored. See `ignore_senders` in Settings.
 
 From then on the bot only obeys you. Messages from anyone else are ignored.
 
@@ -144,8 +168,9 @@ From then on the bot only obeys you. Messages from anyone else are ignored.
 2. Send `/content <SKU from the picks>` to the bot. You get the page copy plus 5 video scripts.
 3. Film 3 short vertical clips of anything, upload them to Google Drive (share: *anyone with the link*), then send `/clips <SKU> <link1> <link2> <link3>` and `/render <video id>`. After 1-3 minutes you get the MP4. On the free JSON2Video tier it has a watermark, so it's for testing only.
 4. Send `/video <video id> 500 3 0` and `/product <SKU> testing`. The bot confirms both.
-5. Open **05** → **Execute workflow**. You get the daily report, and possibly an approval request for new rules.
-6. **Activate** 00, 01, 02, 03, 04 and 05.
+5. Email the support address from your personal email, asking "where is my order?". Within about a minute you get a draft on Telegram. Try `/reply T… test answer` and check your personal inbox.
+6. Open **05** → **Execute workflow**. You get the daily report, and possibly an approval request for new rules.
+7. **Activate** 00 to 06.
 
 Then order your sample in CJ.
 
@@ -162,5 +187,7 @@ Then order your sample in CJ.
 | Data Table "column not found" | A column name in the table doesn't match Part 3 exactly. |
 | Claude node error 400/401 | Check the API key and that you have credit. |
 | No research message but no error | Every CJ trending product was filtered out. Raise `max_cj_price` in ⚙️ Settings. |
+| Support agent never triggers | Check the IMAP credential (use the App password, not your normal password). Only **unread** emails are picked up, and they're marked as read afterwards. |
+| Customer never got the reply | Check the SMTP credential and look in the customer's spam folder. Gmail allows about 500 emails a day. |
 | "Render failed" | Open each clip link in a private browser window. It must download without logging in. Keep clips under about 50 MB. |
 | Video arrives as a link but not as a file | The file was over Telegram's 50 MB bot limit. Use the link, or shoot shorter or lower-bitrate clips. |

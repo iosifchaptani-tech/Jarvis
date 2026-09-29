@@ -484,7 +484,7 @@ const cmd = String(first || '').toLowerCase().replace(/^\//, '').replace(/@.*$/,
 if (String(s.telegram_chat_id).startsWith('PASTE')) return [{ json: { route: 'setup', chatId, args, text } }];
 if (chatId !== String(s.telegram_chat_id)) return [];  // ignore everyone except the owner
 
-const known = ['content', 'video', 'product', 'rules', 'clips', 'render'];
+const known = ['content', 'video', 'product', 'rules', 'clips', 'render', 'send', 'reply', 'skip'];
 return [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text } }];
 """
 
@@ -722,6 +722,42 @@ POSTING_CHECKLIST = (
     "5. After 48 hours: /video {{ $('Build video').first().json.content_id }} <views> <link clicks> <sales>"
 )
 
+TICKET_JS = JS_RULES + r"""
+// Owner decisions on support emails: /send (the draft), /reply (own text), /skip.
+const s = $('⚙️ Settings').first().json;
+const cmd = $('Parse command').first().json;
+const id = String(cmd.args[0] || '').toUpperCase();
+const rows = rowsOf('Load tickets').filter(r => String(r.ticket_id).toUpperCase() === id);
+if (!id || !rows.length) return [{ json: { ok: false, reply: `I can't find ticket ${id || '(missing id)'}. Use the id from the support message, e.g. /send T0929153001` } }];
+const first = rows[0];
+const sent = rows.find(r => ['auto_sent', 'approved', 'owner_reply'].includes(r.decision));
+const skipped = rows.find(r => r.decision === 'skipped');
+const subject = /^re:/i.test(first.subject) ? first.subject : `Re: ${first.subject}`;
+const day = $now.toFormat('yyyy-MM-dd');
+const row = (decision, final_reply, note) => ({ day, ticket_id: first.ticket_id, from_email: first.from_email, from_name: first.from_name,
+  subject: first.subject, question: '', intent: first.intent, confidence: Number(first.confidence) || 0, order_name: first.order_name,
+  draft: '', final_reply, decision, note });
+
+if (cmd.route === 'send') {
+  if (sent) return [{ json: { ok: false, reply: `Ticket ${id} was already answered (${sent.decision}). Use /reply ${id} <text> to send a follow-up.` } }];
+  if (skipped) return [{ json: { ok: false, reply: `Ticket ${id} was skipped. Use /reply ${id} <text> if you still want to answer.` } }];
+  if (!first.draft) return [{ json: { ok: false, reply: `Ticket ${id} has no draft. Use /reply ${id} <text>.` } }];
+  return [{ json: { ok: true, send: true, to: first.from_email, subject, body: first.draft,
+    row: row('approved', first.draft, ''), reply: `✅ Sent the draft to ${first.from_email}.` } }];
+}
+if (cmd.route === 'reply') {
+  const text = String(cmd.text).replace(/^\/reply(@\S+)?\s+\S+\s*/i, '').trim();
+  if (text.length < 5) return [{ json: { ok: false, reply: `Write your answer after the ticket id, e.g.\n/reply ${id} Hi Anna, your parcel left our warehouse today...` } }];
+  const sig = String(s.email_signature || '').replace(/\\n/g, '\n');
+  const body = sig && !text.includes(sig.split('\n').pop()) ? `${text}\n\n${sig}` : text;
+  return [{ json: { ok: true, send: true, to: first.from_email, subject, body,
+    row: row('owner_reply', body, sent ? 'follow-up after ' + sent.decision : ''),
+    reply: `✅ Sent your reply to ${first.from_email}. The support agent will learn from it.` } }];
+}
+if (sent) return [{ json: { ok: false, reply: `Ticket ${id} was already answered, nothing to skip.` } }];
+return [{ json: { ok: true, send: false, row: row('skipped', '', ''), reply: `🗑️ Ticket ${id} closed without a reply.` } }];
+"""
+
 HELP_TEXT = """🤖 Commands
 /content SKU - product page copy + 5 video scripts
 /clips SKU link1 link2 link3 - save your own phone clips (Google Drive/Dropbox links)
@@ -729,6 +765,9 @@ HELP_TEXT = """🤖 Commands
 /video ID views clicks sales - report how a video did
 /product SKU testing|winner|killed note - report how a product did
 /rules - show what the agents have learned
+/send T123 - send the support agent's draft reply
+/reply T123 your text - send your own reply instead (the agent learns from it)
+/skip T123 - close a support email without replying
 
 Research arrives every morning, the report every evening."""
 
@@ -741,9 +780,12 @@ def build_commands():
         ("telegram_chat_id", "PASTE_YOUR_TELEGRAM_CHAT_ID"),
         ("voice", "en-US-EmmaMultilingualNeural"),
         ("cta_text", "Link in bio"),
+        ("support_email", "PASTE_YOUR_SUPPORT_EMAIL"),
+        ("email_signature", "Best regards,\nThe support team"),
     ], [220, 300])
     code(wf, "Parse command", PARSE_CMD_JS, [440, 300])
-    switch(wf, "Route", "route", ["content", "video", "product", "rules", "setup", "help", "clips", "render"], [660, 300])
+    switch(wf, "Route", "route", ["content", "video", "product", "rules", "setup", "help", "clips", "render",
+                                   "send", "reply", "skip"], [660, 300])
     reply_chat = "={{ $('Parse command').first().json.chatId }}"
 
     # /content
@@ -853,6 +895,32 @@ def build_commands():
     wf.connect("Route", "Send help", out=5)
     wf.connect("Route", "Build clips", out=6)
     wf.connect("Route", "Load scripts", out=7)
+
+    # /send /reply /skip: owner decisions on support emails
+    table_get(wf, "Load tickets", "support", [880, 1900])
+    code(wf, "Build ticket action", TICKET_JS, [1100, 1900])
+    if_true(wf, "Ticket ok?", "={{ $json.ok }}", [1320, 1900])
+    if_true(wf, "Send an email?", "={{ $json.send }}", [1540, 1840])
+    wf.add("Email the customer", "n8n-nodes-base.emailSend", 2.1, {
+        "fromEmail": "={{ $('⚙️ Settings').first().json.support_email }}",
+        "toEmail": "={{ $('Build ticket action').first().json.to }}",
+        "subject": "={{ $('Build ticket action').first().json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $('Build ticket action').first().json.body }}",
+        "options": {"appendAttribution": False},
+    }, [1760, 1780])
+    code(wf, "Ticket row", "return [{ json: $('Build ticket action').first().json.row }];", [1980, 1840])
+    table_insert(wf, "Log ticket", "support", [2200, 1840])
+    wf.add("Confirm ticket", "n8n-nodes-base.telegram", 1.2, {
+        "chatId": reply_chat, "text": "={{ $('Build ticket action').first().json.reply }}",
+        "additionalFields": {"appendAttribution": False}}, [2420, 1840], executeOnce=True)
+    telegram(wf, "Ticket problem", "={{ $json.reply }}", [1540, 2020], reply_chat)
+    wf.chain("Load tickets", "Build ticket action", "Ticket ok?", "Send an email?", "Email the customer",
+             "Ticket row", "Log ticket", "Confirm ticket")
+    wf.connect("Send an email?", "Ticket row", out=1)
+    wf.connect("Ticket ok?", "Ticket problem", out=1)
+    for i in (8, 9, 10):
+        wf.connect("Route", "Load tickets", out=i)
     wf.save("02-telegram-commands.json")
 
 
@@ -871,6 +939,7 @@ return [{ json: {
   items: items.join('; '),
   skus: (o.line_items || []).map(li => li.sku).filter(Boolean).join(','),
   country: String(o.shipping_address?.country_code || ''),
+  email: String(o.email || o.contact_email || o.customer?.email || '').toLowerCase(),
 } }];
 """
 
@@ -943,7 +1012,7 @@ def build_cj_check():
 COACH_SYSTEM = """You are the Coach of a one-person dropshipping store run by a beginner. Every evening you read the store's real numbers and do two jobs:
 
 1. Write a short, honest report for the owner's phone: what happened, what it means, and exactly 3 concrete actions for tomorrow. Plain words, no hype. If the data is too thin to conclude anything, say so.
-2. Improve the PLAYBOOK: the numbered rules the Research and Content agents follow. You may propose adding a rule or retiring one.
+2. Improve the PLAYBOOK: the numbered rules the Research, Content and Support agents follow. You may propose adding a rule or retiring one.
 
 How to change the playbook:
 - Only propose a change that the data supports with at least 3 data points (for example 3+ measured videos or 3+ products). Name the evidence.
@@ -997,6 +1066,20 @@ const all = latestRules(rowsOf('Load playbook'));
 const active = all.filter(r => r.status === 'active');
 const dead = all.filter(r => r.status === 'rejected' || r.status === 'retired').slice(-10);
 const last = rowsOf('Load reports').slice(-1)[0];
+
+// Support: what the owner approved, rewrote or had to handle
+const tickets = {};
+for (const r of rowsOf('Load support')) (tickets[r.ticket_id] = tickets[r.ticket_id] || []).push(r);
+const t7 = Object.values(tickets).filter(rs => rs[0].day >= weekAgo);
+const has = (rs, d) => rs.some(r => r.decision === d);
+const waiting = Object.values(tickets).filter(rs => rs.every(r => r.decision === 'pending')).length;
+const corrections = t7.filter(rs => rs[0].draft && has(rs, 'owner_reply')).slice(-3).map(rs =>
+  `- [${rs[0].intent}] customer: "${String(rs[0].question).slice(0, 160)}"\n  draft: "${String(rs[0].draft).slice(0, 220)}"\n  owner sent: "${String(rs.find(r => r.decision === 'owner_reply').final_reply).slice(0, 220)}"`);
+const intents = {};
+for (const rs of t7) intents[rs[0].intent] = (intents[rs[0].intent] || 0) + 1;
+const supportLine = `${t7.length} emails: ${t7.filter(rs => has(rs, 'auto_sent')).length} auto-sent, `
+  + `${t7.filter(rs => has(rs, 'approved')).length} drafts approved as written, ${t7.filter(rs => has(rs, 'owner_reply')).length} rewritten by the owner, `
+  + `${t7.filter(rs => has(rs, 'skipped')).length} skipped, ${waiting} still waiting. Topics: ${Object.entries(intents).map(([k, v]) => k + ' ' + v).join(', ') || '-'}`;
 const money = v => v === null ? 'unknown (CJ API unavailable)' : '$' + v;
 
 const prompt = `Date: ${today}
@@ -1019,16 +1102,21 @@ ${active.map(r => `- ${r.rule_id} v${r.version} (${r.agent}): ${r.rule}`).join('
 IDEAS ALREADY REJECTED OR RETIRED (do not propose again)
 ${dead.map(r => `- ${r.rule_id} (${r.agent}): ${r.rule}`).join('\n') || '- none'}
 
+SUPPORT EMAILS (last 7 days)
+${supportLine}
+Drafts the owner rewrote (learn the owner's style and facts from these):
+${corrections.join('\n') || '- none'}
+
 YESTERDAY'S REPORT
 ${last ? String(last.report).slice(0, 800) : '- none'}
 
 Reply with only this JSON:
 {"report":"<max 700 characters>","actions":["<action 1>","<action 2>","<action 3>"],
- "add_rules":[{"agent":"research|content","rule":"<max 200 characters>","evidence":"<which data points>"}],
+ "add_rules":[{"agent":"research|content|support","rule":"<max 200 characters>","evidence":"<which data points>"}],
  "retire_rules":[{"rule_id":"<id>","reason":"<which data points>"}]}`;
 
 return [{ json: {
-  prompt, today, unmeasured,
+  prompt, today, unmeasured, waiting,
   numbers: { orders_today: oToday.length, revenue_today: revToday, orders_7d: o7.length, revenue_7d: rev7,
              cj_cost_7d: cjCost7, est_profit_7d: profit7 },
 } }];
@@ -1045,7 +1133,7 @@ const byId = Object.fromEntries(all.map(r => [r.rule_id, r]));
 const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 const known = new Set(all.map(r => norm(r.rule)));
 const PROTECTED = new Set(['R003', 'R005', 'R006']);
-const AGENTS = ['research', 'content'];
+const AGENTS = ['research', 'content', 'support'];
 const BAD = /(https?:|www\.|api.?key|password|token|secret|credential|ignore (all|previous|the above)|system prompt|budget|spend more|fake|fabricat|invent|countdown|scarcity|guarantee)/i;
 let next = Math.max(0, ...all.map(r => parseInt(String(r.rule_id).replace(/\D/g, ''), 10) || 0)) + 1;
 
@@ -1076,6 +1164,7 @@ ${String(out.report || '').slice(0, 900)}
 
 Tomorrow:
 ${(out.actions || []).slice(0, 3).map((a, i) => `${i + 1}. ${a}`).join('\n')}`;
+if (brief.waiting > 0) report += `\n\n📨 ${brief.waiting} customer email(s) are waiting for you: answer with /send, /reply or /skip.`;
 if (brief.unmeasured > 0) report += `\n\n📝 ${brief.unmeasured} videos have no stats yet. Send /video <id> <views> <clicks> <sales> so the agents can learn.`;
 
 const approval = `🧠 The coach wants to update the playbook (the rules the agents follow):\n\n`
@@ -1106,7 +1195,8 @@ def build_coach():
     ], [220, 0])
     x = 440
     for name, table in [("Load playbook", "playbook"), ("Load products", "products"), ("Load content", "content"),
-                        ("Load feedback", "feedback"), ("Load orders", "orders"), ("Load reports", "reports")]:
+                        ("Load feedback", "feedback"), ("Load orders", "orders"), ("Load reports", "reports"),
+                        ("Load support", "support")]:
         table_get(wf, name, table, [x, 0])
         x += 220
     wf.add("CJ: get token", "n8n-nodes-base.httpRequest", 4.2, {
@@ -1153,12 +1243,259 @@ def build_coach():
     table_insert(wf, "Save rejected ideas", "playbook", [x + 2860, 0])
 
     wf.chain("Every evening 21:30", "⚙️ Settings", "Load playbook", "Load products", "Load content", "Load feedback",
-             "Load orders", "Load reports", "CJ: get token", "Wait 2s", "CJ: paid orders (7 days)", "Compute numbers",
+             "Load orders", "Load reports", "Load support", "CJ: get token", "Wait 2s", "CJ: paid orders (7 days)", "Compute numbers",
              "Coach agent", "Check proposals (guardrails)", "Report row", "Save report", "Send report",
              "Any rule changes?", "Ask owner to approve", "Approved?", "Rules to activate", "Save approved rules")
     wf.connect("Approved?", "Rules to remember as rejected", out=1)
     wf.connect("Rules to remember as rejected", "Save rejected ideas")
     wf.save("05-daily-coach.json")
+
+# ------------------------------------------------------- 06 customer support
+
+SUPPORT_SYSTEM = """You are the Support agent of a small online store. You read one customer email and draft the reply the owner would send.
+
+How to answer:
+- Friendly, calm, short (under 120 words), plain text, in the customer's language. Use their first name if you know it.
+- Only state facts you are given: the ORDER FACTS and the POLICIES. If a fact is missing, say you are checking and will follow up. Never guess a status, a date or a tracking number.
+- When there is a tracking number, give it with its tracking link.
+- End with the signature you are given.
+
+What you must never do (set needs_owner to true instead):
+- Promise or refuse a refund, return, replacement, discount, compensation or anything free.
+- Handle damaged, wrong or missing items, complaints, cancellations, address changes, chargebacks, PayPal or bank disputes, or legal threats.
+- Admit fault, blame the supplier by name, mention CJ or dropshipping, or share another customer's data.
+
+Follow the PLAYBOOK rules exactly; they come from the owner's feedback. Copy the tone of the APPROVED ANSWERS and learn from the owner's CORRECTIONS. Reply with only the JSON the user asks for."""
+
+SUPPORT_BRIEFS_JS = JS_RULES + r"""
+// One brief per new email: who wrote, what they asked, and the facts about their orders.
+const s = $('⚙️ Settings').first().json;
+const emails = $('New customer email').all().map(i => i.json);
+const own = String(s.support_email || '').toLowerCase();
+const ignore = String(s.ignore_senders || '').toLowerCase().split(',').map(x => x.trim()).filter(Boolean);
+const orders = rowsOf('Load orders');
+const history = rowsOf('Load support history');
+const cj = $('CJ: recent orders').first().json;
+const cjList = cj && cj.code === 200 ? (cj.data?.list || []) : [];
+const norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const human = { CREATED: 'received, being processed', IN_CART: 'received, being processed', UNPAID: 'received, being processed',
+  PENDING: 'being prepared at the warehouse', PROCESSING: 'being prepared at the warehouse', UNSHIPPED: 'being prepared at the warehouse',
+  SHIPPED: 'shipped', DELIVERED: 'delivered', CANCELLED: 'cancelled' };
+const DANGER = /(chargeback|dispute|paypal claim|claim with|lawyer|attorney|legal action|\bsue\b|police|fraud|scam|trading standards|consumer protection|\bbbb\b|small claims)/i;
+
+// What the owner taught the agent: approved answers and rewrites
+const tickets = {};
+for (const r of history) (tickets[r.ticket_id] = tickets[r.ticket_id] || []).push(r);
+const good = history.filter(r => ['approved', 'owner_reply'].includes(r.decision) && r.final_reply).slice(-4)
+  .map(r => `- [${r.intent}] ${String(r.final_reply).slice(0, 500)}`).join('\n') || '- none yet';
+const fixes = Object.values(tickets).map(rs => {
+  const d = rs.find(r => r.draft), o = rs.find(r => r.decision === 'owner_reply');
+  return d && o ? `- customer: "${String(d.question).slice(0, 200)}"\n  your draft: "${String(d.draft).slice(0, 300)}"\n  owner sent instead: "${String(o.final_reply).slice(0, 400)}"` : null;
+}).filter(Boolean).slice(-3).join('\n') || '- none yet';
+const rules = activeRules(rowsOf('Load playbook'), ['support']);
+const sig = String(s.email_signature || '').replace(/\\n/g, '\n');
+
+const out = [];
+emails.forEach((e, i) => {
+  const fromRaw = String(e.from || '');
+  const m = fromRaw.match(/<([^>]+)>/);
+  const address = (m ? m[1] : fromRaw).trim().toLowerCase();
+  const name = (m ? fromRaw.slice(0, fromRaw.indexOf('<')) : '').replace(/"/g, '').trim();
+  const subject = String(e.subject || '(no subject)').trim();
+  if (!address.includes('@') || address === own || ignore.some(x => address.includes(x))) return;
+  if (/^(auto(matic)? ?reply|out of office|undeliverable|delivery status|mail delivery)/i.test(subject)) return;
+
+  let body = String(e.textPlain || '').trim()
+    || String(e.textHtml || '').replace(/<(style|script)[\s\S]*?<\/\1>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+  body = body.split(/\n\s*(?:On .{5,200}wrote:|-{2,}\s*Original Message|From: .+@)/i)[0]
+    .split('\n').filter(l => !l.trim().startsWith('>')).join('\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 3000);
+
+  const mentioned = [...`${subject} ${body}`.matchAll(/#?\b(\d{3,8})\b/g)].map(x => x[1]);
+  const mine = orders.filter(o => (o.email && String(o.email).toLowerCase() === address)
+    || mentioned.some(n => norm(o.order_name) === n || norm(o.order_id) === n)).slice(-3);
+  const known = [];
+  const facts = mine.map(o => {
+    const c = cjList.find(x => x.orderNum && [norm(o.order_name), norm(o.order_id)].includes(norm(x.orderNum)));
+    known.push(o.order_name, o.order_id);
+    let line = `- Order ${o.order_name} placed ${o.day}: ${o.items} (ship to ${o.country}). Status: `;
+    if (!c) line += 'no supplier update yet (orders usually leave the warehouse within 1-3 business days)';
+    else {
+      line += human[c.orderStatus] || String(c.orderStatus).toLowerCase();
+      if (c.trackNumber) {
+        known.push(c.trackNumber);
+        line += `. Carrier: ${c.logisticName || 'unknown'}. Tracking number: ${c.trackNumber}. Tracking link: https://t.17track.net/en#nums=${c.trackNumber}`;
+      }
+    }
+    return line;
+  });
+
+  const prompt = `STORE: ${s.store_name}
+POLICIES (the only promises allowed):
+Shipping: ${s.shipping_policy}
+Returns and refunds: ${s.refund_policy}
+Sign every reply with:
+${sig}
+
+PLAYBOOK (rules learned from the owner's feedback - follow them):
+${rulesText(rules)}
+
+APPROVED ANSWERS (match this tone):
+${good}
+
+CORRECTIONS (the owner rewrote these drafts - learn from them):
+${fixes}
+
+CUSTOMER: ${name || '(no name)'} <${address}>
+ORDER FACTS (from the store and the supplier - the only order facts you may state):
+${facts.join('\n') || '- no order found for this email address or order number'}
+
+EMAIL
+Subject: ${subject}
+${body}
+
+Reply with only this JSON:
+{"intent":"where_is_my_order|shipping_time|product_question|order_change|refund_return|damaged_wrong_missing|complaint|legal_chargeback|spam|other","confidence":<0.0-1.0>,"needs_owner":<true|false>,"reason":"<why the owner must decide, or empty>","summary":"<one short line for the owner>","reply":"<the email reply>"}`;
+
+  out.push({ json: {
+    ticket_id: 'T' + $now.toFormat('MMddHHmmss') + i,
+    from_email: address, from_name: name, subject, question: body,
+    order_name: mine.map(o => o.order_name).join(','), has_order: mine.length > 0,
+    known_ids: known.filter(Boolean).map(String), danger: DANGER.test(`${subject} ${body}`), prompt,
+  } });
+});
+return out;
+"""
+
+SUPPORT_DECIDE_JS = r"""
+// Deterministic safety check: the AI drafts, but only code decides what may be sent without the owner.
+const s = $('⚙️ Settings').first().json;
+const briefs = $('Build support briefs').all().map(i => i.json);
+const SAFE = ['where_is_my_order', 'shipping_time', 'product_question'];
+const PROMISE = /(refund|money back|reimburs|compensat|discount|coupon|voucher|free (replacement|gift|item|shipping)|guarantee|replacement|we will (send|ship) (you )?(a )?new)/i;
+const norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+return $input.all().map((item, i) => {
+  const b = briefs[i];
+  let a = null;
+  try {
+    const raw = item.json.output ?? '';
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    a = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+  } catch (e) { a = null; }
+  const reply = String(a?.reply || '').trim();
+  const intent = String(a?.intent || 'other');
+  const conf = Math.max(0, Math.min(1, Number(a?.confidence) || 0));
+  const known = b.known_ids.map(norm);
+  const unknownIds = (reply.match(/\b(?=[A-Z0-9]*\d)[A-Z0-9]{10,30}\b/gi) || []).filter(t => !known.includes(norm(t)));
+
+  const why = [];
+  if (!a || !reply) why.push('the AI draft could not be read');
+  if (String(s.auto_send).toLowerCase() !== 'yes') why.push('auto-send is off, so you approve every reply');
+  if (!SAFE.includes(intent)) why.push(`"${intent}" emails always go to you`);
+  if (conf < s.min_confidence) why.push(`the AI is only ${Math.round(conf * 100)}% sure`);
+  if (a?.needs_owner) why.push('the AI asked for you' + (a.reason ? ': ' + a.reason : ''));
+  if (b.danger) why.push('the email mentions a dispute, chargeback or legal step');
+  if (PROMISE.test(reply)) why.push('the draft mentions refunds, discounts or replacements');
+  if (unknownIds.length) why.push(`the draft contains a number I can't verify (${unknownIds[0]})`);
+  if (intent === 'where_is_my_order' && !b.has_order) why.push('no matching order was found');
+
+  const { prompt, known_ids, danger, has_order, ...rest } = b;
+  return { json: { ...rest, intent, confidence: Math.round(conf * 100) / 100, summary: String(a?.summary || ''),
+    draft: reply, auto: why.length === 0, why: why.join('; ') } };
+});
+"""
+
+SUPPORT_ROW = """({ day: $now.toFormat('yyyy-MM-dd'), ticket_id: t.ticket_id, from_email: t.from_email, from_name: t.from_name,
+  subject: t.subject, question: t.question, intent: t.intent, confidence: t.confidence, order_name: t.order_name,
+  draft: t.draft, final_reply: %s, decision: '%s', note: %s })"""
+
+AUTO_ROWS_JS = "return $('Safe to auto-send?').all(0).map(({ json: t }) => ({ json: " + (SUPPORT_ROW % ("t.draft", "auto_sent", "''")) + " }));"
+PENDING_ROWS_JS = "return $input.all().map(({ json: t }) => ({ json: " + (SUPPORT_ROW % ("''", "pending", "t.why")) + " }));"
+
+OWNER_MSG = (
+    "=📨 Customer email {{ $json.ticket_id }} needs you\n"
+    "From: {{ $json.from_name }} <{{ $json.from_email }}>\n"
+    "Subject: {{ $json.subject }}\n"
+    "Topic: {{ $json.intent }} ({{ Math.round($json.confidence * 100) }}% sure){{ $json.order_name ? ' · order ' + $json.order_name : '' }}\n"
+    "Why you: {{ $json.note }}\n\n"
+    "They wrote:\n{{ $json.question.slice(0, 1200) }}\n\n"
+    "Draft reply:\n{{ ($json.draft || '(no draft)').slice(0, 1800) }}\n\n"
+    "➡️ /send {{ $json.ticket_id }} sends this draft\n"
+    "➡️ /reply {{ $json.ticket_id }} your text sends your own answer\n"
+    "➡️ /skip {{ $json.ticket_id }} closes it without a reply"
+)
+
+AUTO_MSG = (
+    "=✉️ Auto-replied to {{ $json.from_email }} ({{ $json.intent }}): {{ $json.summary }}\n\n"
+    "{{ $json.final_reply.slice(0, 1500) }}\n\n"
+    "Not right? /reply {{ $json.ticket_id }} <better answer> sends a correction and teaches the agent."
+)
+
+
+def build_support():
+    wf = Workflow("06 · Customer support (email)")
+    wf.add("New customer email", "n8n-nodes-base.emailReadImap", 2.1, {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {},
+    }, [0, 0])
+    settings(wf, [
+        ("telegram_chat_id", "PASTE_YOUR_TELEGRAM_CHAT_ID"),
+        ("support_email", "PASTE_YOUR_SUPPORT_EMAIL"),
+        ("store_name", "PASTE_YOUR_STORE_NAME"),
+        ("email_signature", "Best regards,\\nThe support team"),
+        ("shipping_policy", "Orders are processed in 1-3 business days and delivered in 3-7 business days in the US. "
+                            "Every order gets a tracking number by email."),
+        ("refund_policy", "PASTE A SHORT SUMMARY OF YOUR SHOPIFY REFUND POLICY"),
+        ("auto_send", "no"),
+        ("min_confidence", 0.85),
+        ("ignore_senders", "noreply,no-reply,mailer-daemon,postmaster,notifications,shopify.com,cjdropshipping.com,"
+                           "paypal.com,stripe.com,facebookmail.com,tiktok.com,google.com"),
+    ], [220, 0])
+    table_get(wf, "Load orders", "orders", [440, 0])
+    table_get(wf, "Load playbook", "playbook", [660, 0])
+    table_get(wf, "Load support history", "support", [880, 0])
+    wf.add("CJ: get token", "n8n-nodes-base.httpRequest", 4.2, {
+        "method": "POST",
+        "url": f"{CJ}/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": True,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {},
+    }, [1100, 0], executeOnce=True, onError="continueRegularOutput")
+    wait(wf, "Wait 2s", 2, [1320, 0])
+    cj_get(wf, "CJ: recent orders", "/shopping/order/list", [("pageNum", "1"), ("pageSize", "50")], [1540, 0],
+           executeOnce=True, onError="continueRegularOutput")
+    code(wf, "Build support briefs", SUPPORT_BRIEFS_JS, [1760, 0])
+    agent(wf, "Support agent", "={{ $json.prompt }}", SUPPORT_SYSTEM, [1980, 0], [1980, 220])
+    code(wf, "Decide (safety check)", SUPPORT_DECIDE_JS, [2200, 0])
+    if_true(wf, "Safe to auto-send?", "={{ $json.auto }}", [2420, 0])
+    wf.add("Send reply email", "n8n-nodes-base.emailSend", 2.1, {
+        "fromEmail": "={{ $('⚙️ Settings').first().json.support_email }}",
+        "toEmail": "={{ $json.from_email }}",
+        "subject": "={{ /^re:/i.test($json.subject) ? $json.subject : 'Re: ' + $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.draft }}",
+        "options": {"appendAttribution": False},
+    }, [2640, -120])
+    code(wf, "Auto-sent rows", AUTO_ROWS_JS, [2860, -120])
+    table_insert(wf, "Log auto replies", "support", [3080, -220])
+    telegram(wf, "Tell owner (auto-sent)", AUTO_MSG, [3080, -40])
+    code(wf, "Waiting rows", PENDING_ROWS_JS, [2640, 120])
+    table_insert(wf, "Log waiting emails", "support", [2860, 60])
+    telegram(wf, "Ask owner", OWNER_MSG, [2860, 220])
+
+    wf.chain("New customer email", "⚙️ Settings", "Load orders", "Load playbook", "Load support history",
+             "CJ: get token", "Wait 2s", "CJ: recent orders", "Build support briefs", "Support agent",
+             "Decide (safety check)", "Safe to auto-send?", "Send reply email", "Auto-sent rows", "Log auto replies")
+    wf.connect("Auto-sent rows", "Tell owner (auto-sent)")
+    wf.connect("Safe to auto-send?", "Waiting rows", out=1)
+    wf.connect("Waiting rows", "Log waiting emails")
+    wf.connect("Waiting rows", "Ask owner")
+    wf.save("06-customer-support.json")
 
 
 if __name__ == "__main__":
@@ -1169,3 +1506,4 @@ if __name__ == "__main__":
     build_order_alert()
     build_cj_check()
     build_coach()
+    build_support()

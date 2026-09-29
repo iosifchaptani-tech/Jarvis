@@ -32,6 +32,8 @@ These are estimates. No rigorous public data on dropshipping success exists, and
          you: post it on TikTok, Reels and Shorts (auto-posting is blocked for new apps)
 customer pays -> Shopify -> CJ app imports the order -> ORDER ALERT on Telegram -> you pay in CJ -> CJ ships
 every 3h        ORDER CHECK ── warns about unpaid CJ orders and missing tracking after 48h
+new email       SUPPORT AGENT ── looks up the customer's order + tracking -> drafts a reply
+                   └─> safe questions can be auto-sent; everything else -> Telegram: /send, /reply or /skip
 /video ID views clicks sales    /product SKU testing|winner|killed    <- your results feed the memory
 21:30  COACH AGENT ── real numbers -> daily report + 3 actions for tomorrow
                    └─> proposes up to 3 new PLAYBOOK rules with evidence -> you tap ✅ or ❌
@@ -49,6 +51,7 @@ next morning: every agent loads the updated playbook -> better picks and better 
 
   The agents can never change their code, credentials, prices or spending.
 - **The more results you report, the faster it learns.** Send `/video` stats 48 hours after each post.
+- **Support learns from your corrections:** every `/reply` you send is shown to the support agent as an example, and the coach can turn patterns into support rules.
 
 | Automated | You do (about 1-2 hours a day) |
 |---|---|
@@ -56,7 +59,8 @@ next morning: every agent loads the updated playbook -> better picks and better 
 | Page copy, 5 scripts per product | Paste the copy into Shopify |
 | Video editing: voice, captions, scenes | Film clips with your phone (hands-only), post the videos |
 | Order alerts, unpaid and late order warnings | Pay each CJ order (one click, card or PayPal) |
-| Daily profit report, learning, rule proposals | Tap ✅/❌, report video stats, answer customer emails |
+| Customer emails: order lookup, tracking, draft replies | Approve with `/send`, or rewrite with `/reply` (it learns from you) |
+| Daily profit report, learning, rule proposals | Tap ✅/❌, report video stats |
 
 ## 3. Budget
 
@@ -68,6 +72,7 @@ next morning: every agent loads the updated playbook -> better picks and better 
 | Cash to pay CJ for first orders | about $25 | about $60 | $100-150 |
 | n8n | $0 (your PC) | €6 (Hetzner) | €6 |
 | Claude API | $5 | $10 | $15 |
+| Support mailbox | $0 (Gmail) | $0 | $0 |
 | JSON2Video | free test tier (watermark) | $49.95 prepaid (≈240 videos) | $49.95 |
 | Meta ads test | $0 | $0-60 | $150-250 |
 | **Realistic result** | learning, 0-3 sales | first sales from organic video | 1-2 honest product tests |
@@ -116,11 +121,10 @@ The research agent sets prices with a fixed rule, never an AI guess: **3× lande
 
 ## 7. After the first sales (phase 2)
 
-1. **Support agent:** drafts replies to customer emails with an order lookup. Refunds and complaints always go to you.
-2. **Payoneer → CJ wallet:** allows fully automatic order payment (CJ `payType=2`), with a spending cap.
-3. **Meta ads monitor:** a daily pull of ad numbers plus the kill and scale rules above, as alerts only.
-4. **TikTok Shop US:** only with US-warehouse products (6 business days maximum delivery).
-5. **Evaluations:** a test set of past scripts, so a new playbook version is only kept if it scores better.
+1. **Payoneer → CJ wallet:** allows fully automatic order payment (CJ `payType=2`), with a spending cap.
+2. **Meta ads monitor:** a daily pull of ad numbers plus the kill and scale rules above, as alerts only.
+3. **TikTok Shop US:** only with US-warehouse products (6 business days maximum delivery).
+4. **Evaluations:** a test set of past scripts, so a new playbook version is only kept if it scores better.
 
 ## Sources
 - `research/01-setup-costs-legal.md`: channels, CJ, payments, legal, budgets, scams

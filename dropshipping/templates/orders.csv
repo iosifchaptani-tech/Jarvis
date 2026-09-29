@@ -1,1 +1,1 @@
-day,order_name,order_id,revenue,currency,items,skus,country
+day,order_name,order_id,revenue,currency,items,skus,country,email
