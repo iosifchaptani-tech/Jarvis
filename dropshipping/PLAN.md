@@ -25,12 +25,14 @@ These are estimates. No rigorous public data on dropshipping success exists, and
 ```
 07:00  RESEARCH AGENT ── CJ trending products -> AI picks 3 -> real CJ shipping cost -> fixed pricing rule
                         └─> Telegram: 3 products with cost, price, profit per order, risks
-         you: pick one, order a sample in CJ
+         you: pick one (a sample is optional)
 /content SKU    CONTENT AGENT ── product page copy + 5 video scripts (copies what worked before)
-/clips SKU ...  you: film 3-5 hands-only clips of the sample, send the Google Drive links
-/render ID      VIDEO AGENT ── script + your clips + CJ photo + AI voice + captions -> MP4 on Telegram
+/render ID      VIDEO AGENT ── script + CJ product photos + AI voice + captions -> MP4 on Telegram
+/clips SKU ...  (later, optional) your own or a UGC creator's clips -> /render uses them instead
          you: post it on TikTok, Reels and Shorts (auto-posting is blocked for new apps)
-customer pays -> Shopify -> CJ app imports the order -> ORDER ALERT on Telegram -> you pay in CJ -> CJ ships
+customer pays -> Shopify -> CJ app imports the order -> ORDER ALERT on Telegram
+every 30 min    AUTO-PAY (optional) ── pays CJ from your Payoneer-funded balance if the money rules pass
+                   └─> otherwise you pay in CJ with one click -> CJ ships, tracking goes to the customer
 every 3h        ORDER CHECK ── warns about unpaid CJ orders and missing tracking after 48h
 new email       SUPPORT AGENT ── looks up the customer's order + tracking -> drafts a reply
                    └─> safe questions can be auto-sent; everything else -> Telegram: /send, /reply or /skip
@@ -53,12 +55,12 @@ next morning: every agent loads the updated playbook -> better picks and better 
 - **The more results you report, the faster it learns.** Send `/video` stats 48 hours after each post.
 - **Support learns from your corrections:** every `/reply` you send is shown to the support agent as an example, and the coach can turn patterns into support rules.
 
-| Automated | You do (about 1-2 hours a day) |
+| Automated | You do (about 20-30 minutes a day) |
 |---|---|
-| Daily product research with real CJ costs and prices | Choose the product, order the sample |
+| Daily product research with real CJ costs and prices | Choose the product (a sample is optional) |
 | Page copy, 5 scripts per product | Paste the copy into Shopify |
-| Video editing: voice, captions, scenes | Film clips with your phone (hands-only), post the videos |
-| Order alerts, unpaid and late order warnings | Pay each CJ order (one click, card or PayPal) |
+| Finished videos from CJ product photos, AI voice and captions | Post the videos (later: add your own or UGC clips) |
+| Order alerts, auto-pay with money rules | Top up your CJ balance with Payoneer, or pay each order with one click |
 | Customer emails: order lookup, tracking, draft replies | Approve with `/send`, or rewrite with `/reply` (it learns from you) |
 | Daily profit report, learning, rule proposals | Tap ✅/❌, report video stats |
 
@@ -68,7 +70,7 @@ next morning: every agent loads the updated playbook -> better picks and better 
 |---|---|---|---|
 | Shopify | $1 (then $39/mo after 3 months) | $1 | $1 |
 | Domain | skip (myshopify.com) | $11 | $11 |
-| Samples | 1 × $10-15 | 2-3 × about $15 | 3 × about $15 |
+| Samples (optional, but they cut refunds) | skip | 1-2 × about $15 | 3 × about $15 |
 | Cash to pay CJ for first orders | about $25 | about $60 | $100-150 |
 | n8n | $0 (your PC) | €6 (Hetzner) | €6 |
 | Claude API | $5 | $10 | $15 |
@@ -97,10 +99,9 @@ The research agent sets prices with a fixed rule, never an AI guess: **3× lande
 | Day | You | Agents |
 |---|---|---|
 | **1** | Shopify ($1 plan), verify Shopify Payments + bank **today**, PayPal, CJ + CJ app, Telegram bot, Claude key. Create TikTok, Instagram and YouTube accounts and use them normally | Set up n8n (`SETUP.md`) |
-| **2** | Read the research message, check the products in the CJ app, **order 1-2 samples from the US/EU warehouse**. Browse TikTok Creative Center and the Meta Ad Library by hand to double-check demand | Research runs every morning |
+| **2** | Read the research message and check the products in the CJ app (photos, stock, how many stores sell it). A sample is optional. Browse TikTok Creative Center and the Meta Ad Library by hand to double-check demand | Research runs every morning |
 | **3** | Build the one-product page: `/content SKU` → paste the copy. Add policies, bundles (1 / 2 at -15% / 3 at -25%), abandoned-checkout email (Shopify Email, free) | Content agent |
-| **4-5** | Before the sample arrives: post 2-3 videos a day made from the CJ photo and an honest demo. Keep them simple | Video agent (`/clips`, `/render`) |
-| **6-7** | **Sample arrives:** film 10+ real clips → `/clips` → `/render` for each script. Post 2-4 a day on all 3 platforms. **Day 7 checkpoint** | Coach learns from your `/video` stats |
+| **4-7** | `/render` every script and post 2-4 videos a day on all 3 platforms. **Day 7 checkpoint** | Video agent (CJ photos); coach learns from your `/video` stats |
 | **8-10** | Make more of whatever got views. If a kill rule fires, switch to product #2 (`/product SKU killed`) | Research avoids what failed |
 | **11-14** | Scale what works or pivot. Day 14 review: revenue vs cash received vs money still owed | Daily report shows 7-day profit |
 
@@ -121,7 +122,7 @@ The research agent sets prices with a fixed rule, never an AI guess: **3× lande
 
 ## 7. After the first sales (phase 2)
 
-1. **Payoneer → CJ wallet:** allows fully automatic order payment (CJ `payType=2`), with a spending cap.
+1. **Real footage:** once there is some profit, film clips yourself or pay a UGC creator ($30-100 per video; CJ can ship the product straight to them). Send `/clips`, and `/render` switches to real footage automatically. This usually gets far more views than photos.
 2. **Meta ads monitor:** a daily pull of ad numbers plus the kill and scale rules above, as alerts only.
 3. **TikTok Shop US:** only with US-warehouse products (6 business days maximum delivery).
 4. **Evaluations:** a test set of past scripts, so a new playbook version is only kept if it scores better.

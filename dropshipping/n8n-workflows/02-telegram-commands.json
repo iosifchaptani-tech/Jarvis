@@ -573,7 +573,7 @@
     },
     {
       "parameters": {
-        "jsCode": "function parseAgentJson(nodeName) {\n  const raw = $(nodeName).first().json.output ?? '';\n  const text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n  const m = text.match(/\\{[\\s\\S]*\\}/);\n  if (!m) throw new Error(`${nodeName} did not return JSON: ` + text.slice(0, 300));\n  return JSON.parse(m[0]);\n}\n\nconst data = parseAgentJson('Content agent');\nconst l = data.listing || {};\nconst msgs = [];\nmsgs.push(`🛍️ Product page copy - paste it into Shopify (Products -> the product imported by the CJ app)\n\nTITLE\n${l.title || ''}\n\nBULLETS\n${(l.bullets || []).map(b => '• ' + b).join('\\n')}\n\nDESCRIPTION\n${l.description || ''}\n\nFAQ\n${(l.faq || []).map(f => 'Q: ' + f.q + '\\nA: ' + f.a).join('\\n\\n')}`);\nfor (const v of $input.all().map(i => i.json)) {\n  msgs.push(`🎬 Video ${v.content_id} (${v.format})\n\nHOOK: ${v.hook}\n\nSHOTS:\n${v.shots.split(' | ').map((s, n) => `${n + 1}. ${s}`).join('\\n')}\n\nON-SCREEN TEXT: ${v.on_screen_text}\n\nVOICEOVER: ${v.voiceover}\n\nCAPTION: ${v.caption}\n\nTurn it into a finished video: /render ${v.content_id}\nAfter 48 hours send: /video ${v.content_id} <views> <link clicks> <sales>`);\n}\nmsgs.push(`🎥 To get finished videos: film 3-5 short clips (5-10 s each, 1080p, vertical, hands-only) with your sample, upload them to Google Drive (share: anyone with the link) and send\n/clips ${$('Build content brief').first().json.product.sku} <link1> <link2> <link3>\nThen /render <video id> for each script.`);\nreturn msgs.map(t => ({ json: { text: t.slice(0, 4000) } }));\n"
+        "jsCode": "function parseAgentJson(nodeName) {\n  const raw = $(nodeName).first().json.output ?? '';\n  const text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n  const m = text.match(/\\{[\\s\\S]*\\}/);\n  if (!m) throw new Error(`${nodeName} did not return JSON: ` + text.slice(0, 300));\n  return JSON.parse(m[0]);\n}\n\nconst data = parseAgentJson('Content agent');\nconst l = data.listing || {};\nconst msgs = [];\nmsgs.push(`🛍️ Product page copy - paste it into Shopify (Products -> the product imported by the CJ app)\n\nTITLE\n${l.title || ''}\n\nBULLETS\n${(l.bullets || []).map(b => '• ' + b).join('\\n')}\n\nDESCRIPTION\n${l.description || ''}\n\nFAQ\n${(l.faq || []).map(f => 'Q: ' + f.q + '\\nA: ' + f.a).join('\\n\\n')}`);\nfor (const v of $input.all().map(i => i.json)) {\n  msgs.push(`🎬 Video ${v.content_id} (${v.format})\n\nHOOK: ${v.hook}\n\nSHOTS:\n${v.shots.split(' | ').map((s, n) => `${n + 1}. ${s}`).join('\\n')}\n\nON-SCREEN TEXT: ${v.on_screen_text}\n\nVOICEOVER: ${v.voiceover}\n\nCAPTION: ${v.caption}\n\nTurn it into a finished video: /render ${v.content_id}\nAfter 48 hours send: /video ${v.content_id} <views> <link clicks> <sales>`);\n}\nmsgs.push(`🎥 Send /render <video id> to get a finished video now, made from the CJ product photos.\nLater, real footage gets more views: film 3-5 short vertical clips yourself or get them from a UGC creator, upload them to Google Drive (share: anyone with the link) and send\n/clips ${$('Build content brief').first().json.product.sku} <link1> <link2> <link3>\nFrom then on /render uses those clips.`);\nreturn msgs.map(t => ({ json: { text: t.slice(0, 4000) } }));\n"
       },
       "id": "b9d5523f-c8db-50f9-8261-28df11a96806",
       "name": "Split into messages",
@@ -1013,15 +1013,133 @@
     },
     {
       "parameters": {
-        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\n// Video agent: builds a JSON2Video movie from a script, the owner's own clips and the CJ product photo.\nconst s = $('⚙️ Settings').first().json;\nconst cmd = $('Parse command').first().json;\nconst id = String(cmd.args[0] || '');\nconst script = rowsOf('Load scripts').reverse().find(c => c.content_id === id);\nif (!script) return [{ json: { ok: false, reply: `I can't find video ${id || '(missing id)'}. Use an id from a /content message, e.g. /render V09291530` } }];\nconst sku = String(script.sku).toLowerCase();\nconst clips = rowsOf('Load clips').filter(c => String(c.sku).toLowerCase() === sku).map(c => c.url).slice(-5);\nif (!clips.length) return [{ json: { ok: false, reply: `No clips saved for ${script.sku} yet. Send /clips ${script.sku} <link1> <link2> <link3> first.` } }];\nconst product = rowsOf('Load product photos').reverse().find(p => String(p.sku).toLowerCase() === sku) || {};\n\n// Split the voiceover into up to 4 lines, one per scene. Each scene lasts as long as its line.\nconst sentences = String(script.voiceover || '').match(/[^.!?]+[.!?]*/g)?.map(t => t.trim()).filter(Boolean) || [];\nif (!sentences.length) return [{ json: { ok: false, reply: `Video ${id} has no voiceover text.` } }];\nconst nScenes = Math.min(4, sentences.length);\nconst lines = Array.from({ length: nScenes }, (_, i) =>\n  sentences.slice(Math.floor(i * sentences.length / nScenes), Math.floor((i + 1) * sentences.length / nScenes)).join(' '));\nconst texts = String(script.on_screen_text || '').split(' | ').filter(Boolean);\nconst hookText = texts[0] || String(script.hook || '').slice(0, 60);\n\nconst textEl = (text, bg = 'rgba(0,0,0,0.55)', color = '#FFFFFF') => ({\n  type: 'text', text, style: '001', position: 'custom', x: 'center', y: '12%', width: 960, duration: -2,\n  settings: { 'font-family': 'Montserrat', 'font-size': '76px', 'font-weight': '800', color, 'background-color': bg, 'text-align': 'center' },\n});\nconst voice = text => ({ type: 'voice', text, model: 'azure', voice: s.voice });\nconst clip = i => ({ type: 'video', src: clips[i % clips.length], resize: 'cover', muted: true, loop: -1, duration: -2 });\n\nconst scenes = lines.map((line, i) => {\n  const last = i === lines.length - 1 && lines.length > 1;\n  const elements = [];\n  if (i === 2 && product.image) elements.push({ type: 'image', src: product.image, resize: 'cover', zoom: 3, pan: 'right', duration: -2 });\n  else elements.push(clip(i));\n  if (i === 0) elements.push(textEl(hookText));\n  else if (last) elements.push(textEl(s.cta_text, '#FFE600', '#000000'));\n  else if (texts[i]) elements.push(textEl(texts[i]));\n  elements.push(voice(line));\n  return i === 0 ? { elements } : { transition: { style: 'fade', duration: 0.3 }, elements };\n});\n\nconst movie = {\n  resolution: 'instagram-story',\n  quality: 'high',\n  scenes,\n  elements: [{ type: 'subtitles', language: 'en', settings: {\n    style: 'classic-progressive', 'font-family': 'Oswald Bold', 'font-size': 90, 'all-caps': true,\n    'word-color': '#FFE600', 'line-color': '#FFFFFF', 'outline-color': '#000000', 'outline-width': 6,\n    'max-words-per-line': 3, position: 'mid-bottom-center' } }],\n};\nreturn [{ json: { ok: true, movie, content_id: id, caption: script.caption, clips: clips.length } }];\n"
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\n// Video agent, step 1: which script, and which footage (the owner's clips if saved, else CJ product photos).\nconst cmd = $('Parse command').first().json;\nconst id = String(cmd.args[0] || '');\nconst script = rowsOf('Load scripts').reverse().find(c => c.content_id === id);\nif (!script) return [{ json: { ok: false, reply: `I can't find video ${id || '(missing id)'}. Use an id from a /content message, e.g. /render V09291530` } }];\nconst sku = String(script.sku).toLowerCase();\nconst clips = rowsOf('Load clips').filter(c => String(c.sku).toLowerCase() === sku).map(c => c.url).slice(-5);\nconst product = rowsOf('Load product photos').reverse().find(p => String(p.sku).toLowerCase() === sku) || {};\nif (!clips.length && !product.pid && !product.image) {\n  return [{ json: { ok: false, reply: `No clips and no CJ product photos found for ${script.sku}. Send /clips ${script.sku} <link1> <link2> first.` } }];\n}\nreturn [{ json: { ok: true, id, script, clips, pid: product.pid || '', image: product.image || '' } }];\n"
+      },
+      "id": "af935bb4-8e6c-5ee7-b72f-0c956c90575c",
+      "name": "Find video inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0dc14e90-356c-5ca7-b0af-bd94a6e724a4",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5c7b5ccc-724d-503c-ad76-5d7e8152cdf8",
+      "name": "Inputs found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        1560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "6eee2718-14c8-511c-b954-ca5fdccefe09",
+      "name": "CJ: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        1440
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "5b2220c7-0a5c-5c39-9bb9-ec32cf02c01e",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        1440
+      ],
+      "webhookId": "8add6229-57b4-5ddb-b770-1e2eaaae8133"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/product/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pid",
+              "value": "={{ $('Find video inputs').first().json.pid }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "87fe942d-a7d9-504a-af95-5d1c00401676",
+      "name": "CJ: product photos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        1440
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Video agent, step 2: build a JSON2Video movie from the script + the owner's clips, or CJ product photos.\nconst s = $('⚙️ Settings').first().json;\nconst inp = $('Find video inputs').first().json;\nconst script = inp.script, id = inp.id, clips = inp.clips;\nconst cj = $('CJ: product photos').first().json;\nlet photos = cj && cj.code === 200 ? [...(cj.data?.productImageSet || []), cj.data?.bigImage] : [];\nphotos = [...new Set([...photos, inp.image].filter(u => /^https:\\/\\//.test(String(u || ''))))].slice(0, 8);\nif (!clips.length && !photos.length) return [{ json: { ok: false, reply: `I couldn't get CJ photos for ${script.sku} right now. Try again later, or send /clips ${script.sku} <links>.` } }];\nconst mode = clips.length ? 'clips' : 'photos';\n\n// Split the voiceover into up to 4 lines, one per scene. Each scene lasts as long as its line.\nconst sentences = String(script.voiceover || '').match(/[^.!?]+[.!?]*/g)?.map(t => t.trim()).filter(Boolean) || [];\nif (!sentences.length) return [{ json: { ok: false, reply: `Video ${id} has no voiceover text.` } }];\nconst nScenes = Math.min(4, sentences.length);\nconst lines = Array.from({ length: nScenes }, (_, i) =>\n  sentences.slice(Math.floor(i * sentences.length / nScenes), Math.floor((i + 1) * sentences.length / nScenes)).join(' '));\nconst texts = String(script.on_screen_text || '').split(' | ').filter(Boolean);\nconst hookText = texts[0] || String(script.hook || '').slice(0, 60);\n\n// Every video starts on a different photo, so renders of the same product don't look identical.\nconst offset = [...id].reduce((a, c) => a + c.charCodeAt(0), 0) % Math.max(1, photos.length);\nconst textEl = (text, bg = 'rgba(0,0,0,0.55)', color = '#FFFFFF') => ({\n  type: 'text', text, style: '001', position: 'custom', x: 'center', y: '12%', width: 960, duration: -2,\n  settings: { 'font-family': 'Montserrat', 'font-size': '76px', 'font-weight': '800', color, 'background-color': bg, 'text-align': 'center' },\n});\nconst voice = text => ({ type: 'voice', text, model: 'azure', voice: s.voice });\nconst clip = i => ({ type: 'video', src: clips[i % clips.length], resize: 'cover', muted: true, loop: -1, duration: -2 });\nconst photo = i => ({ type: 'image', src: photos[(i + offset) % photos.length], resize: 'cover', zoom: 3 + (i % 2) * 2,\n                      pan: i % 2 ? 'left' : 'right', duration: -2 });\n\nconst scenes = lines.map((line, i) => {\n  const last = i === lines.length - 1 && lines.length > 1;\n  const elements = [mode === 'clips' ? (i === 2 && photos.length ? photo(0) : clip(i)) : photo(i)];\n  if (i === 0) elements.push(textEl(hookText));\n  else if (last) elements.push(textEl(s.cta_text, '#FFE600', '#000000'));\n  else if (texts[i]) elements.push(textEl(texts[i]));\n  elements.push(voice(line));\n  return i === 0 ? { elements } : { transition: { style: i % 2 ? 'slideleft' : 'fade', duration: 0.3 }, elements };\n});\n\nconst movie = {\n  resolution: 'instagram-story',\n  quality: 'high',\n  scenes,\n  elements: [{ type: 'subtitles', language: 'en', settings: {\n    style: 'classic-progressive', 'font-family': 'Oswald Bold', 'font-size': 90, 'all-caps': true,\n    'word-color': '#FFE600', 'line-color': '#FFFFFF', 'outline-color': '#000000', 'outline-width': 6,\n    'max-words-per-line': 3, position: 'mid-bottom-center' } }],\n};\nreturn [{ json: { ok: true, movie, mode, content_id: id, caption: script.caption, sku: script.sku,\n                  clips: clips.length, photos: photos.length } }];\n"
       },
       "id": "149ec4e5-a368-58b9-96d9-49b0dfaef9e8",
       "name": "Build video",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
-        1560
+        2640,
+        1440
       ]
     },
     {
@@ -1054,8 +1172,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1760,
-        1560
+        2860,
+        1440
       ]
     },
     {
@@ -1074,8 +1192,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
-        1500
+        3080,
+        1380
       ]
     },
     {
@@ -1088,8 +1206,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2200,
-        1500
+        3300,
+        1380
       ],
       "webhookId": "bff0d95d-b8d1-510b-bcc6-0281e4e6d860"
     },
@@ -1114,22 +1232,22 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
-        1500
+        3520,
+        1380
       ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const r = $input.first().json;\nconst m = r.movie || {};\nconst tries = $runIndex + 1;\nif (m.status === 'done' && m.url) return [{ json: { state: 'done', url: m.url } }];\nif (['error', 'timeout'].includes(m.status) || r.success === false)\n  return [{ json: { state: 'error', reply: `❌ Render failed: ${m.message || r.message || m.status}. Check that your clip links open without logging in.` } }];\nif (tries >= 30) return [{ json: { state: 'error', reply: '❌ Render took longer than 10 minutes. Try /render again later.' } }];\nreturn [{ json: { state: 'wait' } }];\n"
+        "jsCode": "const r = $input.first().json;\nconst m = r.movie || {};\nconst tries = $runIndex + 1;\nif (m.status === 'done' && m.url) return [{ json: { state: 'done', url: m.url } }];\nif (['error', 'timeout'].includes(m.status) || r.success === false)\n  return [{ json: { state: 'error', reply: `❌ Render failed: ${m.message || r.message || m.status}. If you used /clips, check that each link opens without logging in.` } }];\nif (tries >= 30) return [{ json: { state: 'error', reply: '❌ Render took longer than 10 minutes. Try /render again later.' } }];\nreturn [{ json: { state: 'wait' } }];\n"
       },
       "id": "009ba7cf-bde3-5de1-ba0c-99b4ed9d9598",
       "name": "Render status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
-        1500
+        3740,
+        1380
       ]
     },
     {
@@ -1217,14 +1335,14 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        2860,
-        1500
+        3960,
+        1380
       ]
     },
     {
       "parameters": {
         "chatId": "={{ $('Parse command').first().json.chatId }}",
-        "text": "=🎬 {{ $('Build video').first().json.content_id }} is ready: {{ $json.url }}\n\nPosting checklist:\n1. Post the same video on TikTok, Instagram Reels and YouTube Shorts.\n2. Add a trending sound inside each app at 5-10% volume (no music is baked in, so there are no copyright problems).\n3. The voice is AI: switch on TikTok's 'AI-generated content' and Instagram's 'AI info' label.\n4. Caption: {{ $('Build video').first().json.caption }}\n5. After 48 hours: /video {{ $('Build video').first().json.content_id }} <views> <link clicks> <sales>",
+        "text": "=🎬 {{ $('Build video').first().json.content_id }} is ready: {{ $json.url }}\n\nPosting checklist:\n1. Post the same video on TikTok, Instagram Reels and YouTube Shorts.\n2. Add a trending sound inside each app at 5-10% volume (no music is baked in, so there are no copyright problems).\n3. The voice is AI: switch on TikTok's 'AI-generated content' and Instagram's 'AI info' label.\n4. Caption: {{ $('Build video').first().json.caption }}\n5. After 48 hours: /video {{ $('Build video').first().json.content_id }} <views> <link clicks> <sales>{{ $('Build video').first().json.mode === 'photos' ? '\\n\\n💡 Made from CJ product photos. Real footage (yours or a UGC creator\\'s) usually gets more views: /clips ' + $('Build video').first().json.sku + ' <links>' : '' }}",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -1234,8 +1352,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3080,
-        1400
+        4180,
+        1280
       ]
     },
     {
@@ -1254,8 +1372,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3300,
-        1400
+        4400,
+        1280
       ],
       "onError": "continueRegularOutput"
     },
@@ -1272,8 +1390,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3520,
-        1400
+        4620,
+        1280
       ],
       "onError": "continueRegularOutput"
     },
@@ -1290,8 +1408,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3080,
-        1620
+        4180,
+        1500
       ]
     },
     {
@@ -1307,8 +1425,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1980,
-        1700
+        3080,
+        1640
       ]
     },
     {
@@ -1779,6 +1897,68 @@
       ]
     },
     "Load product photos": {
+      "main": [
+        [
+          {
+            "node": "Find video inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find video inputs": {
+      "main": [
+        [
+          {
+            "node": "Inputs found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inputs found?": {
+      "main": [
+        [
+          {
+            "node": "CJ: get token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cannot render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: get token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "CJ: product photos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: product photos": {
       "main": [
         [
           {

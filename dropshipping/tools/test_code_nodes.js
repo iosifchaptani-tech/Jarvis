@@ -165,31 +165,41 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
   });
 
 
-  await test('02 Build video: 4 scenes, photo scene, CTA, subtitles', async () => {
-    const [v] = await run(cmds, 'Build video', {
-      '⚙️ Settings': [{ voice: 'en-US-EmmaMultilingualNeural', cta_text: 'Link in bio' }],
-      'Parse command': [{ args: ['V1'] }],
-      'Load scripts': [{ content_id: 'V1', sku: 'CJ333-BK', hook: 'h', on_screen_text: 'My desk before | 5 seconds later | Fits any desk',
-        voiceover: 'My desk was a cable jungle. Then I tried this. It snaps on in seconds! Every cable stays put. Link in bio.', caption: 'cap' }],
-      'Load clips': [{ sku: 'cj333-bk', url: 'https://a/1.mp4' }, { sku: 'CJ333-BK', url: 'https://a/2.mp4' }, { sku: 'OTHER', url: 'https://a/x.mp4' }],
-      'Load product photos': [{ sku: 'CJ333-BK', image: 'https://img/p.jpg' }],
-    }, []);
+  const vScript = { content_id: 'V1', sku: 'CJ333-BK', hook: 'h', on_screen_text: 'My desk before | 5 seconds later | Fits any desk',
+    voiceover: 'My desk was a cable jungle. Then I tried this. It snaps on in seconds! Every cable stays put. Link in bio.', caption: 'cap' };
+  const vSettings = [{ voice: 'en-US-EmmaMultilingualNeural', cta_text: 'Link in bio' }];
+  const cjPhotos = [{ code: 200, data: { bigImage: 'https://img/big.jpg', productImageSet: ['https://img/1.jpg', 'https://img/2.jpg', 'http://insecure/3.jpg'] } }];
+  await test('02 Find video inputs: clips optional, product needed', async () => {
+    let [v] = await run(cmds, 'Find video inputs', { 'Parse command': [{ args: ['V1'] }], 'Load scripts': [vScript],
+      'Load clips': [{}], 'Load product photos': [{ sku: 'CJ333-BK', pid: 'P3', image: 'https://img/p.jpg' }] }, []);
+    assert(v.ok && v.clips.length === 0 && v.pid === 'P3', JSON.stringify(v));
+    [v] = await run(cmds, 'Find video inputs', { 'Parse command': [{ args: ['V1'] }], 'Load scripts': [vScript], 'Load clips': [{}], 'Load product photos': [{}] }, []);
+    assert(!v.ok && v.reply.includes('/clips CJ333-BK'), JSON.stringify(v));
+    [v] = await run(cmds, 'Find video inputs', { 'Parse command': [{ args: ['NOPE'] }], 'Load scripts': [vScript], 'Load clips': [{}], 'Load product photos': [{}] }, []);
+    assert(!v.ok && v.reply.includes('NOPE'), JSON.stringify(v));
+  });
+  await test('02 Build video: no clips -> CJ photo slideshow with voice, text, captions', async () => {
+    const inp = { ok: true, id: 'V1', script: vScript, clips: [], pid: 'P3', image: 'https://img/p.jpg' };
+    const [v] = await run(cmds, 'Build video', { '⚙️ Settings': vSettings, 'Find video inputs': [inp], 'CJ: product photos': cjPhotos }, []);
     const sc = v.movie.scenes;
-    assert(v.ok && sc.length === 4, 'scenes ' + sc.length);
-    assert(sc[0].elements[0].src === 'https://a/1.mp4' && sc[0].elements[1].text === 'My desk before', 'hook scene');
-    assert(sc[1].elements[0].src === 'https://a/2.mp4' && sc[1].elements[1].text === '5 seconds later', 'scene 2');
-    assert(sc[2].elements[0].type === 'image' && sc[2].elements[0].src === 'https://img/p.jpg', 'photo scene');
-    assert(sc[3].elements[1].text === 'Link in bio' && sc[3].elements[0].src === 'https://a/2.mp4', 'cta scene');
+    assert(v.ok && v.mode === 'photos' && v.photos === 4 && sc.length === 4, JSON.stringify({ mode: v.mode, photos: v.photos, n: sc.length }));
+    assert(sc.every(x => x.elements[0].type === 'image' && x.elements[0].src.startsWith('https://')), 'all scenes are https photos');
+    assert(new Set(sc.map(x => x.elements[0].src)).size === 4, 'photos should rotate');
+    assert(sc[0].elements[1].text === 'My desk before' && sc[3].elements[1].text === 'Link in bio', 'texts');
     const said = sc.map(x => x.elements.find(e => e.type === 'voice').text).join(' ');
-    assert(said === 'My desk was a cable jungle. Then I tried this. It snaps on in seconds! Every cable stays put. Link in bio.', 'voice split lost text: ' + said);
-    assert(v.movie.elements[0].type === 'subtitles' && v.clips === 2, 'subs/clips');
+    assert(said === vScript.voiceover, 'voice split lost text: ' + said);
+    assert(v.movie.elements[0].type === 'subtitles', 'subs');
   });
-  await test('02 Build video: no clips yet', async () => {
-    const [v] = await run(cmds, 'Build video', { '⚙️ Settings': [{}], 'Parse command': [{ args: ['V1'] }],
-      'Load scripts': [{ content_id: 'V1', sku: 'CJ9', voiceover: 'a.' }], 'Load clips': [{}], 'Load product photos': [{}] }, []);
-    assert(!v.ok && v.reply.includes('/clips CJ9'), JSON.stringify(v));
+  await test('02 Build video: clips win when saved; CJ down still works with clips', async () => {
+    const inp = { ok: true, id: 'V1', script: vScript, clips: ['https://a/1.mp4', 'https://a/2.mp4'], pid: 'P3', image: '' };
+    let [v] = await run(cmds, 'Build video', { '⚙️ Settings': vSettings, 'Find video inputs': [inp], 'CJ: product photos': cjPhotos }, []);
+    const sc = v.movie.scenes;
+    assert(v.mode === 'clips' && sc[0].elements[0].src === 'https://a/1.mp4' && sc[2].elements[0].type === 'image' && sc[3].elements[0].src === 'https://a/2.mp4', 'clip layout');
+    [v] = await run(cmds, 'Build video', { '⚙️ Settings': vSettings, 'Find video inputs': [inp], 'CJ: product photos': [{ error: 'down' }] }, []);
+    assert(v.ok && v.mode === 'clips' && v.movie.scenes.every(x => x.elements[0].type === 'video'), 'clips without photos');
+    [v] = await run(cmds, 'Build video', { '⚙️ Settings': vSettings, 'Find video inputs': [{ ...inp, clips: [] }], 'CJ: product photos': [{ error: 'down' }] }, []);
+    assert(!v.ok && v.reply.includes("couldn't get CJ photos"), JSON.stringify(v));
   });
-
 
   // ------------------------------------------------ 06 support
   const sup = '06-customer-support.json';
@@ -273,6 +283,70 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const cols = 'day,ticket_id,from_email,from_name,subject,question,intent,confidence,order_name,draft,final_reply,decision,note';
     [r] = await act('send', '/send T5');
     assert(Object.keys(r.row).join(',') === cols, 'row columns ' + Object.keys(r.row));
+  });
+
+
+  // ------------------------------------------------ 07 auto-pay
+  const ap = '07-cj-auto-pay.json';
+  const s07 = [{ max_order_usd: 40, daily_limit_usd: 100, min_profit_usd: 3, payment_fee_pct: 2.9, payment_fee_fixed: 0.3 }];
+  await test('07 Orders to confirm', async () => {
+    const r = await run(ap, 'Orders to confirm', { 'CJ: open orders': [{ code: 200, data: { list: [
+      { orderId: 'C1', orderNum: '#1001', orderStatus: 'CREATED' }, { orderId: 'C2', orderNum: '#1002', orderStatus: 'UNPAID' },
+      { orderId: 'C3', orderNum: '#1003', orderStatus: 'IN_CART' }, { orderId: 'C4', orderStatus: 'CREATED', isSandbox: 1 }] } }] }, []);
+    assert(r.map(x => x.orderId).join() === 'C1,C3', JSON.stringify(r));
+    const none = await run(ap, 'Orders to confirm', { 'CJ: open orders': [{ code: 200, data: { list: [] } }] }, []);
+    assert(none.length === 1 && none[0].none, 'none marker');
+  });
+  await test('07 Money rules: pay good orders, hold the rest, never twice, caps respected', async () => {
+    const shopOrders = [{ order_name: '#1001', order_id: '11', revenue: 29.99 }, { order_name: '#1002', order_id: '12', revenue: 29.99 },
+      { order_name: '#1003', order_id: '13', revenue: 12 }, { order_name: '#1004', order_id: '14', revenue: 99 },
+      { order_name: '#1005', order_id: '15', revenue: 29.99 }, { order_name: '#1007', order_id: '17', revenue: 29.99 }];
+    const unpaid = [
+      { orderId: 'C1', orderNum: '1001', orderStatus: 'UNPAID', orderAmount: 12.5 },   // pay
+      { orderId: 'C2', orderNum: '#1002', orderStatus: 'UNPAID', orderAmount: 12.5 },  // already paid -> skip
+      { orderId: 'C3', orderNum: '#1003', orderStatus: 'UNPAID', orderAmount: 11 },    // profit too low -> hold
+      { orderId: 'C4', orderNum: '#1004', orderStatus: 'UNPAID', orderAmount: 55 },    // over per-order limit -> hold
+      { orderId: 'C6', orderNum: '#9999', orderStatus: 'UNPAID', orderAmount: 10 },    // no Shopify order -> hold
+      { orderId: 'C5', orderNum: '#1005', orderStatus: 'UNPAID', orderAmount: 12.5 },  // held earlier today -> hold silently
+      { orderId: 'C7', orderNum: '#1007', orderStatus: 'UNPAID', orderAmount: 12.5 },  // balance runs out -> hold
+    ];
+    const today = DateTime.now().toFormat('yyyy-MM-dd');
+    const out = await run(ap, 'Decide payments (money rules)', { '⚙️ Settings': s07, 'CJ: unpaid orders': [{ code: 200, data: { list: unpaid } }],
+      'CJ: wallet balance': [{ code: 200, data: { amount: 26 } }], 'Load orders': shopOrders,
+      'Load payments': [{ day: today, cj_order_id: 'C2', status: 'paid', amount: 12.5 }, { day: today, cj_order_id: 'C5', status: 'held', amount: 12.5 }] }, []);
+    const by = Object.fromEntries(out.map(o => [o.cj_order_id, o]));
+    assert(!by.C2, 'paid twice!');
+    assert(by.C1.pay === true && by.C1.profit > 15, 'C1 ' + JSON.stringify(by.C1));
+    assert(!by.C3.pay && by.C3.note.includes('profit would be only'), 'C3 ' + by.C3.note);
+    assert(!by.C4.pay && by.C4.note.includes('$40 limit'), 'C4 ' + by.C4.note);
+    assert(!by.C6.pay && by.C6.note.includes('no matching Shopify order'), 'C6 ' + by.C6.note);
+    assert(by.C5.pay === true || (!by.C5.pay && by.C5.notify === false), 'C5 must not re-notify ' + JSON.stringify(by.C5));
+    const paidSum = out.filter(o => o.pay).reduce((t, o) => t + o.amount, 0);
+    assert(paidSum <= 26, 'spent more than the balance: ' + paidSum);
+    assert(!by.C7.pay && by.C7.note.includes('balance'), 'C7 ' + JSON.stringify(by.C7));
+  });
+  await test('07 Money rules: daily limit counts earlier payments; CJ balance error pays nothing', async () => {
+    const today = DateTime.now().toFormat('yyyy-MM-dd');
+    let out = await run(ap, 'Decide payments (money rules)', { '⚙️ Settings': s07,
+      'CJ: unpaid orders': [{ code: 200, data: { list: [{ orderId: 'C9', orderNum: '#1001', orderStatus: 'UNPAID', orderAmount: 12.5 }] } }],
+      'CJ: wallet balance': [{ code: 200, data: { amount: 500 } }], 'Load orders': [{ order_name: '#1001', revenue: 29.99 }],
+      'Load payments': [{ day: today, cj_order_id: 'X', status: 'paid', amount: 95 }] }, []);
+    assert(!out[0].pay && out[0].note.includes('auto-pay limit'), out[0].note);
+    out = await run(ap, 'Decide payments (money rules)', { '⚙️ Settings': s07,
+      'CJ: unpaid orders': [{ code: 200, data: { list: [{ orderId: 'C9', orderNum: '#1001', orderStatus: 'UNPAID', orderAmount: 12.5 }] } }],
+      'CJ: wallet balance': [{ error: 'timeout' }], 'Load orders': [{ order_name: '#1001', revenue: 29.99 }], 'Load payments': [{}] }, []);
+    assert(!out[0].pay && out[0].note.includes('balance'), out[0].note);
+  });
+  await test('07 Payment rows + message; held rows notify once', async () => {
+    const orders = [{ day: 'd', cj_order_id: 'C1', order_name: '#1001', amount: 12.5, revenue: 29.99, profit: 16.3 },
+                    { day: 'd', cj_order_id: 'C8', order_name: '#1008', amount: 10, revenue: 29.99, profit: 18 }];
+    const rows = await run(ap, 'Payment rows', { 'Pay it?': orders }, [{ code: 200, result: true }, { code: 1604000, result: false, message: 'Balance is insufficient' }]);
+    assert(rows[0].status === 'paid' && rows[1].status === 'failed' && rows[1].note === 'Balance is insufficient', JSON.stringify(rows));
+    assert(Object.keys(rows[0]).join() === 'day,cj_order_id,order_name,amount,revenue,profit,status,note', 'columns');
+    const [m] = await run(ap, 'Payment message', {}, rows);
+    assert(m.text.includes('Auto-paid 1') && m.text.includes('refused 1'), m.text);
+    const held = await run(ap, 'Held rows', {}, [{ ...orders[0], notify: true, note: 'x' }, { ...orders[1], notify: false, note: 'y' }]);
+    assert(held.length === 1 && held[0].status === 'held' && !('notify' in held[0]), JSON.stringify(held));
   });
 
   // ------------------------------------------------ 03 / 04

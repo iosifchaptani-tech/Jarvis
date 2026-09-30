@@ -594,9 +594,10 @@ CAPTION: ${v.caption}
 Turn it into a finished video: /render ${v.content_id}
 After 48 hours send: /video ${v.content_id} <views> <link clicks> <sales>`);
 }
-msgs.push(`🎥 To get finished videos: film 3-5 short clips (5-10 s each, 1080p, vertical, hands-only) with your sample, upload them to Google Drive (share: anyone with the link) and send
+msgs.push(`🎥 Send /render <video id> to get a finished video now, made from the CJ product photos.
+Later, real footage gets more views: film 3-5 short vertical clips yourself or get them from a UGC creator, upload them to Google Drive (share: anyone with the link) and send
 /clips ${$('Build content brief').first().json.product.sku} <link1> <link2> <link3>
-Then /render <video id> for each script.`);
+From then on /render uses those clips.`);
 return msgs.map(t => ({ json: { text: t.slice(0, 4000) } }));
 """
 
@@ -649,17 +650,31 @@ return [{ json: { valid: true, rows: urls.map(url => ({ day, sku, url })),
   reply: `✅ Saved ${urls.length} clip(s) for ${sku}. Now send /render <video id> for any of its scripts.` } }];
 """
 
-RENDER_BRIEF_JS = JS_RULES + r"""
-// Video agent: builds a JSON2Video movie from a script, the owner's own clips and the CJ product photo.
-const s = $('⚙️ Settings').first().json;
+FIND_VIDEO_JS = JS_RULES + r"""
+// Video agent, step 1: which script, and which footage (the owner's clips if saved, else CJ product photos).
 const cmd = $('Parse command').first().json;
 const id = String(cmd.args[0] || '');
 const script = rowsOf('Load scripts').reverse().find(c => c.content_id === id);
 if (!script) return [{ json: { ok: false, reply: `I can't find video ${id || '(missing id)'}. Use an id from a /content message, e.g. /render V09291530` } }];
 const sku = String(script.sku).toLowerCase();
 const clips = rowsOf('Load clips').filter(c => String(c.sku).toLowerCase() === sku).map(c => c.url).slice(-5);
-if (!clips.length) return [{ json: { ok: false, reply: `No clips saved for ${script.sku} yet. Send /clips ${script.sku} <link1> <link2> <link3> first.` } }];
 const product = rowsOf('Load product photos').reverse().find(p => String(p.sku).toLowerCase() === sku) || {};
+if (!clips.length && !product.pid && !product.image) {
+  return [{ json: { ok: false, reply: `No clips and no CJ product photos found for ${script.sku}. Send /clips ${script.sku} <link1> <link2> first.` } }];
+}
+return [{ json: { ok: true, id, script, clips, pid: product.pid || '', image: product.image || '' } }];
+"""
+
+RENDER_BRIEF_JS = r"""
+// Video agent, step 2: build a JSON2Video movie from the script + the owner's clips, or CJ product photos.
+const s = $('⚙️ Settings').first().json;
+const inp = $('Find video inputs').first().json;
+const script = inp.script, id = inp.id, clips = inp.clips;
+const cj = $('CJ: product photos').first().json;
+let photos = cj && cj.code === 200 ? [...(cj.data?.productImageSet || []), cj.data?.bigImage] : [];
+photos = [...new Set([...photos, inp.image].filter(u => /^https:\/\//.test(String(u || ''))))].slice(0, 8);
+if (!clips.length && !photos.length) return [{ json: { ok: false, reply: `I couldn't get CJ photos for ${script.sku} right now. Try again later, or send /clips ${script.sku} <links>.` } }];
+const mode = clips.length ? 'clips' : 'photos';
 
 // Split the voiceover into up to 4 lines, one per scene. Each scene lasts as long as its line.
 const sentences = String(script.voiceover || '').match(/[^.!?]+[.!?]*/g)?.map(t => t.trim()).filter(Boolean) || [];
@@ -670,23 +685,25 @@ const lines = Array.from({ length: nScenes }, (_, i) =>
 const texts = String(script.on_screen_text || '').split(' | ').filter(Boolean);
 const hookText = texts[0] || String(script.hook || '').slice(0, 60);
 
+// Every video starts on a different photo, so renders of the same product don't look identical.
+const offset = [...id].reduce((a, c) => a + c.charCodeAt(0), 0) % Math.max(1, photos.length);
 const textEl = (text, bg = 'rgba(0,0,0,0.55)', color = '#FFFFFF') => ({
   type: 'text', text, style: '001', position: 'custom', x: 'center', y: '12%', width: 960, duration: -2,
   settings: { 'font-family': 'Montserrat', 'font-size': '76px', 'font-weight': '800', color, 'background-color': bg, 'text-align': 'center' },
 });
 const voice = text => ({ type: 'voice', text, model: 'azure', voice: s.voice });
 const clip = i => ({ type: 'video', src: clips[i % clips.length], resize: 'cover', muted: true, loop: -1, duration: -2 });
+const photo = i => ({ type: 'image', src: photos[(i + offset) % photos.length], resize: 'cover', zoom: 3 + (i % 2) * 2,
+                      pan: i % 2 ? 'left' : 'right', duration: -2 });
 
 const scenes = lines.map((line, i) => {
   const last = i === lines.length - 1 && lines.length > 1;
-  const elements = [];
-  if (i === 2 && product.image) elements.push({ type: 'image', src: product.image, resize: 'cover', zoom: 3, pan: 'right', duration: -2 });
-  else elements.push(clip(i));
+  const elements = [mode === 'clips' ? (i === 2 && photos.length ? photo(0) : clip(i)) : photo(i)];
   if (i === 0) elements.push(textEl(hookText));
   else if (last) elements.push(textEl(s.cta_text, '#FFE600', '#000000'));
   else if (texts[i]) elements.push(textEl(texts[i]));
   elements.push(voice(line));
-  return i === 0 ? { elements } : { transition: { style: 'fade', duration: 0.3 }, elements };
+  return i === 0 ? { elements } : { transition: { style: i % 2 ? 'slideleft' : 'fade', duration: 0.3 }, elements };
 });
 
 const movie = {
@@ -698,7 +715,8 @@ const movie = {
     'word-color': '#FFE600', 'line-color': '#FFFFFF', 'outline-color': '#000000', 'outline-width': 6,
     'max-words-per-line': 3, position: 'mid-bottom-center' } }],
 };
-return [{ json: { ok: true, movie, content_id: id, caption: script.caption, clips: clips.length } }];
+return [{ json: { ok: true, movie, mode, content_id: id, caption: script.caption, sku: script.sku,
+                  clips: clips.length, photos: photos.length } }];
 """
 
 RENDER_STATUS_JS = r"""
@@ -707,7 +725,7 @@ const m = r.movie || {};
 const tries = $runIndex + 1;
 if (m.status === 'done' && m.url) return [{ json: { state: 'done', url: m.url } }];
 if (['error', 'timeout'].includes(m.status) || r.success === false)
-  return [{ json: { state: 'error', reply: `❌ Render failed: ${m.message || r.message || m.status}. Check that your clip links open without logging in.` } }];
+  return [{ json: { state: 'error', reply: `❌ Render failed: ${m.message || r.message || m.status}. If you used /clips, check that each link opens without logging in.` } }];
 if (tries >= 30) return [{ json: { state: 'error', reply: '❌ Render took longer than 10 minutes. Try /render again later.' } }];
 return [{ json: { state: 'wait' } }];
 """
@@ -720,6 +738,7 @@ POSTING_CHECKLIST = (
     "3. The voice is AI: switch on TikTok's 'AI-generated content' and Instagram's 'AI info' label.\n"
     "4. Caption: {{ $('Build video').first().json.caption }}\n"
     "5. After 48 hours: /video {{ $('Build video').first().json.content_id }} <views> <link clicks> <sales>"
+    "{{ $('Build video').first().json.mode === 'photos' ? '\\n\\n💡 Made from CJ product photos. Real footage (yours or a UGC creator\\'s) usually gets more views: /clips ' + $('Build video').first().json.sku + ' <links>' : '' }}"
 )
 
 TICKET_JS = JS_RULES + r"""
@@ -841,8 +860,15 @@ def build_commands():
     table_get(wf, "Load scripts", "content", [880, 1560])
     table_get(wf, "Load clips", "clips", [1100, 1560])
     table_get(wf, "Load product photos", "products", [1320, 1560])
-    code(wf, "Build video", RENDER_BRIEF_JS, [1540, 1560])
-    if_true(wf, "Video ready to render?", "={{ $json.ok }}", [1760, 1560])
+    code(wf, "Find video inputs", FIND_VIDEO_JS, [1540, 1560])
+    if_true(wf, "Inputs found?", "={{ $json.ok }}", [1760, 1560])
+    cj_token(wf, [1980, 1440])
+    wf.nodes[-1]["onError"] = "continueRegularOutput"
+    wait(wf, "Wait 2s", 2, [2200, 1440])
+    cj_get(wf, "CJ: product photos", "/product/query", [("pid", "={{ $('Find video inputs').first().json.pid }}")],
+           [2420, 1440], executeOnce=True, onError="continueRegularOutput")
+    code(wf, "Build video", RENDER_BRIEF_JS, [2640, 1440])
+    if_true(wf, "Video ready to render?", "={{ $json.ok }}", [2860, 1440])
     wf.add("JSON2Video: start render", "n8n-nodes-base.httpRequest", 4.2, {
         "method": "POST",
         "url": "https://api.json2video.com/v2/movies",
@@ -852,8 +878,8 @@ def build_commands():
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.movie) }}",
         "options": {},
-    }, [1980, 1500])
-    wait(wf, "Wait 20s", 20, [2200, 1500])
+    }, [3080, 1380])
+    wait(wf, "Wait 20s", 20, [3300, 1380])
     wf.add("JSON2Video: check", "n8n-nodes-base.httpRequest", 4.2, {
         "url": "https://api.json2video.com/v2/movies",
         "authentication": "genericCredentialType",
@@ -862,27 +888,29 @@ def build_commands():
         "queryParameters": {"parameters": [
             {"name": "project", "value": "={{ $('JSON2Video: start render').first().json.project }}"}]},
         "options": {},
-    }, [2420, 1500], onError="continueRegularOutput")
-    code(wf, "Render status", RENDER_STATUS_JS, [2640, 1500])
-    switch(wf, "Render done?", "state", ["done", "wait", "error"], [2860, 1500])
-    telegram(wf, "Send video link", POSTING_CHECKLIST, [3080, 1400], reply_chat)
+    }, [3520, 1380], onError="continueRegularOutput")
+    code(wf, "Render status", RENDER_STATUS_JS, [3740, 1380])
+    switch(wf, "Render done?", "state", ["done", "wait", "error"], [3960, 1380])
+    telegram(wf, "Send video link", POSTING_CHECKLIST, [4180, 1280], reply_chat)
     wf.add("Download video", "n8n-nodes-base.httpRequest", 4.2, {
         "url": "={{ $('Render status').first().json.url }}",
         "options": {"response": {"response": {"responseFormat": "file"}}},
-    }, [3300, 1400], onError="continueRegularOutput")
+    }, [4400, 1280], onError="continueRegularOutput")
     wf.add("Send video file", "n8n-nodes-base.telegram", 1.2, {
         "operation": "sendVideo",
         "chatId": reply_chat,
         "binaryData": True,
         "binaryPropertyName": "data",
         "additionalFields": {},
-    }, [3520, 1400], onError="continueRegularOutput")
-    telegram(wf, "Render failed", "={{ $json.reply }}", [3080, 1620], reply_chat)
-    telegram(wf, "Cannot render", "={{ $json.reply }}", [1980, 1700], reply_chat)
-    wf.chain("Load scripts", "Load clips", "Load product photos", "Build video", "Video ready to render?",
+    }, [4620, 1280], onError="continueRegularOutput")
+    telegram(wf, "Render failed", "={{ $json.reply }}", [4180, 1500], reply_chat)
+    telegram(wf, "Cannot render", "={{ $json.reply }}", [3080, 1640], reply_chat)
+    wf.chain("Load scripts", "Load clips", "Load product photos", "Find video inputs", "Inputs found?",
+             "CJ: get token", "Wait 2s", "CJ: product photos", "Build video", "Video ready to render?",
              "JSON2Video: start render", "Wait 20s", "JSON2Video: check", "Render status", "Render done?",
              "Send video link", "Download video", "Send video file")
     wf.connect("Video ready to render?", "Cannot render", out=1)
+    wf.connect("Inputs found?", "Cannot render", out=1)
     wf.connect("Render done?", "Wait 20s", out=1)
     wf.connect("Render done?", "Render failed", out=2)
 
@@ -1497,6 +1525,163 @@ def build_support():
     wf.connect("Waiting rows", "Ask owner")
     wf.save("06-customer-support.json")
 
+# ------------------------------------------------------ 07 CJ auto-pay (optional)
+
+TO_CONFIRM_JS = r"""
+// CJ orders imported by the CJ app start as CREATED / IN_CART. Confirming them makes CJ calculate the
+// final price (status UNPAID). Confirming does not pay anything.
+const res = $('CJ: open orders').first().json;
+if (res.code !== 200) throw new Error('CJ order list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));
+const list = (res.data?.list || []).filter(o => ['CREATED', 'IN_CART'].includes(o.orderStatus) && !o.isSandbox);
+return list.length ? list.map(o => ({ json: { orderId: o.orderId, orderNum: o.orderNum } })) : [{ json: { none: true } }];
+"""
+
+DECIDE_PAY_JS = JS_RULES + r"""
+// Deterministic money rules. The AI is not involved in paying.
+const s = $('⚙️ Settings').first().json;
+const today = $now.toFormat('yyyy-MM-dd');
+const res = $('CJ: unpaid orders').first().json;
+if (res.code !== 200) throw new Error('CJ order list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));
+const bal = $('CJ: wallet balance').first().json;
+let balance = bal && bal.code === 200 ? Number(bal.data?.amount) || 0 : 0;
+const norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const shop = rowsOf('Load orders');
+const log = rowsOf('Load payments');
+let budget = Number(s.daily_limit_usd) - log.filter(r => r.day === today && r.status === 'paid').reduce((t, r) => t + (Number(r.amount) || 0), 0);
+
+const out = [];
+for (const o of (res.data?.list || []).filter(o => o.orderStatus === 'UNPAID' && !o.isSandbox)) {
+  const mine = log.filter(r => r.cj_order_id === o.orderId);
+  if (mine.some(r => r.status === 'paid')) continue;                       // never pay twice
+  const amount = round2(Number(o.orderAmount) || 0);
+  const sale = shop.find(x => x.order_name && [norm(x.order_name), norm(x.order_id)].includes(norm(o.orderNum)));
+  const revenue = sale ? Number(sale.revenue) || 0 : 0;
+  const profit = round2(revenue - amount - revenue * s.payment_fee_pct / 100 - s.payment_fee_fixed);
+  const why = [];
+  if (!(amount > 0)) why.push('CJ has not calculated the price yet');
+  if (!sale) why.push('no matching Shopify order was found');
+  if (amount > s.max_order_usd) why.push(`it costs $${amount}, above your $${s.max_order_usd} limit per order`);
+  if (sale && profit < s.min_profit_usd) why.push(`profit would be only $${profit} (minimum $${s.min_profit_usd})`);
+  if (amount > budget) why.push(`today's auto-pay limit ($${s.daily_limit_usd}) would be passed`);
+  if (amount > balance) why.push(`your CJ balance ($${round2(balance)}) is too low - top it up with Payoneer`);
+  const row = { day: today, cj_order_id: o.orderId, order_name: o.orderNum, amount, revenue: round2(revenue), profit };
+  if (!why.length) {
+    budget -= amount; balance -= amount;
+    out.push({ json: { pay: true, ...row, note: '' } });
+  } else {
+    // Tell the owner once per order per day, not every 30 minutes
+    const told = mine.some(r => r.status === 'held' && r.day === today);
+    out.push({ json: { pay: false, notify: !told, ...row, note: why.join('; ') } });
+  }
+}
+return out;
+"""
+
+PAID_ROWS_JS = r"""
+// Pair each payment answer from CJ with its order (same order as the items that went in).
+const orders = $('Pay it?').all(0).map(i => i.json);
+return $input.all().map((r, i) => {
+  const o = orders[i];
+  const ok = r.json.code === 200 && r.json.result !== false;
+  return { json: { day: o.day, cj_order_id: o.cj_order_id, order_name: o.order_name, amount: o.amount,
+    revenue: o.revenue, profit: o.profit, status: ok ? 'paid' : 'failed', note: ok ? '' : String(r.json.message || r.json.error || 'unknown error').slice(0, 300) } };
+});
+"""
+
+PAID_MSG_JS = r"""
+const rows = $input.all().map(i => i.json);
+const paid = rows.filter(r => r.status === 'paid'), failed = rows.filter(r => r.status === 'failed');
+const lines = [];
+if (paid.length) lines.push(`💸 Auto-paid ${paid.length} CJ order(s), $${paid.reduce((t, r) => t + r.amount, 0).toFixed(2)} in total:\n`
+  + paid.map(r => `- ${r.order_name}: paid $${r.amount}, sold for $${r.revenue}, ~$${r.profit} profit`).join('\n'));
+if (failed.length) lines.push(`❌ CJ refused ${failed.length} payment(s). Pay these by hand in CJ -> My Orders:\n`
+  + failed.map(r => `- ${r.order_name} ($${r.amount}): ${r.note}`).join('\n'));
+return [{ json: { text: lines.join('\n\n').slice(0, 4000) } }];
+"""
+
+HELD_ROWS_JS = r"""
+return $input.all().filter(i => i.json.notify).map(({ json: o }) => ({ json: {
+  day: o.day, cj_order_id: o.cj_order_id, order_name: o.order_name, amount: o.amount, revenue: o.revenue,
+  profit: o.profit, status: 'held', note: o.note } }));
+"""
+
+
+def build_autopay():
+    wf = Workflow("07 · CJ auto-pay (optional)")
+    wf.add("Every 30 minutes", "n8n-nodes-base.scheduleTrigger", 1.2,
+           {"rule": {"interval": [{"field": "cronExpression", "expression": "*/30 * * * *"}]}}, [0, 0])
+    settings(wf, [
+        ("telegram_chat_id", "PASTE_YOUR_TELEGRAM_CHAT_ID"),
+        ("auto_pay", "no"),
+        ("max_order_usd", 40),
+        ("daily_limit_usd", 100),
+        ("min_profit_usd", 3),
+        ("payment_fee_pct", 2.9),
+        ("payment_fee_fixed", 0.30),
+    ], [220, 0])
+    if_true(wf, "Auto-pay switched on?", "={{ $json.auto_pay === 'yes' }}", [440, 0])
+    table_get(wf, "Load orders", "orders", [660, 0])
+    table_get(wf, "Load payments", "payments", [880, 0])
+    cj_token(wf, [1100, 0])
+    wait(wf, "Wait 2s", 2, [1320, 0])
+    cj_get(wf, "CJ: open orders", "/shopping/order/list", [("pageNum", "1"), ("pageSize", "50")], [1540, 0], executeOnce=True)
+    code(wf, "Orders to confirm", TO_CONFIRM_JS, [1760, 0])
+    if_true(wf, "Anything to confirm?", "={{ !$json.none }}", [1980, 0])
+    wf.add("CJ: confirm order", "n8n-nodes-base.httpRequest", 4.2, {
+        "method": "PATCH",
+        "url": f"{CJ}/shopping/order/confirmOrder",
+        "sendHeaders": True,
+        "headerParameters": {"parameters": [TOKEN_HEADER]},
+        "sendBody": True,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ orderId: $json.orderId }) }}",
+        "options": {"batching": {"batch": {"batchSize": 1, "batchInterval": 1500}}},
+    }, [2200, -100], onError="continueRegularOutput")
+    wait(wf, "Wait 3s", 3, [2420, 0])
+    wf.nodes[-1]["executeOnce"] = True
+    cj_get(wf, "CJ: unpaid orders", "/shopping/order/list",
+           [("pageNum", "1"), ("pageSize", "50"), ("status", "UNPAID")], [2640, 0], executeOnce=True)
+    wait(wf, "Wait 2s (balance)", 2, [2860, 0])
+    wf.add("CJ: wallet balance", "n8n-nodes-base.httpRequest", 4.2, {
+        "url": f"{CJ}/shopping/pay/getBalance",
+        "sendHeaders": True,
+        "headerParameters": {"parameters": [TOKEN_HEADER]},
+        "options": {},
+    }, [3080, 0], executeOnce=True, onError="continueRegularOutput")
+    code(wf, "Decide payments (money rules)", DECIDE_PAY_JS, [3300, 0])
+    if_true(wf, "Pay it?", "={{ $json.pay }}", [3520, 0])
+    wf.add("CJ: pay from balance", "n8n-nodes-base.httpRequest", 4.2, {
+        "method": "POST",
+        "url": f"{CJ}/shopping/pay/payBalance",
+        "sendHeaders": True,
+        "headerParameters": {"parameters": [TOKEN_HEADER]},
+        "sendBody": True,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ orderId: $json.cj_order_id }) }}",
+        "options": {"batching": {"batch": {"batchSize": 1, "batchInterval": 1500}}},
+    }, [3740, -100], onError="continueRegularOutput")
+    code(wf, "Payment rows", PAID_ROWS_JS, [3960, -100])
+    table_insert(wf, "Log payments", "payments", [4180, -200])
+    code(wf, "Payment message", PAID_MSG_JS, [4180, 0])
+    telegram(wf, "Tell owner (paid)", "={{ $json.text }}", [4400, 0])
+    code(wf, "Held rows", HELD_ROWS_JS, [3740, 160])
+    table_insert(wf, "Log held orders", "payments", [3960, 100])
+    telegram(wf, "Ask owner to pay by hand",
+             "=✋ Not auto-paid: CJ order {{ $json.order_name }} (${{ $json.amount }})\nWhy: {{ $json.note }}\n\n"
+             "Check it, then pay it in CJ -> My Orders if it's fine.", [3960, 260])
+
+    wf.chain("Every 30 minutes", "⚙️ Settings", "Auto-pay switched on?", "Load orders", "Load payments",
+             "CJ: get token", "Wait 2s", "CJ: open orders", "Orders to confirm", "Anything to confirm?",
+             "CJ: confirm order", "Wait 3s", "CJ: unpaid orders", "Wait 2s (balance)", "CJ: wallet balance",
+             "Decide payments (money rules)", "Pay it?", "CJ: pay from balance", "Payment rows", "Log payments")
+    wf.connect("Anything to confirm?", "Wait 3s", out=1)
+    wf.connect("Payment rows", "Payment message")
+    wf.connect("Payment message", "Tell owner (paid)")
+    wf.connect("Pay it?", "Held rows", out=1)
+    wf.connect("Held rows", "Log held orders")
+    wf.connect("Held rows", "Ask owner to pay by hand")
+    wf.save("07-cj-auto-pay.json")
+
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
@@ -1507,3 +1692,4 @@ if __name__ == "__main__":
     build_cj_check()
     build_coach()
     build_support()
+    build_autopay()

@@ -14,7 +14,7 @@ Do the parts in order. Plan on about 3-4 hours in total. Anything you have to ty
 | 4 | **Telegram bot** | In Telegram, message **@BotFather** → `/newbot` → pick a name → copy the **bot token** | free |
 | 5 | **Claude API key** | console.anthropic.com → API keys → create key. Add $10 credit and **set a monthly spend limit of $20** | pay per use, about $3-15/month for this system |
 | 6 | **Support mailbox** (Support agent) | A **new, separate** email address just for customers, e.g. a free Gmail like `yourstore.help@gmail.com`. Turn on 2-Step Verification, then create an **App password** (Google Account → Security → App passwords) | free |
-| 7 | **JSON2Video** (Video agent, optional at first) | json2video.com → sign up → copy the API key | free tier for testing (watermarked, not for commercial posts); prepaid $49.95 = 7,200 credits ≈ 240 videos when you start posting |
+| 7 | **JSON2Video** (Video agent) | json2video.com → sign up → copy the API key | free tier for testing (watermarked, not for commercial posts); prepaid $49.95 = 7,200 credits ≈ 240 videos when you start posting |
 
 Then do these right away. They take days to clear, so don't leave them for later:
 
@@ -23,7 +23,8 @@ Then do these right away. They take days to clear, so don't leave them for later
   - EU customers: also turn on the withdrawal/cancellation button (a legal requirement since 19 June 2026).
 - **Shopify → Settings:** set the store's contact / customer email to the **support mailbox**, so replies to order emails land there.
 - **Privacy policy:** add one line saying customer emails are answered with the help of AI services (Anthropic). This matters for EU and UK customers (GDPR). Anthropic's API does not train on your data by default.
-- **CJ:** add a card or PayPal for paying orders. Then open the API page (under *Authorization → API* or *Developer*) and **generate an API key**. Copy it and keep it private.
+- **CJ:** add a card or PayPal for paying orders.
+- **Optional, for automatic order payment:** open a free **Payoneer** account, then in CJ go to **Wallet → Recharge → Payoneer** and add a starting balance, e.g. $50-100. It's the only way to top up the CJ wallet besides a $2,000+ bank wire. Then open the API page (under *Authorization → API* or *Developer*) and **generate an API key**. Copy it and keep it private.
 
 ---
 
@@ -64,7 +65,7 @@ Sign up at n8n.io. There's nothing to install. Skip to Part 3.
 
 ## Part 3: Create the agents' memory (Data Tables)
 
-In n8n: **Overview → Data tables → Create data table**. Create these 8 tables with **exactly** these names and columns.
+In n8n: **Overview → Data tables → Create data table**. Create these 9 tables with **exactly** these names and columns.
 
 - If n8n offers "Import CSV", use the matching file in `templates/`.
 - Otherwise add the columns by hand.
@@ -79,6 +80,7 @@ In n8n: **Overview → Data tables → Create data table**. Create these 8 table
 | `orders` | day, order_name, order_id, revenue, currency, items, skus, country, email | revenue |
 | `reports` | day, orders_today, revenue_today, orders_7d, revenue_7d, cj_cost_7d, est_profit_7d, report | every column except day and report |
 | `clips` | day, sku, url | none |
+| `payments` | day, cj_order_id, order_name, amount, revenue, profit, status, note | amount, revenue, profit |
 | `support` | day, ticket_id, from_email, from_name, subject, question, intent, confidence, order_name, draft, final_reply, decision, note | confidence |
 
 **Important:** put the 7 starting rules from `templates/playbook.csv` into `playbook`, either by importing the CSV or by typing them in. These are the first things your agents "know". The coach adds to them every night.
@@ -116,6 +118,7 @@ The CJ key sits inside an n8n credential, so it's stored encrypted and never end
 | `03-new-order-alert.json` | Shopify order → saved → "pay it in CJ" message | on every paid order |
 | `04-cj-order-check.json` | Warns about unpaid CJ orders and missing tracking | every 3 hours, 9:00-21:00 |
 | `05-daily-coach.json` | Daily report plus learning: proposes new playbook rules, which you approve | every day at 21:30 |
+| `07-cj-auto-pay.json` | Auto-pay (**off until you switch it on**): confirms new CJ orders and pays them from your CJ balance, but only if every money rule passes. Anything else is sent to you | every 30 minutes |
 | `06-customer-support.json` | Support agent: reads new customer emails, looks up their order and tracking, drafts a reply, and sends it only if safe; everything else goes to you on Telegram | every new email |
 
 In **each** workflow:
@@ -133,8 +136,19 @@ In **each** workflow:
 ### Get your Telegram chat ID
 1. Activate workflow **02** (toggle top right).
 2. Send your bot any message. It replies: *"Your chat ID is 123456789"*.
-3. Paste that number into the **⚙️ Settings** node of **every** workflow (00-06) and save each one.
+3. Paste that number into the **⚙️ Settings** node of **every** workflow (00-07) and save each one.
 4. In the Settings of **02** and **06**, also fill in `support_email` and `email_signature`. In **06**, also fill in `store_name`, `shipping_policy` and `refund_policy`: the support agent may only promise what these say.
+
+### How auto-pay decides (workflow 07)
+Set `auto_pay` to `yes` in its ⚙️ Settings once your CJ wallet has money. Every 30 minutes it:
+1. confirms new CJ orders so CJ calculates the final price. Confirming does not pay.
+2. pays an order from your CJ balance **only if all of these are true**:
+   - it matches a real paid Shopify order
+   - it costs no more than `max_order_usd` ($40)
+   - it leaves at least `min_profit_usd` ($3) profit after fees
+   - today's auto-payments stay under `daily_limit_usd` ($100)
+   - your balance covers it
+3. never pays the same order twice. Anything it holds back comes to you on Telegram once, with the reason. Every payment is logged in the `payments` table.
 
 ### How the Support agent decides
 - **Every** customer email gets a draft on Telegram, with the order status and tracking number already looked up. Answer with:
@@ -166,11 +180,11 @@ From then on the bot only obeys you. Messages from anyone else are ignored.
 
 1. Open **01** → **Execute workflow**. You should get 3 product picks on Telegram in about a minute.
 2. Send `/content <SKU from the picks>` to the bot. You get the page copy plus 5 video scripts.
-3. Film 3 short vertical clips of anything, upload them to Google Drive (share: *anyone with the link*), then send `/clips <SKU> <link1> <link2> <link3>` and `/render <video id>`. After 1-3 minutes you get the MP4. On the free JSON2Video tier it has a watermark, so it's for testing only.
+3. Send `/render <video id>`. After 1-3 minutes you get the MP4, made from the CJ product photos. On the free JSON2Video tier it has a watermark, so it's for testing only. Later, `/clips <SKU> <link1> <link2>` with your own or a UGC creator's clips makes `/render` use real footage.
 4. Send `/video <video id> 500 3 0` and `/product <SKU> testing`. The bot confirms both.
 5. Email the support address from your personal email, asking "where is my order?". Within about a minute you get a draft on Telegram. Try `/reply T… test answer` and check your personal inbox.
 6. Open **05** → **Execute workflow**. You get the daily report, and possibly an approval request for new rules.
-7. **Activate** 00 to 06.
+7. **Activate** 00 to 06. Activate **07** too, but leave `auto_pay` on `no` until your CJ wallet has money and you've watched a few orders go through by hand.
 
 Then order your sample in CJ.
 
