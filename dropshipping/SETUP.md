@@ -28,6 +28,32 @@ Then do these right away. They take days to clear, so don't leave them for later
 
 ---
 
+## Fast way on Windows: the setup script
+
+Once you've done **Part 1** (accounts and keys), you can skip Parts 2-5. In the `dropshipping` folder, **double-click `SETUP_DROPSHIPPING.bat`**. Or in PowerShell:
+
+```
+powershell -ExecutionPolicy Bypass -File .\dropshipping\setup.ps1
+```
+
+**What it does:**
+1. Installs Docker Desktop and cloudflared if they're missing, then starts n8n 2.41.3 with a free public HTTPS address.
+2. Creates your n8n login.
+3. Asks for your keys and checks them with Claude, Telegram, CJ and Gmail. Keys are typed only into this window and stored encrypted inside n8n, never in a file or a chat.
+4. Finds your Telegram chat ID. You just send your bot a message.
+5. Creates the 9 tables and loads the starting rules.
+6. Imports and fills in all 8 workflows, then switches them on.
+
+At the end it prints the Shopify webhook address to paste in (Part 5, "Connect Shopify orders", step 4).
+
+**Good to know:**
+- It's safe to run again: anything already done is skipped.
+- After a PC restart, run it again. The free address changes, and it prints the new webhook URL for Shopify.
+- If Docker Desktop was just installed, restart the PC, open Docker Desktop once, then run the script again.
+- To add the JSON2Video key or the support Gmail later: n8n → Credentials, then run the script again.
+
+---
+
 ## Part 2: Run n8n (pick one)
 
 ### Option A: Hetzner server (recommended once you're live, about €6/month)

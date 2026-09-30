@@ -1,6 +1,6 @@
 # Next up
 
-## 1. PowerShell setup script (first thing next session)
+## 1. PowerShell setup script: DONE (`setup.ps1`, `SETUP_DROPSHIPPING.bat`)
 
 **When:** once the owner has created the accounts from `SETUP.md` Part 1 and has the keys ready.
 
