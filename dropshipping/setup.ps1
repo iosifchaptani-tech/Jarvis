@@ -257,7 +257,7 @@ function Collect-Answers($state) {
     }
     $a.refund_policy = $RefundPolicy
     if (-not $a.refund_policy) {
-        $a.refund_policy = Ask 'Refund policy summary, same as your Shopify policy' (Get-Prop $state 'refund_policy' 'Returns are accepted within 30 days of delivery. Contact us first and we will explain the next steps.')
+        $a.refund_policy = Ask 'Refund policy summary, same as your Shopify policy' (Get-Prop $state 'refund_policy' 'Damaged or wrong items get a free replacement or full refund within 30 days of delivery (photo needed). Unused items can be returned within 30 days; email us first, the customer pays return shipping.')
     }
     foreach ($k in $a.Keys) { Set-Prop $state $k $a[$k] }
     return $a
