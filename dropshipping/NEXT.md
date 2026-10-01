@@ -1,11 +1,19 @@
 # Next up
 
 ## 0. For the next session (asked by the owner on 2 Oct 2026, ~01:00)
-1. **30-day plan for Pivendo.** The next session is **day 5**. Build a day-by-day plan for days 5-34, based on `PLAN.md` (14-day plan, kill/scale rules) and what's done so far:
-   - setup is done and n8n is running
-   - the order webhook and Telegram are tested
-   - pivendo.com is bought, and the permanent tunnel n8n.pivendo.com is being set up
-   - still open: Gewerbeanmeldung, Shopify Payments, shipping rates, cookie banner, LUCID, picking the first product
+1. **A 30-day master plan for EVERYTHING, day by day.** The next session is **day 5**, so the plan covers days 5-34. The owner is doing many things at once and needs one plan that manages all of them. Each day gets a short task list (who does what, about how long), with one main focus per day so nothing is forgotten.
+
+   It covers:
+   - **Pivendo store** (`PLAN.md`):
+     - setup is done and n8n is running
+     - the order webhook and Telegram are tested
+     - pivendo.com is bought and the permanent tunnel is being set up
+     - next: first product, page copy, videos, posting, kill/scale checks
+   - **Legal and admin:** Gewerbeanmeldung, Finanzamt (Kleinunternehmer), LUCID, Shopify Payments verification, shipping rates, cookie banner, connecting pivendo.com to Shopify.
+   - **Wok Wang website:** the client has waited 3 months, so it should come early.
+   - **Jarvis voice assistant:** only if the owner wants it.
+   - **Money:** the moment to spend on things like the €6 server or Payoneer only comes after the first sales. Plus weekly reviews on days 7, 14, 21 and 28.
+
 2. **Website for Wok Wang.** They have been waiting 3 months. Ask the owner before building:
    - what kind of business it is (restaurant?)
    - name, address, opening hours, phone
