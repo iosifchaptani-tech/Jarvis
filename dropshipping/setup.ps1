@@ -157,6 +157,14 @@ function Ensure-Docker {
     }
     & $docker info *> $null
     if ($LASTEXITCODE -ne 0) {
+        # Docker Desktop needs WSL 2. Without it Docker never starts, so say how to fix it right away.
+        $wslOk = $true
+        try { & wsl.exe --status *> $null; $wslOk = ($LASTEXITCODE -eq 0) } catch { $wslOk = $false }
+        if (-not $wslOk) {
+            Fail ('Docker needs WSL (Windows Subsystem for Linux), and it is not installed. Fix: click Start, type powershell, ' +
+                  'right-click "Windows PowerShell" -> Run as administrator, type: wsl --install  and press Enter. ' +
+                  'Restart your PC, open Docker Desktop until it says "Engine running", then run this script again.')
+        }
         $app = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
         if (Test-Path $app) { Info 'Starting Docker Desktop...'; Start-Process $app }
         for ($i = 0; $i -lt 60; $i++) {

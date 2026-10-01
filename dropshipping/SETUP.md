@@ -221,6 +221,7 @@ Then order your sample in CJ.
 
 | What you see | Fix |
 |---|---|
+| Docker Desktop: "WSL not installed" | Start → type `powershell` → right-click → **Run as administrator** → `wsl --install` → restart the PC → open Docker Desktop until it says "Engine running" → run the setup again. If it says virtualization is off, turn on "Virtualization" / "SVM" / "VT-x" in the BIOS. |
 | CJ error `1600001` / "Invalid API key" | Re-copy the CJ API key into the **CJ API key** credential. |
 | CJ error "apiKey cannot be empty" | In `CJ: get token`, set the JSON body to `{"apiKey": "YOUR_KEY"}` directly. It's less private, but it works. |
 | CJ error `1600200` "Too much request" | The free CJ tier allows 1 request per second. Just run it again later. |
