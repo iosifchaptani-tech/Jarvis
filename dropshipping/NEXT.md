@@ -1,5 +1,19 @@
 # Next up
 
+## 0. For the next session (asked by the owner on 2 Oct 2026, ~01:00)
+1. **30-day plan for Pivendo.** The next session is **day 5**. Build a day-by-day plan for days 5-34, based on `PLAN.md` (14-day plan, kill/scale rules) and what's done so far:
+   - setup is done and n8n is running
+   - the order webhook and Telegram are tested
+   - pivendo.com is bought, and the permanent tunnel n8n.pivendo.com is being set up
+   - still open: Gewerbeanmeldung, Shopify Payments, shipping rates, cookie banner, LUCID, picking the first product
+2. **Website for Wok Wang.** They have been waiting 3 months. Ask the owner before building:
+   - what kind of business it is (restaurant?)
+   - name, address, opening hours, phone
+   - the menu with prices, and photos/logo
+   - delivery or online ordering, and in which languages
+   - which domain, and who pays for hosting
+3. **Talk through the plan and how to make money.** Questions, priorities, what to do first.
+
 ## 1. PowerShell setup script: DONE (`setup.ps1`, `SETUP_DROPSHIPPING.bat`)
 
 **When:** once the owner has created the accounts from `SETUP.md` Part 1 and has the keys ready.
