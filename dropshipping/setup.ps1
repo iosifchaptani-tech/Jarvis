@@ -316,7 +316,10 @@ function Test-Keys($keys) {
         try {
             Invoke-RestMethod 'https://api.anthropic.com/v1/models' -Headers @{ 'x-api-key' = $keys.claude; 'anthropic-version' = '2023-06-01' } | Out-Null
             Ok 'Claude key works'
-        } catch { Fail "The Claude key was rejected: $(ApiErrorText $_)" }
+        } catch {
+            Fail ("The Claude key was rejected: $(ApiErrorText $_)`n    Fix: platform.claude.com -> Settings -> API keys -> Create key, " +
+                  'set Workspace to "Default workspace" (not the whole organization), expiry "Never", and add credit under Billing. Then run this script again.')
+        }
     }
     if ($keys.telegram) {
         try { $me = Invoke-RestMethod "https://api.telegram.org/bot$($keys.telegram)/getMe"; Ok "Telegram bot: @$($me.result.username)" }
