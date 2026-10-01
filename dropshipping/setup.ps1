@@ -35,6 +35,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Everything shown in the window is also saved to setup-log.txt (keys are typed hidden, so they never appear in it).
+try { Start-Transcript -Path (Join-Path $PSScriptRoot 'setup-log.txt') -Force | Out-Null } catch { }
 $ProgressPreference = 'SilentlyContinue'
 # Windows PowerShell 5.1 can serialise arrays as {"value":[..],"Count":n}; this undoes that.
 if ($PSVersionTable.PSVersion.Major -lt 6) { Remove-TypeData System.Array -ErrorAction SilentlyContinue }

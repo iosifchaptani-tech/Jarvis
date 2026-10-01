@@ -7,3 +7,4 @@ venv/
 # dropshipping setup script (no secrets, but machine-specific)
 dropshipping/.setup-state.json
 dropshipping/.tunnel.log
+dropshipping/setup-log.txt
