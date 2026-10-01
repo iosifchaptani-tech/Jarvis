@@ -136,6 +136,14 @@ function Find-Exe($name, $candidates) {
     return $null
 }
 
+# Runs a program and returns its text (normal output and error output together); $LASTEXITCODE says if it worked.
+# Windows PowerShell 5.1 turns any line a program prints as an error into a crash while ErrorActionPreference
+# is 'Stop' (for example "no such object: n8n"), so it is relaxed for this call only.
+function Run-Native([scriptblock]$Command) {
+    $ErrorActionPreference = 'Continue'
+    & $Command 2>&1 | ForEach-Object { "$_" }
+}
+
 function Refresh-Path {
     $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
@@ -145,7 +153,7 @@ function Winget-Install($id, $label) {
         Fail "winget is missing. Install '$label' by hand, then run this script again."
     }
     Info "Installing $label (this can take a few minutes)..."
-    & winget install -e --id $id --accept-source-agreements --accept-package-agreements --silent | Out-Host
+    Run-Native { winget install -e --id $id --accept-source-agreements --accept-package-agreements --silent } | Out-Host
     Refresh-Path
 }
 
@@ -157,11 +165,11 @@ function Ensure-Docker {
         Warn 'Docker Desktop was installed. Restart your PC, open Docker Desktop once and accept its terms, then run this script again.'
         exit 0
     }
-    & $docker info *> $null
+    Run-Native { & $docker info } | Out-Null
     if ($LASTEXITCODE -ne 0) {
         # Docker Desktop needs WSL 2. Without it Docker never starts, so say how to fix it right away.
-        $wslOk = $true
-        try { & wsl.exe --status *> $null; $wslOk = ($LASTEXITCODE -eq 0) } catch { $wslOk = $false }
+        $wslOk = $false
+        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) { Run-Native { wsl.exe --status } | Out-Null; $wslOk = ($LASTEXITCODE -eq 0) }
         if (-not $wslOk) {
             Fail ('Docker needs WSL (Windows Subsystem for Linux), and it is not installed. Fix: click Start, type powershell, ' +
                   'right-click "Windows PowerShell" -> Run as administrator, type: wsl --install  and press Enter. ' +
@@ -171,7 +179,7 @@ function Ensure-Docker {
         if (Test-Path $app) { Info 'Starting Docker Desktop...'; Start-Process $app }
         for ($i = 0; $i -lt 60; $i++) {
             Start-Sleep -Seconds 3
-            & $docker info *> $null
+            Run-Native { & $docker info } | Out-Null
             if ($LASTEXITCODE -eq 0) { break }
         }
         if ($LASTEXITCODE -ne 0) { Fail 'Docker is not running. Open Docker Desktop, wait until it says "running", then run this script again.' }
@@ -204,18 +212,19 @@ function Start-Tunnel {
 
 function Start-N8n($docker, $publicUrl, $tz) {
     Step 'Starting n8n'
-    & $docker volume create n8n_data *> $null
-    $current = (& $docker inspect n8n --format '{{range .Config.Env}}{{println .}}{{end}}' 2>$null) -join "`n"
+    Run-Native { & $docker volume create n8n_data } | Out-Null
+    $current = (Run-Native { & $docker inspect n8n --format '{{range .Config.Env}}{{println .}}{{end}}' }) -join "`n"
     if ($LASTEXITCODE -eq 0 -and $current -match [regex]::Escape("N8N_WEBHOOK_URL=$publicUrl/")) {
-        & $docker start n8n *> $null
+        Run-Native { & $docker start n8n } | Out-Null
         Ok 'n8n container already set up for this address'
     } else {
-        & $docker rm -f n8n *> $null   # your data lives in the n8n_data volume and is kept
-        & $docker run -d --name n8n --restart unless-stopped -p 5678:5678 `
+        Run-Native { & $docker rm -f n8n } | Out-Null   # no container yet is fine; your data lives in the n8n_data volume and is kept
+        Info 'Downloading and starting n8n (the first time takes a few minutes)...'
+        $out = Run-Native { & $docker run -d --name n8n --restart unless-stopped -p 5678:5678 `
             -e "N8N_WEBHOOK_URL=$publicUrl/" -e "GENERIC_TIMEZONE=$tz" -e "TZ=$tz" `
             -e N8N_SECURE_COOKIE=false -e N8N_LISTEN_ADDRESS=0.0.0.0 -e N8N_DIAGNOSTICS_ENABLED=false `
-            -v n8n_data:/home/node/.n8n $N8nImage | Out-Null
-        if ($LASTEXITCODE -ne 0) { Fail 'Could not start the n8n container. Is Docker Desktop running?' }
+            -v n8n_data:/home/node/.n8n $N8nImage }
+        if ($LASTEXITCODE -ne 0) { Fail ("Could not start the n8n container. Is Docker Desktop running? Docker said: " + ((@($out) | Select-Object -Last 3) -join ' ')) }
         Ok "n8n started ($N8nImage)"
     }
     Wait-N8n
