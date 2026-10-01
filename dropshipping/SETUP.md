@@ -19,7 +19,8 @@ Do the parts in order. Plan on about 3-4 hours in total. Anything you have to ty
 Then do these right away. They take days to clear, so don't leave them for later:
 
 - **Shopify → Settings → Payments:** turn on Shopify Payments and finish identity and bank verification. Add PayPal too.
-- **Shopify → Settings → Policies:** generate the refund, privacy, terms, shipping and contact policies.
+- **Shopify → Settings → Policies:** paste the policies from `POLICIES.md` (refund, privacy, terms, shipping, contact).
+- **Shopify → Settings → Markets:** add the countries you sell to (default US, DE, CA, AU). Shipping: free in your main market, a flat **$7.99** everywhere else. That's the `intl_shipping_fee_usd` the research agent uses for its profit check. When a research message shows ❌ for a country, remove that product from that market.
   - EU customers: also turn on the withdrawal/cancellation button (a legal requirement since 19 June 2026).
 - **Shopify → Settings:** set the store's contact / customer email to the **support mailbox**, so replies to order emails land there.
 - **Privacy policy:** add one line saying customer emails are answered with the help of AI services (Anthropic). This matters for EU and UK customers (GDPR). Anthropic's API does not train on your data by default.
@@ -156,7 +157,7 @@ In **each** workflow:
    - `New customer email` (in 06) → **Support inbox**
    - `Send reply email` (in 06) and `Email the customer` (in 02) → **Support email**
 2. If a Data Table node is red, pick the table from the dropdown.
-3. Open the **⚙️ Settings** node. It holds everything you might change: prices, markup, warehouse country, and so on.
+3. Open the **⚙️ Settings** node. It holds everything you might change: prices, markup, warehouse country, and so on. In **01**, `sell_countries` lists every country the research agent checks shipping and profit for. EU countries only count when the product has stock in an EU warehouse, so customers never pay customs.
 4. **Workflow menu → Settings → Error workflow → "00 · Error alerts"**.
 
 ### Get your Telegram chat ID

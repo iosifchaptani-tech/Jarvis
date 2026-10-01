@@ -343,32 +343,100 @@ if (!picks.length) throw new Error('Research agent picked no valid products: ' +
 return picks.map(p => ({ json: { ...byPid[p.pid], ...p } }));
 """
 
-PRICE_JS = JS_RULES + r"""
+JS_MARKETS = r"""
+const EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
+const homeCountry = s => String(s.warehouse_country || 'US').trim().toUpperCase();
+// The main market (warehouse_country) comes first, then every other country in sell_countries.
+const marketList = s => [...new Set([homeCountry(s), ...String(s.sell_countries || '').toUpperCase().split(/[\s,;]+/).filter(c => /^[A-Z]{2}$/.test(c))])];
+"""
+
+ROUTES_JS = JS_RULES + JS_MARKETS + r"""
+const s = $('⚙️ Settings').first().json;
+const picks = $('Parse picks').all().map(i => i.json);
+const details = $input.all().map(i => i.json);
+const home = homeCountry(s);
+
+// For every pick and every market, choose the CJ warehouse that ships the order:
+// - a warehouse in the customer's own country if it has stock;
+// - EU customers: only a warehouse inside the EU (no customs or import VAT surprises), otherwise not sold there;
+// - other countries: China, then the main warehouse.
+const routes = [];
+picks.forEach((p, i) => {
+  const v = ((details[i]?.data || {}).variants || [])[0] || {};
+  const stock = {};
+  for (const inv of v.inventories || []) {
+    const c = String(inv.countryCode || '').toUpperCase();
+    stock[c] = (stock[c] || 0) + (num(inv.totalInventory) || 0);
+  }
+  const known = Object.keys(stock).length > 0;
+  const has = c => (stock[c] || 0) > 0;
+  for (const dest of marketList(s)) {
+    let start = null;
+    if (has(dest)) start = dest;
+    else if (dest === home && !known) start = home;  // no stock data: trust the warehouse we searched in
+    else if (EU.includes(dest)) start = EU.find(has) || null;
+    else start = ['CN', home].find(has) || (known ? null : 'CN');
+    if (start) routes.push({ json: { pick_index: i, dest, start, vid: v.vid || '' } });
+  }
+});
+// Always send at least one item on, so the run still reports the picks
+if (!routes.length) routes.push({ json: { pick_index: 0, dest: home, start: home, vid: '' } });
+return routes;
+"""
+
+PRICE_JS = JS_RULES + JS_MARKETS + r"""
 const s = $('⚙️ Settings').first().json;
 const picks = $('Parse picks').all().map(i => i.json);
 const details = $('CJ: product details').all().map(i => i.json);
+const routes = $('Plan shipping routes').all().map(i => i.json);
 const freights = $input.all().map(i => i.json);
 const day = $now.toFormat('yyyy-MM-dd');
+const home = homeCountry(s);
+const intlFee = num(s.intl_shipping_fee_usd) || 0;   // what the store charges outside the main market
+const minOk = isNaN(num(s.min_country_profit_usd)) ? 5 : num(s.min_country_profit_usd);
+
+const cheapest = k => (Array.isArray(freights[k]?.data) ? freights[k].data : [])
+  .map(o => ({ name: o.logisticName, price: num(o.logisticPrice), days: String(o.logisticAging || '?') }))
+  .filter(o => !isNaN(o.price))
+  .sort((a, b) => a.price - b.price)[0];
 
 return picks.map((p, i) => {
   const d = details[i]?.data || {};
   const v = (d.variants || [])[0] || {};
   const cjCost = num(v.variantSellPrice ?? d.sellPrice ?? p.cost);
-  const options = Array.isArray(freights[i]?.data) ? freights[i].data : [];
-  const best = options
-    .map(o => ({ name: o.logisticName, price: num(o.logisticPrice), days: String(o.logisticAging || '?') }))
-    .filter(o => !isNaN(o.price))
-    .sort((a, b) => a.price - b.price)[0];
-  const ship = best ? best.price : 0;
+
+  const lines = marketList(s).map(country => {
+    const k = routes.findIndex(r => r.pick_index === i && r.dest === country);
+    if (k < 0) return { country, ok: false, note: EU.includes(country) ? 'no stock in an EU warehouse' : 'no warehouse has stock' };
+    const best = cheapest(k);
+    if (!best) return { country, ok: false, from: routes[k].start, note: 'no shipping quote, check in the CJ app' };
+    return { country, from: routes[k].start, ship: best.price, method: best.name, days: best.days };
+  });
+  const main = lines[0];
+  const ship = main.ship ?? 0;
   const landed = cjCost + ship;
-  // Pricing is a fixed rule, never an AI guess: 3x landed cost, and at least $min_profit_usd above it.
+  // Pricing is a fixed rule, never an AI guess: 3x landed cost in the main market, and at least $min_profit_usd above it.
   const price = Math.ceil(Math.max(landed * s.markup, landed + s.min_profit_usd)) - 0.01;
   const fees = price * 0.029 + 0.30;
+
+  // Same price everywhere; outside the main market the customer pays the flat intl shipping fee.
+  for (const l of lines) {
+    if (l.ship === undefined) continue;
+    const charged = l.country === home ? 0 : intlFee;
+    l.profit = round2(price + charged - cjCost - l.ship - ((price + charged) * 0.029 + 0.30));
+    l.ok = l.profit >= minOk;
+    if (!l.ok) l.note = `profit only $${l.profit}`;
+  }
+  const markets = lines.map(l => l.ship === undefined
+    ? `${l.country} ❌ ${l.note}`
+    : `${l.country} ${l.ok ? '✅' : '❌'} $${l.profit} profit, ship $${round2(l.ship)} from ${l.from}, ${l.days} days`).join(' | ');
+
   return { json: {
     day, pid: p.pid, sku: v.variantSku || p.sku || '', name: p.name, image: p.image,
     cj_cost: round2(cjCost), ship_cost: round2(ship),
-    ship_method: best ? best.name : 'unknown - check in the CJ app', ship_days: best ? best.days : '?',
+    ship_method: main.method || 'unknown - check in the CJ app', ship_days: main.days || '?',
     sell_price: round2(price), profit_per_order: round2(price - landed - fees),
+    markets,
     score: Number(p.score) || 0, why: p.why || '', angle: p.angle || '', target_buyer: p.target_buyer || '',
     risks: p.risks || '', prediction: p.prediction || '', status: 'idea',
   } };
@@ -381,12 +449,16 @@ const blocks = picks.map((p, n) => `${n + 1}) ${p.name}
 CJ SKU: ${p.sku}
 Cost: $${p.cj_cost} + $${p.ship_cost} shipping (${p.ship_method}, ${p.ship_days} days)
 Sell at: $${p.sell_price} -> about $${p.profit_per_order} profit per order before ads
+By country:
+${String(p.markets || '').split(' | ').map(m => '  ' + m).join('\n')}
 Score ${p.score}/100: ${p.why}
 Video idea: ${p.angle}
 Risks: ${p.risks}`);
 const text = `🔎 Product research ${$now.toFormat('yyyy-MM-dd')}
 
 ${blocks.join('\n\n')}
+
+❌ = don't sell this product in that country (Shopify -> Markets -> product availability).
 
 Next: check the product page in the CJ app, order a sample of the one you like, then send
 /content SKU
@@ -407,6 +479,9 @@ def build_research():
         ("min_stock", 50),
         ("markup", 3),
         ("min_profit_usd", 15),
+        ("sell_countries", "US,DE,CA,AU"),
+        ("intl_shipping_fee_usd", 7.99),
+        ("min_country_profit_usd", 5),
     ], [220, 0])
     table_get(wf, "Load playbook", "playbook", [440, 0])
     table_get(wf, "Load past products", "products", [660, 0])
@@ -428,6 +503,7 @@ def build_research():
     cj_get(wf, "CJ: product details", "/product/query", [("pid", "={{ $json.pid }}")], [2420, 0],
            options={"batching": {"batch": {"batchSize": 1, "batchInterval": 1500}}},
            onError="continueRegularOutput")
+    code(wf, "Plan shipping routes", ROUTES_JS, [2640, 0])
     wf.add("CJ: shipping cost", "n8n-nodes-base.httpRequest", 4.2, {
         "method": "POST",
         "url": f"{CJ}/logistic/freightCalculate",
@@ -435,19 +511,18 @@ def build_research():
         "headerParameters": {"parameters": [TOKEN_HEADER]},
         "sendBody": True,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ startCountryCode: $('⚙️ Settings').first().json.warehouse_country, "
-                    "endCountryCode: $('⚙️ Settings').first().json.warehouse_country, "
-                    "products: [{ quantity: 1, vid: (($json.data || {}).variants || [{}])[0].vid || '' }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ startCountryCode: $json.start, endCountryCode: $json.dest, "
+                    "products: [{ quantity: 1, vid: $json.vid }] }) }}",
         "options": {"batching": {"batch": {"batchSize": 1, "batchInterval": 1500}}},
-    }, [2640, 0], onError="continueRegularOutput")
-    code(wf, "Price & margin", PRICE_JS, [2860, 0])
-    table_insert(wf, "Save to products table", "products", [3080, -120])
-    code(wf, "Write Telegram message", RESEARCH_MSG_JS, [3080, 120])
-    telegram(wf, "Send picks to Telegram", "={{ $json.text }}", [3300, 120])
+    }, [2860, 0], onError="continueRegularOutput")
+    code(wf, "Price & margin", PRICE_JS, [3080, 0])
+    table_insert(wf, "Save to products table", "products", [3300, -120])
+    code(wf, "Write Telegram message", RESEARCH_MSG_JS, [3300, 120])
+    telegram(wf, "Send picks to Telegram", "={{ $json.text }}", [3520, 120])
 
     wf.chain("Every morning 07:00", "⚙️ Settings", "Load playbook", "Load past products", "Load feedback",
              "CJ: get token", "Wait 2s", "CJ: trending products", "Build research brief", "Research agent",
-             "Parse picks", "CJ: product details", "CJ: shipping cost", "Price & margin")
+             "Parse picks", "CJ: product details", "Plan shipping routes", "CJ: shipping cost", "Price & margin")
     wf.connect("Price & margin", "Save to products table")
     wf.connect("Price & margin", "Write Telegram message")
     wf.connect("Write Telegram message", "Send picks to Telegram")
@@ -517,7 +592,8 @@ const prompt = `Write the product page copy and 5 video scripts for this product
 PRODUCT
 Name: ${product.name}
 Selling price: $${product.sell_price}
-Shipping time to customers: ${product.ship_days} days (${product.ship_method})
+Shipping time to customers: ${product.ship_days} days (${product.ship_method})${product.markets ? `
+By country (only promise these times): ${product.markets}` : ''}
 Who buys it: ${product.target_buyer}
 Video idea from research: ${product.angle}
 Known risks: ${product.risks}

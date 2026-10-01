@@ -39,7 +39,7 @@ const playbook = [
   { rule_id: 'R007', agent: 'content', rule: 'result first', status: 'rejected', version: 1, evidence: '' },
 ];
 const research = '01-product-research.json';
-const settings01 = { telegram_chat_id: '123', warehouse_country: 'US', min_cj_price: 2, max_cj_price: 15, min_stock: 50, markup: 3, min_profit_usd: 15 };
+const settings01 = { telegram_chat_id: '123', warehouse_country: 'US', min_cj_price: 2, max_cj_price: 15, min_stock: 50, markup: 3, min_profit_usd: 15, sell_countries: 'US,DE,CA,AU', intl_shipping_fee_usd: 7.99, min_country_profit_usd: 5 };
 const cjList = { code: 200, result: true, data: { content: [{ productList: [
   { id: 'P1', nameEn: 'Silicone Sink Splash Guard', sku: 'CJ111', sellPrice: '4.20', nowPrice: '3.90', threeCategoryName: 'Kitchen', warehouseInventoryNum: 900, listedNum: 120, bigImage: 'http://x/1.jpg' },
   { id: 'P2', nameEn: 'Kids Toy Car', sku: 'CJ222', sellPrice: '5', threeCategoryName: 'Toys' },
@@ -83,25 +83,54 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     }, []);
     assert(picks.length === 2 && picks[0].pid === 'P3' && picks[0].name === 'Magnetic Cable Organizer', 'picks ' + JSON.stringify(picks));
   });
-  await test('01 Price & margin (one freight call failed)', async () => {
+  const details01 = [
+    { code: 200, data: { variants: [{ vid: 'V3', variantSku: 'CJ333-BK', variantSellPrice: 2.4,
+      inventories: [{ countryCode: 'US', totalInventory: 500 }, { countryCode: 'CN', totalInventory: 9000 }, { countryCode: 'DE', totalInventory: 0 }] }] } },
+    { error: 'timeout' },
+  ];
+  let routes;
+  await test('01 Plan shipping routes (local stock, EU only from EU, no data -> fallbacks)', async () => {
+    routes = await run(research, 'Plan shipping routes', { '⚙️ Settings': [settings01], 'Parse picks': picks }, details01);
+    const r = routes.map(x => `${x.pick_index}:${x.dest}<${x.start}`).join(' ');
+    // pick 0: US stock -> US; DE has no EU stock -> no route; CA, AU -> China. pick 1: no stock data -> US from US, DE none, CA/AU from CN
+    assert(r === '0:US<US 0:CA<CN 0:AU<CN 1:US<US 1:CA<CN 1:AU<CN', 'routes ' + r);
+    assert(routes[0].vid === 'V3' && routes[3].vid === '', 'vid ' + JSON.stringify(routes));
+    const [fr] = await run(research, 'Plan shipping routes', { '⚙️ Settings': [settings01], 'Parse picks': [picks[0]] },
+      [{ code: 200, data: { variants: [{ vid: 'V9', inventories: [{ countryCode: 'FR', totalInventory: 20 }, { countryCode: 'US', totalInventory: 5 }] }] } }]).then(x => [x.find(y => y.dest === 'DE')]);
+    assert(fr && fr.start === 'FR', 'EU stock in another EU country should ship DE orders: ' + JSON.stringify(fr));
+  });
+  await test('01 Price & margin per country (one freight call failed)', async () => {
+    const q = (price, days = '3-5', name = 'USPS+') => ({ code: 200, data: [{ logisticName: name, logisticPrice: price, logisticAging: days }, { logisticName: 'Slow', logisticPrice: price + 2, logisticAging: '9-12' }] });
     priced = await run(research, 'Price & margin', {
-      '⚙️ Settings': [settings01], 'Parse picks': picks,
-      'CJ: product details': [{ code: 200, data: { variants: [{ vid: 'V3', variantSku: 'CJ333-BK', variantSellPrice: 2.4 }] } }, { error: 'timeout' }],
-    }, [
-      { code: 200, data: [{ logisticName: 'USPS+', logisticPrice: 5.1, logisticAging: '3-5' }, { logisticName: 'Slow', logisticPrice: 7, logisticAging: '6-9' }] },
-      { error: 'boom' },
-    ]);
+      '⚙️ Settings': [settings01], 'Parse picks': picks, 'CJ: product details': details01, 'Plan shipping routes': routes,
+    }, [q(5.1), q(6, '8-15', 'CJPacket'), q(30, '10-20', 'CJPacket'), { error: 'boom' }, q(6, '8-15'), q(6, '8-15')]);
     const a = priced[0];
     assert(a.sku === 'CJ333-BK' && a.ship_cost === 5.1 && a.ship_days === '3-5', 'freight ' + JSON.stringify(a));
     assert(a.sell_price === 22.99, 'price ' + a.sell_price);  // landed 7.5 -> max(22.5, 22.5)=22.5 -> ceil 23 -> 22.99
     assert(a.profit_per_order > 14 && a.profit_per_order < 15, 'profit ' + a.profit_per_order);
+    const m = a.markets.split(' | ');
+    assert(m[0].startsWith('US ✅') && m[0].includes('from US, 3-5 days'), 'US ' + m[0]);
+    assert(m[1] === 'DE ❌ no stock in an EU warehouse', 'DE ' + m[1]);
+    // CA: 22.99 + 7.99 - 2.4 - 6 - (30.98*0.029+0.30) = 21.38
+    assert(m[2].startsWith('CA ✅ $21.38 profit') && m[2].includes('from CN'), 'CA ' + m[2]);
+    assert(m[3].startsWith('AU ❌ $-2.62 profit'), 'AU ' + m[3]);
     assert(priced[1].ship_method.startsWith('unknown') && priced[1].cj_cost === 3.9, 'fallback ' + JSON.stringify(priced[1]));
-    const cols = 'day,pid,sku,name,image,cj_cost,ship_cost,ship_method,ship_days,sell_price,profit_per_order,score,why,angle,target_buyer,risks,prediction,status';
+    assert(priced[1].markets.startsWith('US ❌ no shipping quote') && priced[1].markets.includes('CA ✅'), 'markets 2 ' + priced[1].markets);
+    const cols = fs.readFileSync(path.join(__dirname, '..', 'templates', 'products.csv'), 'utf8').split('\n')[0].trim();
     assert(Object.keys(a).join(',') === cols, 'columns ' + Object.keys(a).join(','));
+  });
+  await test('01 Price & margin with old settings (one market, no stock data)', async () => {
+    const old = { telegram_chat_id: '123', warehouse_country: 'us', markup: 3, min_profit_usd: 15 };
+    const r = await run(research, 'Plan shipping routes', { '⚙️ Settings': [old], 'Parse picks': [picks[0]] }, [{ code: 200, data: { variants: [{ vid: 'V3' }] } }]);
+    assert(r.length === 1 && r[0].dest === 'US' && r[0].start === 'US', 'routes ' + JSON.stringify(r));
+    const [p] = await run(research, 'Price & margin', { '⚙️ Settings': [old], 'Parse picks': [picks[0]], 'CJ: product details': [{ code: 200, data: { variants: [{ vid: 'V3', variantSellPrice: 2.4 }] } }], 'Plan shipping routes': r },
+      [{ code: 200, data: [{ logisticName: 'USPS+', logisticPrice: 5.1, logisticAging: '3-5' }] }]);
+    assert(p.sell_price === 22.99 && p.markets.startsWith('US ✅') && !p.markets.includes('|'), JSON.stringify(p));
   });
   await test('01 Telegram message', async () => {
     const [m] = await run(research, 'Write Telegram message', {}, priced);
     assert(m.text.includes('CJ SKU: CJ333-BK') && m.text.includes('/content SKU'), m.text);
+    assert(m.text.includes('By country:\n  US ✅') && m.text.includes('  DE ❌ no stock in an EU warehouse') && m.text.includes('Markets'), m.text);
   });
 
   // ------------------------------------------------ 02 commands

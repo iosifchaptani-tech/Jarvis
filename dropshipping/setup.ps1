@@ -30,7 +30,7 @@ param(
     [string]$ClaudeKey = '', [string]$TelegramToken = '', [string]$TelegramChatId = '',
     [string]$CjKey = '', [string]$Json2VideoKey = '',     # 'skip' = leave out for now
     [string]$SupportEmail = '', [string]$SupportAppPassword = '',
-    [string]$StoreName = '', [string]$WarehouseCountry = '', [string]$TimeZone = '',
+    [string]$StoreName = '', [string]$WarehouseCountry = '', [string]$SellCountries = '', [string]$TimeZone = '',
     [string]$ShippingPolicy = '', [string]$RefundPolicy = ''
 )
 
@@ -247,13 +247,16 @@ function Collect-Answers($state) {
     $a = [ordered]@{}
     $a.store_name = $StoreName; if (-not $a.store_name) { $a.store_name = Ask 'Store name' (Get-Prop $state 'store_name') }
     $a.warehouse_country = $WarehouseCountry
-    if (-not $a.warehouse_country) { $a.warehouse_country = Ask 'Country you sell to / CJ warehouse (US, GB, DE, FR...)' (Get-Prop $state 'warehouse_country' 'US') }
-    $a.warehouse_country = $a.warehouse_country.ToUpper()
+    if (-not $a.warehouse_country) { $a.warehouse_country = Ask 'Main market / CJ warehouse the products come from (US, DE...)' (Get-Prop $state 'warehouse_country' 'US') }
+    $a.warehouse_country = $a.warehouse_country.Trim().ToUpper()
+    $a.sell_countries = $SellCountries
+    if (-not $a.sell_countries) { $a.sell_countries = Ask 'All countries you sell to, comma separated' (Get-Prop $state 'sell_countries' 'US,DE,CA,AU') }
+    $a.sell_countries = ($a.sell_countries.ToUpper() -replace '\s', '')
     $a.timezone = $TimeZone
     if (-not $a.timezone) { $a.timezone = Ask 'Your time zone (e.g. America/New_York, Europe/London)' (Get-Prop $state 'timezone' 'Europe/London') }
     $a.shipping_policy = $ShippingPolicy
     if (-not $a.shipping_policy) {
-        $a.shipping_policy = Ask 'Shipping promise, one sentence' (Get-Prop $state 'shipping_policy' 'Orders are processed in 1-3 business days and delivered in 3-7 business days. Every order gets a tracking number by email.')
+        $a.shipping_policy = Ask 'Shipping promise, one sentence' (Get-Prop $state 'shipping_policy' 'Orders are processed in 1-3 business days. Delivery: USA and EU 4-10 business days, other countries 8-18 business days. Every order gets a tracking number by email.')
     }
     $a.refund_policy = $RefundPolicy
     if (-not $a.refund_policy) {
@@ -443,6 +446,7 @@ function Prepare-Workflow($wf, $answers, $chatId, $credIds, $errorWorkflowId, $s
     $values = @{
         telegram_chat_id = $chatId; support_email = (Get-Prop $state 'support_email' 'PASTE_YOUR_SUPPORT_EMAIL')
         store_name = $answers.store_name; email_signature = $signature; warehouse_country = $answers.warehouse_country
+        sell_countries = $answers.sell_countries
         shipping_policy = $answers.shipping_policy; refund_policy = $answers.refund_policy
     }
     foreach ($node in $wf.nodes) {

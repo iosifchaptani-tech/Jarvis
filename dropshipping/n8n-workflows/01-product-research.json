@@ -66,6 +66,24 @@
               "name": "min_profit_usd",
               "value": 15,
               "type": "number"
+            },
+            {
+              "id": "9adbfad1-d8fd-5a67-ba8c-dc55f6980e87",
+              "name": "sell_countries",
+              "value": "US,DE,CA,AU",
+              "type": "string"
+            },
+            {
+              "id": "0fcaf2ff-0668-5a40-b8ab-e8159f8b4489",
+              "name": "intl_shipping_fee_usd",
+              "value": 7.99,
+              "type": "number"
+            },
+            {
+              "id": "d86d154a-647b-51e9-86c8-bf4b732df820",
+              "name": "min_country_profit_usd",
+              "value": 5,
+              "type": "number"
             }
           ]
         },
@@ -344,6 +362,19 @@
     },
     {
       "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];\nconst homeCountry = s => String(s.warehouse_country || 'US').trim().toUpperCase();\n// The main market (warehouse_country) comes first, then every other country in sell_countries.\nconst marketList = s => [...new Set([homeCountry(s), ...String(s.sell_countries || '').toUpperCase().split(/[\\s,;]+/).filter(c => /^[A-Z]{2}$/.test(c))])];\n\nconst s = $('⚙️ Settings').first().json;\nconst picks = $('Parse picks').all().map(i => i.json);\nconst details = $input.all().map(i => i.json);\nconst home = homeCountry(s);\n\n// For every pick and every market, choose the CJ warehouse that ships the order:\n// - a warehouse in the customer's own country if it has stock;\n// - EU customers: only a warehouse inside the EU (no customs or import VAT surprises), otherwise not sold there;\n// - other countries: China, then the main warehouse.\nconst routes = [];\npicks.forEach((p, i) => {\n  const v = ((details[i]?.data || {}).variants || [])[0] || {};\n  const stock = {};\n  for (const inv of v.inventories || []) {\n    const c = String(inv.countryCode || '').toUpperCase();\n    stock[c] = (stock[c] || 0) + (num(inv.totalInventory) || 0);\n  }\n  const known = Object.keys(stock).length > 0;\n  const has = c => (stock[c] || 0) > 0;\n  for (const dest of marketList(s)) {\n    let start = null;\n    if (has(dest)) start = dest;\n    else if (dest === home && !known) start = home;  // no stock data: trust the warehouse we searched in\n    else if (EU.includes(dest)) start = EU.find(has) || null;\n    else start = ['CN', home].find(has) || (known ? null : 'CN');\n    if (start) routes.push({ json: { pick_index: i, dest, start, vid: v.vid || '' } });\n  }\n});\n// Always send at least one item on, so the run still reports the picks\nif (!routes.length) routes.push({ json: { pick_index: 0, dest: home, start: home, vid: '' } });\nreturn routes;\n"
+      },
+      "id": "c3d43483-6d39-51f5-aad9-d5fa36634a38",
+      "name": "Plan shipping routes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://developers.cjdropshipping.com/api2.0/v1/logistic/freightCalculate",
         "sendHeaders": true,
@@ -357,7 +388,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ startCountryCode: $('⚙️ Settings').first().json.warehouse_country, endCountryCode: $('⚙️ Settings').first().json.warehouse_country, products: [{ quantity: 1, vid: (($json.data || {}).variants || [{}])[0].vid || '' }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ startCountryCode: $json.start, endCountryCode: $json.dest, products: [{ quantity: 1, vid: $json.vid }] }) }}",
         "options": {
           "batching": {
             "batch": {
@@ -372,21 +403,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2640,
+        2860,
         0
       ],
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst s = $('⚙️ Settings').first().json;\nconst picks = $('Parse picks').all().map(i => i.json);\nconst details = $('CJ: product details').all().map(i => i.json);\nconst freights = $input.all().map(i => i.json);\nconst day = $now.toFormat('yyyy-MM-dd');\n\nreturn picks.map((p, i) => {\n  const d = details[i]?.data || {};\n  const v = (d.variants || [])[0] || {};\n  const cjCost = num(v.variantSellPrice ?? d.sellPrice ?? p.cost);\n  const options = Array.isArray(freights[i]?.data) ? freights[i].data : [];\n  const best = options\n    .map(o => ({ name: o.logisticName, price: num(o.logisticPrice), days: String(o.logisticAging || '?') }))\n    .filter(o => !isNaN(o.price))\n    .sort((a, b) => a.price - b.price)[0];\n  const ship = best ? best.price : 0;\n  const landed = cjCost + ship;\n  // Pricing is a fixed rule, never an AI guess: 3x landed cost, and at least $min_profit_usd above it.\n  const price = Math.ceil(Math.max(landed * s.markup, landed + s.min_profit_usd)) - 0.01;\n  const fees = price * 0.029 + 0.30;\n  return { json: {\n    day, pid: p.pid, sku: v.variantSku || p.sku || '', name: p.name, image: p.image,\n    cj_cost: round2(cjCost), ship_cost: round2(ship),\n    ship_method: best ? best.name : 'unknown - check in the CJ app', ship_days: best ? best.days : '?',\n    sell_price: round2(price), profit_per_order: round2(price - landed - fees),\n    score: Number(p.score) || 0, why: p.why || '', angle: p.angle || '', target_buyer: p.target_buyer || '',\n    risks: p.risks || '', prediction: p.prediction || '', status: 'idea',\n  } };\n});\n"
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];\nconst homeCountry = s => String(s.warehouse_country || 'US').trim().toUpperCase();\n// The main market (warehouse_country) comes first, then every other country in sell_countries.\nconst marketList = s => [...new Set([homeCountry(s), ...String(s.sell_countries || '').toUpperCase().split(/[\\s,;]+/).filter(c => /^[A-Z]{2}$/.test(c))])];\n\nconst s = $('⚙️ Settings').first().json;\nconst picks = $('Parse picks').all().map(i => i.json);\nconst details = $('CJ: product details').all().map(i => i.json);\nconst routes = $('Plan shipping routes').all().map(i => i.json);\nconst freights = $input.all().map(i => i.json);\nconst day = $now.toFormat('yyyy-MM-dd');\nconst home = homeCountry(s);\nconst intlFee = num(s.intl_shipping_fee_usd) || 0;   // what the store charges outside the main market\nconst minOk = isNaN(num(s.min_country_profit_usd)) ? 5 : num(s.min_country_profit_usd);\n\nconst cheapest = k => (Array.isArray(freights[k]?.data) ? freights[k].data : [])\n  .map(o => ({ name: o.logisticName, price: num(o.logisticPrice), days: String(o.logisticAging || '?') }))\n  .filter(o => !isNaN(o.price))\n  .sort((a, b) => a.price - b.price)[0];\n\nreturn picks.map((p, i) => {\n  const d = details[i]?.data || {};\n  const v = (d.variants || [])[0] || {};\n  const cjCost = num(v.variantSellPrice ?? d.sellPrice ?? p.cost);\n\n  const lines = marketList(s).map(country => {\n    const k = routes.findIndex(r => r.pick_index === i && r.dest === country);\n    if (k < 0) return { country, ok: false, note: EU.includes(country) ? 'no stock in an EU warehouse' : 'no warehouse has stock' };\n    const best = cheapest(k);\n    if (!best) return { country, ok: false, from: routes[k].start, note: 'no shipping quote, check in the CJ app' };\n    return { country, from: routes[k].start, ship: best.price, method: best.name, days: best.days };\n  });\n  const main = lines[0];\n  const ship = main.ship ?? 0;\n  const landed = cjCost + ship;\n  // Pricing is a fixed rule, never an AI guess: 3x landed cost in the main market, and at least $min_profit_usd above it.\n  const price = Math.ceil(Math.max(landed * s.markup, landed + s.min_profit_usd)) - 0.01;\n  const fees = price * 0.029 + 0.30;\n\n  // Same price everywhere; outside the main market the customer pays the flat intl shipping fee.\n  for (const l of lines) {\n    if (l.ship === undefined) continue;\n    const charged = l.country === home ? 0 : intlFee;\n    l.profit = round2(price + charged - cjCost - l.ship - ((price + charged) * 0.029 + 0.30));\n    l.ok = l.profit >= minOk;\n    if (!l.ok) l.note = `profit only $${l.profit}`;\n  }\n  const markets = lines.map(l => l.ship === undefined\n    ? `${l.country} ❌ ${l.note}`\n    : `${l.country} ${l.ok ? '✅' : '❌'} $${l.profit} profit, ship $${round2(l.ship)} from ${l.from}, ${l.days} days`).join(' | ');\n\n  return { json: {\n    day, pid: p.pid, sku: v.variantSku || p.sku || '', name: p.name, image: p.image,\n    cj_cost: round2(cjCost), ship_cost: round2(ship),\n    ship_method: main.method || 'unknown - check in the CJ app', ship_days: main.days || '?',\n    sell_price: round2(price), profit_per_order: round2(price - landed - fees),\n    markets,\n    score: Number(p.score) || 0, why: p.why || '', angle: p.angle || '', target_buyer: p.target_buyer || '',\n    risks: p.risks || '', prediction: p.prediction || '', status: 'idea',\n  } };\n});\n"
       },
       "id": "f95af0e8-df53-59bb-962e-591664dd7352",
       "name": "Price & margin",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2860,
+        3080,
         0
       ]
     },
@@ -412,20 +443,20 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        3080,
+        3300,
         -120
       ]
     },
     {
       "parameters": {
-        "jsCode": "const picks = $input.all().map(i => i.json);\nconst blocks = picks.map((p, n) => `${n + 1}) ${p.name}\nCJ SKU: ${p.sku}\nCost: $${p.cj_cost} + $${p.ship_cost} shipping (${p.ship_method}, ${p.ship_days} days)\nSell at: $${p.sell_price} -> about $${p.profit_per_order} profit per order before ads\nScore ${p.score}/100: ${p.why}\nVideo idea: ${p.angle}\nRisks: ${p.risks}`);\nconst text = `🔎 Product research ${$now.toFormat('yyyy-MM-dd')}\n\n${blocks.join('\\n\\n')}\n\nNext: check the product page in the CJ app, order a sample of the one you like, then send\n/content SKU\nto get the listing copy and 5 video scripts.`;\nreturn [{ json: { text: text.slice(0, 4000) } }];\n"
+        "jsCode": "const picks = $input.all().map(i => i.json);\nconst blocks = picks.map((p, n) => `${n + 1}) ${p.name}\nCJ SKU: ${p.sku}\nCost: $${p.cj_cost} + $${p.ship_cost} shipping (${p.ship_method}, ${p.ship_days} days)\nSell at: $${p.sell_price} -> about $${p.profit_per_order} profit per order before ads\nBy country:\n${String(p.markets || '').split(' | ').map(m => '  ' + m).join('\\n')}\nScore ${p.score}/100: ${p.why}\nVideo idea: ${p.angle}\nRisks: ${p.risks}`);\nconst text = `🔎 Product research ${$now.toFormat('yyyy-MM-dd')}\n\n${blocks.join('\\n\\n')}\n\n❌ = don't sell this product in that country (Shopify -> Markets -> product availability).\n\nNext: check the product page in the CJ app, order a sample of the one you like, then send\n/content SKU\nto get the listing copy and 5 video scripts.`;\nreturn [{ json: { text: text.slice(0, 4000) } }];\n"
       },
       "id": "5b638a6b-7477-56dc-b5cb-44cf6b2f67b0",
       "name": "Write Telegram message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3080,
+        3300,
         120
       ]
     },
@@ -442,7 +473,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3300,
+        3520,
         120
       ]
     }
@@ -581,6 +612,17 @@
       ]
     },
     "CJ: product details": {
+      "main": [
+        [
+          {
+            "node": "Plan shipping routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan shipping routes": {
       "main": [
         [
           {
