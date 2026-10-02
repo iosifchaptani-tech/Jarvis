@@ -19,7 +19,7 @@ Edit `tools/build_workflows.py` (not the JSON files), then run:
 
 ```bash
 python3 dropshipping/tools/build_workflows.py        # regenerate n8n-workflows/*.json
-cd dropshipping/tools && npm install luxon@3 && node test_code_nodes.js   # 34 logic tests
+cd dropshipping/tools && npm install luxon@3 && node test_code_nodes.js   # 35 logic tests
 ```
 
 ## How the workflows were tested

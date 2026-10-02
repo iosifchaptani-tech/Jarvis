@@ -347,6 +347,12 @@ JS_MARKETS = r"""
 const EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
 const homeCountry = s => String(s.warehouse_country || 'US').trim().toUpperCase();
 // The main market (warehouse_country) comes first, then every other country in sell_countries.
+// The cheapest variant is the one the research list price refers to (often the single item, not a 2-pack).
+const pickVariant = d => {
+  const vs = (d && d.variants) || [];
+  const priced = vs.filter(v => !isNaN(num(v.variantSellPrice)));
+  return (priced.length ? priced.sort((a, b) => num(a.variantSellPrice) - num(b.variantSellPrice))[0] : vs[0]) || {};
+};
 const marketList = s => [...new Set([homeCountry(s), ...String(s.sell_countries || '').toUpperCase().split(/[\s,;]+/).filter(c => /^[A-Z]{2}$/.test(c))])];
 """
 
@@ -362,7 +368,7 @@ const home = homeCountry(s);
 // - other countries: China, then the main warehouse.
 const routes = [];
 picks.forEach((p, i) => {
-  const v = ((details[i]?.data || {}).variants || [])[0] || {};
+  const v = pickVariant(details[i]?.data);
   const stock = {};
   for (const inv of v.inventories || []) {
     const c = String(inv.countryCode || '').toUpperCase();
@@ -402,7 +408,7 @@ const cheapest = k => (Array.isArray(freights[k]?.data) ? freights[k].data : [])
 
 return picks.map((p, i) => {
   const d = details[i]?.data || {};
-  const v = (d.variants || [])[0] || {};
+  const v = pickVariant(d);
   const cjCost = num(v.variantSellPrice ?? d.sellPrice ?? p.cost);
 
   const lines = marketList(s).map(country => {
@@ -460,7 +466,7 @@ ${blocks.join('\n\n')}
 
 ❌ = don't sell this product in that country (Shopify -> Markets -> product availability).
 
-Next: check the product page in the CJ app, order a sample of the one you like, then send
+Next: check the product page in the CJ app (photos, stock, reviews), then send
 /content SKU
 to get the listing copy and 5 video scripts.`;
 return [{ json: { text: text.slice(0, 4000) } }];

@@ -119,6 +119,17 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const cols = fs.readFileSync(path.join(__dirname, '..', 'templates', 'products.csv'), 'utf8').split('\n')[0].trim();
     assert(Object.keys(a).join(',') === cols, 'columns ' + Object.keys(a).join(','));
   });
+  await test('01 Cheapest variant is priced, not a 2-pack', async () => {
+    const det = [{ code: 200, data: { variants: [
+      { vid: 'V2PK', variantSku: 'CJ333-2PCS', variantSellPrice: 5.84, inventories: [{ countryCode: 'US', totalInventory: 50 }] },
+      { vid: 'V1', variantSku: 'CJ333-1PC', variantSellPrice: 2.4, inventories: [{ countryCode: 'US', totalInventory: 50 }] }] } }];
+    const s1 = { ...settings01, sell_countries: 'US' };
+    const r = await run(research, 'Plan shipping routes', { '⚙️ Settings': [s1], 'Parse picks': [picks[0]] }, det);
+    assert(r.length === 1 && r[0].vid === 'V1', 'route vid ' + JSON.stringify(r));
+    const [p] = await run(research, 'Price & margin', { '⚙️ Settings': [s1], 'Parse picks': [picks[0]], 'CJ: product details': det, 'Plan shipping routes': r },
+      [{ code: 200, data: [{ logisticName: 'USPS+', logisticPrice: 5.1, logisticAging: '3-5' }] }]);
+    assert(p.sku === 'CJ333-1PC' && p.cj_cost === 2.4 && p.sell_price === 22.99, JSON.stringify(p));
+  });
   await test('01 Price & margin with old settings (one market, no stock data)', async () => {
     const old = { telegram_chat_id: '123', warehouse_country: 'us', markup: 3, min_profit_usd: 15 };
     const r = await run(research, 'Plan shipping routes', { '⚙️ Settings': [old], 'Parse picks': [picks[0]] }, [{ code: 200, data: { variants: [{ vid: 'V3' }] } }]);
