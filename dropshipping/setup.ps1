@@ -553,8 +553,21 @@ Write-Host '  Your keys are typed here and stored encrypted inside n8n on this P
 $state = Load-State
 $answers = Collect-Answers $state
 
+# A permanent address (your own domain) is remembered, so running the setup again never falls back to a temporary one.
+if (-not $PublicUrl) {
+    $saved = Get-Prop $state 'public_url'
+    if ($saved -and $saved -notlike '*trycloudflare.com*' -and $saved -notlike '*localhost*') {
+        $PublicUrl = $saved
+        Ok "Using your permanent address: $PublicUrl"
+    }
+}
+
 if (-not $SkipInstall) {
     $docker = Ensure-Docker
+    if (-not $PublicUrl -and (Get-Service cloudflared -ErrorAction SilentlyContinue)) {
+        Fail ('A permanent Cloudflare tunnel is installed on this PC. Run the setup with your address so it is kept, e.g.: ' +
+              'powershell -ExecutionPolicy Bypass -File setup.ps1 -PublicUrl https://n8n.yourdomain.com')
+    }
     if (-not $PublicUrl) { $PublicUrl = Start-Tunnel }
     Start-N8n $docker $PublicUrl $answers.timezone
 } else {
