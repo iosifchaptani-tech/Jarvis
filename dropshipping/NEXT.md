@@ -1,7 +1,7 @@
 # Next up
 
 ## 0. For the next session (asked by the owner on 2 Oct 2026, ~01:00)
-1. **A 30-day master plan for EVERYTHING, day by day.** The next session is **day 5**, so the plan covers days 5-34. The owner is doing many things at once and needs one plan that manages all of them. Each day gets a short task list (who does what, about how long), with one main focus per day so nothing is forgotten.
+1. **DONE → `PLAN-30-DAYS.md` (repo root).** A 30-day master plan for EVERYTHING, day by day. The next session is **day 5**, so the plan covers days 5-34. The owner is doing many things at once and needs one plan that manages all of them. Each day gets a short task list (who does what, about how long), with one main focus per day so nothing is forgotten.
 
    It covers:
    - **Pivendo store** (`PLAN.md`):
