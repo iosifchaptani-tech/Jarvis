@@ -452,7 +452,7 @@ return picks.map((p, i) => {
 RESEARCH_MSG_JS = r"""
 const picks = $input.all().map(i => i.json);
 const blocks = picks.map((p, n) => `${n + 1}) ${p.name}
-CJ SKU: ${p.sku}
+CJ SKU: ${p.sku} (search CJ for ${String(p.sku).split('-')[0]})
 Cost: $${p.cj_cost} + $${p.ship_cost} shipping (${p.ship_method}, ${p.ship_days} days)
 Sell at: $${p.sell_price} -> about $${p.profit_per_order} profit per order before ads
 By country:
