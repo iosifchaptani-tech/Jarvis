@@ -451,8 +451,11 @@ return picks.map((p, i) => {
 
 RESEARCH_MSG_JS = r"""
 const picks = $input.all().map(i => i.json);
+// Direct CJ product page: CJ finds the product by the id after "-p-"; the name part is only for readability
+const cjLink = p => `https://www.cjdropshipping.com/product/${String(p.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)}-p-${p.pid}.html`;
 const blocks = picks.map((p, n) => `${n + 1}) ${p.name}
 CJ SKU: ${p.sku} (search CJ for ${String(p.sku).split('-')[0]})
+Open in CJ: ${cjLink(p)}
 Cost: $${p.cj_cost} + $${p.ship_cost} shipping (${p.ship_method}, ${p.ship_days} days)
 Sell at: $${p.sell_price} -> about $${p.profit_per_order} profit per order before ads
 By country:

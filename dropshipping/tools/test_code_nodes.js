@@ -141,7 +141,7 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
   await test('01 Telegram message', async () => {
     const [m] = await run(research, 'Write Telegram message', {}, priced);
     assert(m.text.includes('CJ SKU: CJ333-BK') && m.text.includes('/content SKU'), m.text);
-    assert(m.text.includes('search CJ for CJ333)'), m.text);
+    assert(m.text.includes('search CJ for CJ333)') && m.text.includes('Open in CJ: https://www.cjdropshipping.com/product/magnetic-cable-organizer-p-P3.html'), m.text);
     assert(m.text.includes('By country:\n  US ✅') && m.text.includes('  DE ❌ no stock in an EU warehouse') && m.text.includes('Markets'), m.text);
   });
 
