@@ -7,6 +7,7 @@ Start with **[PLAN.md](PLAN.md)**, then follow **[SETUP.md](SETUP.md)**.
 | `PLAN.md` | Honest odds, how the system works, budget, 14-day plan, kill/scale rules, legal checklist |
 | `SETUP.md` | Step-by-step: accounts → n8n → Data Tables → credentials → import → test |
 | `setup.ps1` / `SETUP_DROPSHIPPING.bat` | Windows: does Parts 2-5 of SETUP.md automatically (install, n8n, keys, tables, workflows); safe to run again |
+| `BOT-GUIDE.md` | Plain-language guide to every Telegram bot message and command |
 | `POLICIES.md` | Ready-to-paste Shopify policies in English and German (refund, shipping, privacy, terms, Impressum) |
 | `n8n-workflows/` | 8 workflows to import into n8n (research, Telegram commands with the content and video agents, order alert, CJ order check, daily coach, customer support, CJ auto-pay, error alerts) |
 | `templates/` | CSV templates for the 9 Data Tables. `playbook.csv` holds the 7 starting rules |
