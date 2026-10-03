@@ -17,7 +17,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 **Open from day 5 ⏳**
 - [ ] Gewerbe form: filled in, but not yet **signed and emailed** to the Gewerbeamt.
 - [ ] Register on **ELSTER**.
-- [ ] Shopify webhook → `https://n8n.pivendo.com/webhook/shopify-order-…` (confirm it's done).
+- [x] Shopify webhook → `https://n8n.pivendo.com/webhook/shopify-order-…` ✅
 - [ ] Delete the test order in n8n.
 - [ ] **Wok Wang** info and price.
 
