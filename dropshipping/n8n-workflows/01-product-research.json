@@ -1,0 +1,680 @@
+{
+  "name": "01 · Product research (daily)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ce9ba9c6-dbe5-5800-9aaa-87abe8a62cfd",
+      "name": "Every morning 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2f666628-25af-5164-9493-bd50dbb29e75",
+              "name": "telegram_chat_id",
+              "value": "PASTE_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "ddc43293-138c-5d3a-a8e7-f32aa3fc2e32",
+              "name": "warehouse_country",
+              "value": "US",
+              "type": "string"
+            },
+            {
+              "id": "e4413a2d-b95a-5368-b397-5163c180c213",
+              "name": "min_cj_price",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "f5fc5369-0fe0-5ffe-8093-a2e4f4c9aa69",
+              "name": "max_cj_price",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "id": "65a32a59-130c-5d43-8d46-93ec01e2a759",
+              "name": "min_stock",
+              "value": 50,
+              "type": "number"
+            },
+            {
+              "id": "1df6041b-3f80-5bb0-adf7-f77b42957436",
+              "name": "markup",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "1c747e26-baeb-5840-b77b-1f7bfaffdeb5",
+              "name": "min_profit_usd",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "id": "9adbfad1-d8fd-5a67-ba8c-dc55f6980e87",
+              "name": "sell_countries",
+              "value": "US,DE,CA,AU",
+              "type": "string"
+            },
+            {
+              "id": "0fcaf2ff-0668-5a40-b8ab-e8159f8b4489",
+              "name": "intl_shipping_fee_usd",
+              "value": 7.99,
+              "type": "number"
+            },
+            {
+              "id": "d86d154a-647b-51e9-86c8-bf4b732df820",
+              "name": "min_country_profit_usd",
+              "value": 5,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c7453f69-4640-510d-948d-9874cdfe7e14",
+      "name": "⚙️ Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "playbook"
+        },
+        "returnAll": true
+      },
+      "id": "acc003df-5e48-51db-a71f-88baed204a1d",
+      "name": "Load playbook",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "products"
+        },
+        "returnAll": true
+      },
+      "id": "36ea8d97-a5f3-50c5-8312-f5620694bd82",
+      "name": "Load past products",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "feedback"
+        },
+        "returnAll": true
+      },
+      "id": "e1fba587-2f85-5649-adba-3e6eb528e739",
+      "name": "Load feedback",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "791b75b8-2e39-5678-9918-d58f8f347ae7",
+      "name": "CJ: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "1e7fde6e-00eb-5a02-a268-3e639f15b036",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "webhookId": "5d81f268-6074-5a5b-83d2-b0ec5181bc97"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/product/listV2",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "size",
+              "value": "60"
+            },
+            {
+              "name": "productFlag",
+              "value": "0"
+            },
+            {
+              "name": "countryCode",
+              "value": "={{ $('⚙️ Settings').first().json.warehouse_country }}"
+            },
+            {
+              "name": "startSellPrice",
+              "value": "={{ $('⚙️ Settings').first().json.min_cj_price }}"
+            },
+            {
+              "name": "endSellPrice",
+              "value": "={{ $('⚙️ Settings').first().json.max_cj_price }}"
+            },
+            {
+              "name": "startWarehouseInventory",
+              "value": "={{ $('⚙️ Settings').first().json.min_stock }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "755ea44c-560e-5d0b-971f-a7b51cbf2cfd",
+      "name": "CJ: trending products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst s = $('⚙️ Settings').first().json;\nconst res = $('CJ: trending products').first().json;\nif (res.code !== 200) throw new Error('CJ product list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));\n\nconst products = (res.data?.content || []).flatMap(c => c.productList || []);\nconst banned = /(batter(y|ies)|lithium|power ?bank|charger|\\bkids?\\b|child|baby|toddler|infant|\\btoys?\\b|cosmetic|makeup|serum|cream|lotion|supplement|vitamin|capsule|medical|medicine|\\bdrug|vape|e-?cig|knife|weapon|\\bgun\\b|laser|nike|adidas|iphone|airpods|samsung|disney|marvel|pokemon|lego|barbie|stanley|hello kitty|gucci|louis vuitton|chanel|dyson)/i;\nconst tried = rowsOf('Load past products');\nconst triedPids = new Set(tried.map(p => p.pid));\n\nconst candidates = [];\nfor (const p of products) {\n  const cost = num(p.nowPrice || p.sellPrice);\n  if (!p.id || !p.nameEn || isNaN(cost)) continue;\n  if (banned.test(p.nameEn) || banned.test(p.threeCategoryName || '')) continue;\n  if (triedPids.has(p.id)) continue;\n  candidates.push({ pid: p.id, sku: p.sku || '', name: p.nameEn, category: p.threeCategoryName || '',\n    cost, stock: p.warehouseInventoryNum ?? '?', listed: p.listedNum ?? '?', image: p.bigImage || '' });\n}\nif (!candidates.length) throw new Error('No CJ candidates left after filtering. Widen the price range in Settings.');\nconst shortlist = candidates.slice(0, 40);\n\n// What the store learned so far: product outcomes the owner reported with /product\nconst feedback = rowsOf('Load feedback').filter(f => f.kind === 'product');\nconst status = {};\nfor (const f of feedback) status[String(f.ref).toLowerCase()] = f;\nconst history = tried.slice(-20).map(p => {\n  const f = status[String(p.sku).toLowerCase()];\n  return `- ${p.name} (landed $${round2((+p.cj_cost || 0) + (+p.ship_cost || 0))}, price $${p.sell_price}, score ${p.score}): `\n    + (f ? `${f.status}${f.note ? ' - ' + f.note : ''}` : `status ${p.status}, no result reported yet`)\n    + (p.prediction ? ` | prediction was: ${p.prediction}` : '');\n}).join('\\n') || '- none yet';\n\nconst rules = activeRules(rowsOf('Load playbook'), ['research']);\nconst lines = shortlist.map(c => `${c.pid} | ${c.name} | ${c.category} | $${c.cost} | stock ${c.stock} | listed by ${c.listed} stores`).join('\\n');\n\nconst prompt = `Today is ${$now.toFormat('yyyy-MM-dd')}. Pick the 3 best products from CANDIDATES for this store.\n\nPLAYBOOK (rules learned from this store's results - follow them):\n${rulesText(rules)}\n\nPRODUCTS WE ALREADY TRIED (learn from these):\n${history}\n\nCANDIDATES (CJ trending products in stock in the ${s.warehouse_country} warehouse; cost is the CJ price in USD before shipping):\npid | name | category | cost | stock | listed by N stores\n${lines}\n\nReply with only this JSON (exactly 3 picks, best first):\n{\"picks\":[{\"pid\":\"<pid from the list>\",\"score\":<0-100>,\"why\":\"<one sentence>\",\"angle\":\"<the video idea: problem shown, result shown>\",\"target_buyer\":\"<who buys it>\",\"risks\":\"<saturation, returns, legal, shipping>\",\"prediction\":\"<a testable prediction, e.g. 'first 10 videos average over 800 views'>\"}]}`;\n\nreturn [{ json: { prompt, candidates: shortlist, rules_version: rules.map(r => r.rule_id + 'v' + r.version).join(',') } }];\n"
+      },
+      "id": "5a6aa22c-811f-5538-9025-8af08a72134a",
+      "name": "Build research brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "You are the Product Research agent of a one-person dropshipping store. The supplier is CJ Dropshipping and traffic comes from free short phone videos (TikTok, Instagram Reels, YouTube Shorts) that the owner films with a product sample.\n\nA good product for this store:\n- sells for $20-60 and can be priced at 3x its landed cost (product + shipping);\n- shows a visible problem and a satisfying result within the first 2 seconds of a video;\n- is light, not fragile, has no sizes, is not branded and does not copy a brand;\n- is not cheap and fast on Amazon Prime, and is not already listed by a huge number of stores;\n- is safe and legal: no batteries, children's products, cosmetics, supplements, medical or health claims, weapons.\n\nFollow the PLAYBOOK rules exactly. They were learned from this store's own results and override your general opinion.\nLearn from PRODUCTS WE ALREADY TRIED: avoid repeating what failed, look for more of what worked.\nBe honest: a low score is more useful than hype. Reply with only the JSON the user asks for.",
+          "maxIterations": 3
+        }
+      },
+      "id": "c95571df-fc59-5e2e-9490-e1546d83df71",
+      "name": "Research agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-opus-5-5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "id": "0a7d40fc-0077-5e7f-83e6-584f18945ca9",
+      "name": "Claude (Research agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        1980,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseAgentJson(nodeName) {\n  const raw = $(nodeName).first().json.output ?? '';\n  const text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n  const m = text.match(/\\{[\\s\\S]*\\}/);\n  if (!m) throw new Error(`${nodeName} did not return JSON: ` + text.slice(0, 300));\n  return JSON.parse(m[0]);\n}\n\nconst data = parseAgentJson('Research agent');\nconst cands = $('Build research brief').first().json.candidates;\nconst byPid = Object.fromEntries(cands.map(c => [c.pid, c]));\nconst picks = (data.picks || []).filter(p => byPid[p.pid]).slice(0, 3);\nif (!picks.length) throw new Error('Research agent picked no valid products: ' + JSON.stringify(data).slice(0, 300));\nreturn picks.map(p => ({ json: { ...byPid[p.pid], ...p } }));\n"
+      },
+      "id": "f42b14a3-8f9d-5ee4-a381-4f36d3067c46",
+      "name": "Parse picks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/product/query",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pid",
+              "value": "={{ $json.pid }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
+      },
+      "id": "200f0ab7-481a-5a80-9de7-463622e9733d",
+      "name": "CJ: product details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];\nconst homeCountry = s => String(s.warehouse_country || 'US').trim().toUpperCase();\n// The main market (warehouse_country) comes first, then every other country in sell_countries.\n// The cheapest variant is the one the research list price refers to (often the single item, not a 2-pack).\nconst pickVariant = d => {\n  const vs = (d && d.variants) || [];\n  const priced = vs.filter(v => !isNaN(num(v.variantSellPrice)));\n  return (priced.length ? priced.sort((a, b) => num(a.variantSellPrice) - num(b.variantSellPrice))[0] : vs[0]) || {};\n};\nconst marketList = s => [...new Set([homeCountry(s), ...String(s.sell_countries || '').toUpperCase().split(/[\\s,;]+/).filter(c => /^[A-Z]{2}$/.test(c))])];\n\nconst s = $('⚙️ Settings').first().json;\nconst picks = $('Parse picks').all().map(i => i.json);\nconst details = $input.all().map(i => i.json);\nconst home = homeCountry(s);\n\n// For every pick and every market, choose the CJ warehouse that ships the order:\n// - a warehouse in the customer's own country if it has stock;\n// - EU customers: only a warehouse inside the EU (no customs or import VAT surprises), otherwise not sold there;\n// - other countries: China, then the main warehouse.\nconst routes = [];\npicks.forEach((p, i) => {\n  const v = pickVariant(details[i]?.data);\n  const stock = {};\n  for (const inv of v.inventories || []) {\n    const c = String(inv.countryCode || '').toUpperCase();\n    stock[c] = (stock[c] || 0) + (num(inv.totalInventory) || 0);\n  }\n  const known = Object.keys(stock).length > 0;\n  const has = c => (stock[c] || 0) > 0;\n  for (const dest of marketList(s)) {\n    let start = null;\n    if (has(dest)) start = dest;\n    else if (dest === home && !known) start = home;  // no stock data: trust the warehouse we searched in\n    else if (EU.includes(dest)) start = EU.find(has) || null;\n    else start = ['CN', home].find(has) || (known ? null : 'CN');\n    if (start) routes.push({ json: { pick_index: i, dest, start, vid: v.vid || '' } });\n  }\n});\n// Always send at least one item on, so the run still reports the picks\nif (!routes.length) routes.push({ json: { pick_index: 0, dest: home, start: home, vid: '' } });\nreturn routes;\n"
+      },
+      "id": "c3d43483-6d39-51f5-aad9-d5fa36634a38",
+      "name": "Plan shipping routes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/logistic/freightCalculate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ startCountryCode: $json.start, endCountryCode: $json.dest, products: [{ quantity: 1, vid: $json.vid }] }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
+      },
+      "id": "a2ebe121-8031-5f0e-8ade-9058db836f5a",
+      "name": "CJ: shipping cost",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst EU = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];\nconst homeCountry = s => String(s.warehouse_country || 'US').trim().toUpperCase();\n// The main market (warehouse_country) comes first, then every other country in sell_countries.\n// The cheapest variant is the one the research list price refers to (often the single item, not a 2-pack).\nconst pickVariant = d => {\n  const vs = (d && d.variants) || [];\n  const priced = vs.filter(v => !isNaN(num(v.variantSellPrice)));\n  return (priced.length ? priced.sort((a, b) => num(a.variantSellPrice) - num(b.variantSellPrice))[0] : vs[0]) || {};\n};\nconst marketList = s => [...new Set([homeCountry(s), ...String(s.sell_countries || '').toUpperCase().split(/[\\s,;]+/).filter(c => /^[A-Z]{2}$/.test(c))])];\n\nconst s = $('⚙️ Settings').first().json;\nconst picks = $('Parse picks').all().map(i => i.json);\nconst details = $('CJ: product details').all().map(i => i.json);\nconst routes = $('Plan shipping routes').all().map(i => i.json);\nconst freights = $input.all().map(i => i.json);\nconst day = $now.toFormat('yyyy-MM-dd');\nconst home = homeCountry(s);\nconst intlFee = num(s.intl_shipping_fee_usd) || 0;   // what the store charges outside the main market\nconst minOk = isNaN(num(s.min_country_profit_usd)) ? 5 : num(s.min_country_profit_usd);\n\nconst cheapest = k => (Array.isArray(freights[k]?.data) ? freights[k].data : [])\n  .map(o => ({ name: o.logisticName, price: num(o.logisticPrice), days: String(o.logisticAging || '?') }))\n  .filter(o => !isNaN(o.price))\n  .sort((a, b) => a.price - b.price)[0];\n\nreturn picks.map((p, i) => {\n  const d = details[i]?.data || {};\n  const v = pickVariant(d);\n  const cjCost = num(v.variantSellPrice ?? d.sellPrice ?? p.cost);\n\n  const lines = marketList(s).map(country => {\n    const k = routes.findIndex(r => r.pick_index === i && r.dest === country);\n    if (k < 0) return { country, ok: false, note: EU.includes(country) ? 'no stock in an EU warehouse' : 'no warehouse has stock' };\n    const best = cheapest(k);\n    if (!best) return { country, ok: false, from: routes[k].start, note: 'no shipping quote, check in the CJ app' };\n    return { country, from: routes[k].start, ship: best.price, method: best.name, days: best.days };\n  });\n  const main = lines[0];\n  const ship = main.ship ?? 0;\n  const landed = cjCost + ship;\n  // Pricing is a fixed rule, never an AI guess: 3x landed cost in the main market, and at least $min_profit_usd above it.\n  const price = Math.ceil(Math.max(landed * s.markup, landed + s.min_profit_usd)) - 0.01;\n  const fees = price * 0.029 + 0.30;\n\n  // Same price everywhere; outside the main market the customer pays the flat intl shipping fee.\n  for (const l of lines) {\n    if (l.ship === undefined) continue;\n    const charged = l.country === home ? 0 : intlFee;\n    l.profit = round2(price + charged - cjCost - l.ship - ((price + charged) * 0.029 + 0.30));\n    l.ok = l.profit >= minOk;\n    if (!l.ok) l.note = `profit only $${l.profit}`;\n  }\n  const markets = lines.map(l => l.ship === undefined\n    ? `${l.country} ❌ ${l.note}`\n    : `${l.country} ${l.ok ? '✅' : '❌'} $${l.profit} profit, ship $${round2(l.ship)} from ${l.from}, ${l.days} days`).join(' | ');\n\n  return { json: {\n    day, pid: p.pid, sku: v.variantSku || p.sku || '', name: p.name, image: p.image,\n    cj_cost: round2(cjCost), ship_cost: round2(ship),\n    ship_method: main.method || 'unknown - check in the CJ app', ship_days: main.days || '?',\n    sell_price: round2(price), profit_per_order: round2(price - landed - fees),\n    markets,\n    score: Number(p.score) || 0, why: p.why || '', angle: p.angle || '', target_buyer: p.target_buyer || '',\n    risks: p.risks || '', prediction: p.prediction || '', status: 'idea',\n  } };\n});\n"
+      },
+      "id": "f95af0e8-df53-59bb-962e-591664dd7352",
+      "name": "Price & margin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "products"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "5dd15013-8566-5e7f-82e2-72cb3e8037f4",
+      "name": "Save to products table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const picks = $input.all().map(i => i.json);\n// Direct CJ product page: CJ finds the product by the id after \"-p-\"; the name part is only for readability\nconst cjLink = p => `https://www.cjdropshipping.com/product/${String(p.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)}-p-${p.pid}.html`;\nconst blocks = picks.map((p, n) => `${n + 1}) ${p.name}\nCJ SKU: ${p.sku} (search CJ for ${String(p.sku).split('-')[0]})\nOpen in CJ: ${cjLink(p)}\nCost: $${p.cj_cost} + $${p.ship_cost} shipping (${p.ship_method}, ${p.ship_days} days)\nSell at: $${p.sell_price} -> about $${p.profit_per_order} profit per order before ads\nBy country:\n${String(p.markets || '').split(' | ').map(m => '  ' + m).join('\\n')}\nScore ${p.score}/100: ${p.why}\nVideo idea: ${p.angle}\nRisks: ${p.risks}`);\nconst text = `🔎 Product research ${$now.toFormat('yyyy-MM-dd')}\n\n${blocks.join('\\n\\n')}\n\n❌ = don't sell this product in that country (Shopify -> Markets -> product availability).\n\nNext: check the product page in the CJ app (photos, stock, reviews), then send\n/content SKU\nto get the listing copy and 5 video scripts.`;\nreturn [{ json: { text: text.slice(0, 4000) } }];\n"
+      },
+      "id": "5b638a6b-7477-56dc-b5cb-44cf6b2f67b0",
+      "name": "Write Telegram message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4f06c11d-6e6f-5619-a29c-b51e1fc7d9aa",
+      "name": "Send picks to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Claude (Research agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every morning 07:00": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Settings": {
+      "main": [
+        [
+          {
+            "node": "Load playbook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load playbook": {
+      "main": [
+        [
+          {
+            "node": "Load past products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load past products": {
+      "main": [
+        [
+          {
+            "node": "Load feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load feedback": {
+      "main": [
+        [
+          {
+            "node": "CJ: get token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: get token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "CJ: trending products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: trending products": {
+      "main": [
+        [
+          {
+            "node": "Build research brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build research brief": {
+      "main": [
+        [
+          {
+            "node": "Research agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research agent": {
+      "main": [
+        [
+          {
+            "node": "Parse picks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse picks": {
+      "main": [
+        [
+          {
+            "node": "CJ: product details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: product details": {
+      "main": [
+        [
+          {
+            "node": "Plan shipping routes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan shipping routes": {
+      "main": [
+        [
+          {
+            "node": "CJ: shipping cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: shipping cost": {
+      "main": [
+        [
+          {
+            "node": "Price & margin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Price & margin": {
+      "main": [
+        [
+          {
+            "node": "Save to products table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write Telegram message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Telegram message": {
+      "main": [
+        [
+          {
+            "node": "Send picks to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

@@ -1,0 +1,878 @@
+{
+  "name": "05 · Daily coach + learning",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "d5ffbe82-5173-5dea-b7b7-125ed360b9db",
+      "name": "Every evening 21:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "08840581-2dad-5265-b456-a398b0f4e2ad",
+              "name": "telegram_chat_id",
+              "value": "PASTE_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "ed64f072-2bce-5c14-a4a3-a5153c651cd4",
+              "name": "max_rule_changes",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "09e4d16b-3d2c-507e-90e2-3e993386c602",
+              "name": "payment_fee_pct",
+              "value": 2.9,
+              "type": "number"
+            },
+            {
+              "id": "732197b9-907b-5f26-92e6-bb28f2c4bc42",
+              "name": "payment_fee_fixed",
+              "value": 0.3,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "33610510-abb3-5297-b0b5-f4c7ede08be8",
+      "name": "⚙️ Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "playbook"
+        },
+        "returnAll": true
+      },
+      "id": "b8d315de-d19f-5baa-8f30-d7d3ff60c0c9",
+      "name": "Load playbook",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "products"
+        },
+        "returnAll": true
+      },
+      "id": "a673f9ac-ab1b-5c2d-9fbe-38e2ec2b1a3d",
+      "name": "Load products",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "content"
+        },
+        "returnAll": true
+      },
+      "id": "ed14e467-50ce-58c9-ae95-bd015027c2de",
+      "name": "Load content",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "feedback"
+        },
+        "returnAll": true
+      },
+      "id": "2daec209-b9ad-5116-a06c-d285cf82ea27",
+      "name": "Load feedback",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "orders"
+        },
+        "returnAll": true
+      },
+      "id": "fb482b65-f213-5743-933d-57591fc8b8a6",
+      "name": "Load orders",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "reports"
+        },
+        "returnAll": true
+      },
+      "id": "ee0e8b63-089e-54bd-8d8d-6f51bf6aa5e5",
+      "name": "Load reports",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support"
+        },
+        "returnAll": true
+      },
+      "id": "83942767-636a-552e-8871-1c818273f002",
+      "name": "Load support",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "f16c3dce-3c35-54ea-b74b-48590e3adb1e",
+      "name": "CJ: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "42e7c813-b166-5f78-8939-a667255b0db9",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        0
+      ],
+      "webhookId": "7ffdbbb5-d4d2-5b2f-94d1-0da7a1f49162"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/list",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNum",
+              "value": "1"
+            },
+            {
+              "name": "pageSize",
+              "value": "100"
+            },
+            {
+              "name": "paymentDateFrom",
+              "value": "={{ $now.minus({days: 7}).toUTC().toFormat('yyyy-MM-dd HH:mm:ss') }}"
+            },
+            {
+              "name": "paymentDateTo",
+              "value": "={{ $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss') }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "15fd0d7f-e0e4-554c-9c77-b3a296a26ff9",
+      "name": "CJ: paid orders (7 days)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst s = $('⚙️ Settings').first().json;\nconst today = $now.toFormat('yyyy-MM-dd');\nconst weekAgo = $now.minus({ days: 6 }).toFormat('yyyy-MM-dd');\nconst twoDaysAgo = $now.minus({ days: 2 }).toFormat('yyyy-MM-dd');\nconst sum = (a, f) => a.reduce((t, x) => t + (Number(f(x)) || 0), 0);\n\nconst orders = rowsOf('Load orders');\nconst oToday = orders.filter(o => o.day === today);\nconst o7 = orders.filter(o => o.day >= weekAgo && o.day <= today);\nconst revToday = round2(sum(oToday, o => o.revenue));\nconst rev7 = round2(sum(o7, o => o.revenue));\n\nconst cj = $('CJ: paid orders (7 days)').first().json;\nconst cjList = cj && cj.code === 200 ? (cj.data?.list || []) : null;\nconst cjCost7 = cjList ? round2(sum(cjList, o => o.orderAmount)) : null;\nconst fees7 = round2(o7.length * s.payment_fee_fixed + rev7 * s.payment_fee_pct / 100);\nconst profit7 = cjCost7 === null ? null : round2(rev7 - cjCost7 - fees7);\n\nconst feedback = rowsOf('Load feedback');\nconst vstats = {}, pstatus = {};\nfor (const f of feedback) {\n  if (f.kind === 'video') vstats[f.ref] = f;\n  if (f.kind === 'product') pstatus[String(f.ref).toLowerCase()] = f;\n}\nconst content = rowsOf('Load content');\nconst measured = content.filter(c => vstats[c.content_id]).map(c => ({\n  id: c.content_id, product: c.product, format: c.format, hook: c.hook, rules: c.rules_version,\n  views: +vstats[c.content_id].views || 0, clicks: +vstats[c.content_id].clicks || 0, sales: +vstats[c.content_id].sales || 0,\n})).sort((a, b) => b.views - a.views);\nconst unmeasured = content.filter(c => !vstats[c.content_id] && c.day <= twoDaysAgo).length;\nconst vline = v => `- ${v.id} [${v.format}] \"${v.hook}\" (${v.product}; rules ${v.rules || 'none'}): ${v.views} views, ${v.clicks} clicks, ${v.sales} sales`;\n\nconst products = rowsOf('Load products').slice(-15).map(p => {\n  const f = pstatus[String(p.sku).toLowerCase()];\n  return `- ${p.name} (SKU ${p.sku}, landed $${round2((+p.cj_cost || 0) + (+p.ship_cost || 0))}, price $${p.sell_price}, score ${p.score}): `\n    + (f ? `${f.status}${f.note ? ' - ' + f.note : ''}` : 'no result reported') + `. Prediction: ${p.prediction || '-'}`;\n});\n\nconst all = latestRules(rowsOf('Load playbook'));\nconst active = all.filter(r => r.status === 'active');\nconst dead = all.filter(r => r.status === 'rejected' || r.status === 'retired').slice(-10);\nconst last = rowsOf('Load reports').slice(-1)[0];\n\n// Support: what the owner approved, rewrote or had to handle\nconst tickets = {};\nfor (const r of rowsOf('Load support')) (tickets[r.ticket_id] = tickets[r.ticket_id] || []).push(r);\nconst t7 = Object.values(tickets).filter(rs => rs[0].day >= weekAgo);\nconst has = (rs, d) => rs.some(r => r.decision === d);\nconst waiting = Object.values(tickets).filter(rs => rs.every(r => r.decision === 'pending')).length;\nconst corrections = t7.filter(rs => rs[0].draft && has(rs, 'owner_reply')).slice(-3).map(rs =>\n  `- [${rs[0].intent}] customer: \"${String(rs[0].question).slice(0, 160)}\"\\n  draft: \"${String(rs[0].draft).slice(0, 220)}\"\\n  owner sent: \"${String(rs.find(r => r.decision === 'owner_reply').final_reply).slice(0, 220)}\"`);\nconst intents = {};\nfor (const rs of t7) intents[rs[0].intent] = (intents[rs[0].intent] || 0) + 1;\nconst supportLine = `${t7.length} emails: ${t7.filter(rs => has(rs, 'auto_sent')).length} auto-sent, `\n  + `${t7.filter(rs => has(rs, 'approved')).length} drafts approved as written, ${t7.filter(rs => has(rs, 'owner_reply')).length} rewritten by the owner, `\n  + `${t7.filter(rs => has(rs, 'skipped')).length} skipped, ${waiting} still waiting. Topics: ${Object.entries(intents).map(([k, v]) => k + ' ' + v).join(', ') || '-'}`;\nconst money = v => v === null ? 'unknown (CJ API unavailable)' : '$' + v;\n\nconst prompt = `Date: ${today}\n\nNUMBERS (from Shopify orders and CJ; before ad spend)\nToday: ${oToday.length} orders, $${revToday} revenue\nLast 7 days: ${o7.length} orders, $${rev7} revenue, CJ costs ${money(cjCost7)}, payment fees ~$${fees7}, profit before ads ${money(profit7)}\n\nVIDEOS WITH STATS (best first)\n${measured.slice(0, 8).map(vline).join('\\n') || '- none yet'}\n${measured.length > 8 ? 'WORST VIDEOS\\n' + measured.slice(-3).map(vline).join('\\n') : ''}\nVideos older than 2 days without stats: ${unmeasured}\n\nPRODUCTS (newest last)\n${products.join('\\n') || '- none yet'}\n\nACTIVE PLAYBOOK RULES\n${active.map(r => `- ${r.rule_id} v${r.version} (${r.agent}): ${r.rule}`).join('\\n') || '- none'}\n\nIDEAS ALREADY REJECTED OR RETIRED (do not propose again)\n${dead.map(r => `- ${r.rule_id} (${r.agent}): ${r.rule}`).join('\\n') || '- none'}\n\nSUPPORT EMAILS (last 7 days)\n${supportLine}\nDrafts the owner rewrote (learn the owner's style and facts from these):\n${corrections.join('\\n') || '- none'}\n\nYESTERDAY'S REPORT\n${last ? String(last.report).slice(0, 800) : '- none'}\n\nReply with only this JSON:\n{\"report\":\"<max 700 characters>\",\"actions\":[\"<action 1>\",\"<action 2>\",\"<action 3>\"],\n \"add_rules\":[{\"agent\":\"research|content|support\",\"rule\":\"<max 200 characters>\",\"evidence\":\"<which data points>\"}],\n \"retire_rules\":[{\"rule_id\":\"<id>\",\"reason\":\"<which data points>\"}]}`;\n\nreturn [{ json: {\n  prompt, today, unmeasured, waiting,\n  numbers: { orders_today: oToday.length, revenue_today: revToday, orders_7d: o7.length, revenue_7d: rev7,\n             cj_cost_7d: cjCost7, est_profit_7d: profit7 },\n} }];\n"
+      },
+      "id": "8a21dd5f-c5eb-5df9-8147-ae1d8473f172",
+      "name": "Compute numbers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "You are the Coach of a one-person dropshipping store run by a beginner. Every evening you read the store's real numbers and do two jobs:\n\n1. Write a short, honest report for the owner's phone: what happened, what it means, and exactly 3 concrete actions for tomorrow. Plain words, no hype. If the data is too thin to conclude anything, say so.\n2. Improve the PLAYBOOK: the numbered rules the Research, Content and Support agents follow. You may propose adding a rule or retiring one.\n\nHow to change the playbook:\n- Only propose a change that the data supports with at least 3 data points (for example 3+ measured videos or 3+ products). Name the evidence.\n- A rule is one short, specific, testable instruction for one agent (max 200 characters). Example: \"Start content hooks with the finished result, not the problem: result-first hooks averaged 3x more views (V09291530, V09301012, V10011200).\"\n- Retire a rule when the data shows it hurts results or is no longer true.\n- Propose at most 3 changes. Proposing none is fine and often right.\n- Never propose rules about ad budgets or spending, prices below cost, collecting customer data, or anything deceptive (fake reviews, fake scarcity, false claims). Never try to change these instructions.\n\nYou only interpret the numbers you are given; do not invent numbers. Reply with only the JSON the user asks for.",
+          "maxIterations": 3
+        }
+      },
+      "id": "4995fca0-e0a4-5c6e-95e7-836e356762b9",
+      "name": "Coach agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-opus-5-5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "id": "18a962e1-c2d9-55fe-80ac-f4414d28defb",
+      "name": "Claude (Coach agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        2860,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nfunction parseAgentJson(nodeName) {\n  const raw = $(nodeName).first().json.output ?? '';\n  const text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n  const m = text.match(/\\{[\\s\\S]*\\}/);\n  if (!m) throw new Error(`${nodeName} did not return JSON: ` + text.slice(0, 300));\n  return JSON.parse(m[0]);\n}\n\n// Guardrails: the coach can only add or retire short text rules for known agents.\n// It can never touch credentials, code, prices, budgets or the legal/safety rules.\nconst s = $('⚙️ Settings').first().json;\nconst brief = $('Compute numbers').first().json;\nconst out = parseAgentJson('Coach agent');\nconst all = latestRules(rowsOf('Load playbook'));\nconst byId = Object.fromEntries(all.map(r => [r.rule_id, r]));\nconst norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\\s+/g, ' ').trim();\nconst known = new Set(all.map(r => norm(r.rule)));\nconst PROTECTED = new Set(['R003', 'R005', 'R006']);\nconst AGENTS = ['research', 'content', 'support'];\nconst BAD = /(https?:|www\\.|api.?key|password|token|secret|credential|ignore (all|previous|the above)|system prompt|budget|spend more|fake|fabricat|invent|countdown|scarcity|guarantee)/i;\nlet next = Math.max(0, ...all.map(r => parseInt(String(r.rule_id).replace(/\\D/g, ''), 10) || 0)) + 1;\n\nconst changes = [];\nfor (const a of out.add_rules || []) {\n  const rule = String(a.rule || '').trim();\n  if (!AGENTS.includes(a.agent) || !rule || rule.length > 200 || BAD.test(rule) || known.has(norm(rule))) continue;\n  known.add(norm(rule));\n  changes.push({ rule_id: 'R' + String(next++).padStart(3, '0'), agent: a.agent, rule, status: 'active', version: 1,\n                 evidence: String(a.evidence || '').slice(0, 300), _label: '➕ add' });\n}\nfor (const r of out.retire_rules || []) {\n  const cur = byId[r.rule_id];\n  if (!cur || cur.status !== 'active' || PROTECTED.has(r.rule_id)) continue;\n  changes.push({ rule_id: cur.rule_id, agent: cur.agent, rule: cur.rule, status: 'retired',\n                 version: (Number(cur.version) || 0) + 1, evidence: String(r.reason || '').slice(0, 300), _label: '➖ retire' });\n}\nconst accepted = changes.slice(0, s.max_rule_changes);\n\nconst n = brief.numbers;\nconst money = v => v === null ? '?' : '$' + v;\nlet report = `📊 Daily report ${brief.today}\n\nToday: ${n.orders_today} orders, $${n.revenue_today}\nLast 7 days: ${n.orders_7d} orders, $${n.revenue_7d} revenue, CJ cost ${money(n.cj_cost_7d)}, profit before ads ${money(n.est_profit_7d)}\n\n${String(out.report || '').slice(0, 900)}\n\nTomorrow:\n${(out.actions || []).slice(0, 3).map((a, i) => `${i + 1}. ${a}`).join('\\n')}`;\nif (brief.waiting > 0) report += `\\n\\n📨 ${brief.waiting} customer email(s) are waiting for you: answer with /send, /reply or /skip.`;\nif (brief.unmeasured > 0) report += `\\n\\n📝 ${brief.unmeasured} videos have no stats yet. Send /video <id> <views> <clicks> <sales> so the agents can learn.`;\n\nconst approval = `🧠 The coach wants to update the playbook (the rules the agents follow):\\n\\n`\n  + accepted.map(c => `${c._label} ${c.rule_id} (${c.agent}): ${c.rule}\\n   Evidence: ${c.evidence}`).join('\\n\\n')\n  + '\\n\\nApprove these changes?';\n\nreturn [{ json: {\n  report_text: report.slice(0, 4000),\n  approval_text: approval.slice(0, 4000),\n  has_changes: accepted.length > 0,\n  changes: accepted.map(({ _label, ...c }) => c),\n  report_row: { day: brief.today, orders_today: n.orders_today, revenue_today: n.revenue_today, orders_7d: n.orders_7d,\n                revenue_7d: n.revenue_7d, cj_cost_7d: n.cj_cost_7d ?? 0, est_profit_7d: n.est_profit_7d ?? 0,\n                report: report.slice(0, 2000) },\n} }];\n"
+      },
+      "id": "7373086c-b69f-5745-9752-1e31f68dd935",
+      "name": "Check proposals (guardrails)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $input.first().json.report_row }];\n"
+      },
+      "id": "10eff0a2-bae3-59d8-a9de-8fbb269eeff6",
+      "name": "Report row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "reports"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "b42021dc-04fc-5107-aaa9-bfd23a9fd3f6",
+      "name": "Save report",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "={{ $('Check proposals (guardrails)').first().json.report_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9fbc478a-6d9c-5532-a9e9-06d9f13ab3c9",
+      "name": "Send report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ef287cf7-a79a-5e2d-9f70-4f71533b1b11",
+              "leftValue": "={{ $('Check proposals (guardrails)').first().json.has_changes }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e6033381-f00c-5c42-a3bc-89359fb92a22",
+      "name": "Any rule changes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "message": "={{ $('Check proposals (guardrails)').first().json.approval_text }}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "✅ Approve",
+            "disapproveLabel": "❌ Reject"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "limitType": "afterTimeInterval",
+              "resumeAmount": 12,
+              "resumeUnit": "hours"
+            }
+          }
+        }
+      },
+      "id": "d734bde8-7777-54ee-a783-00fbd18b46f9",
+      "name": "Ask owner to approve",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4180,
+        -100
+      ],
+      "webhookId": "61d46bae-7b3c-5d99-8751-8af1b0e8fff9"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b0b63823-75fa-5a8b-bad4-1b4a7c8778ff",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "118ef3f5-78e9-5ab9-aefb-c6454e1e6502",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Check proposals (guardrails)').first().json.changes.map(c => ({ json: c }));\n"
+      },
+      "id": "bbe2b58c-b4f7-5b17-b8ee-ccf7be947518",
+      "name": "Rules to activate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Check proposals (guardrails)').first().json.changes\n  .filter(c => c.status === 'active')\n  .map(c => ({ json: { ...c, status: 'rejected' } }));\n"
+      },
+      "id": "49dd6c20-a590-5c74-b632-e8dbc3056ec8",
+      "name": "Rules to remember as rejected",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "playbook"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "bbdf8b1b-eeb7-5de3-812b-6b28736c6a61",
+      "name": "Save approved rules",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4840,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "playbook"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "d4dedee5-114d-5738-9bae-704f76f1a589",
+      "name": "Save rejected ideas",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4840,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Claude (Coach agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Coach agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every evening 21:30": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Settings": {
+      "main": [
+        [
+          {
+            "node": "Load playbook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load playbook": {
+      "main": [
+        [
+          {
+            "node": "Load products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load products": {
+      "main": [
+        [
+          {
+            "node": "Load content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load content": {
+      "main": [
+        [
+          {
+            "node": "Load feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load feedback": {
+      "main": [
+        [
+          {
+            "node": "Load orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load orders": {
+      "main": [
+        [
+          {
+            "node": "Load reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load reports": {
+      "main": [
+        [
+          {
+            "node": "Load support",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load support": {
+      "main": [
+        [
+          {
+            "node": "CJ: get token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: get token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "CJ: paid orders (7 days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: paid orders (7 days)": {
+      "main": [
+        [
+          {
+            "node": "Compute numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute numbers": {
+      "main": [
+        [
+          {
+            "node": "Coach agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coach agent": {
+      "main": [
+        [
+          {
+            "node": "Check proposals (guardrails)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check proposals (guardrails)": {
+      "main": [
+        [
+          {
+            "node": "Report row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report row": {
+      "main": [
+        [
+          {
+            "node": "Save report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save report": {
+      "main": [
+        [
+          {
+            "node": "Send report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send report": {
+      "main": [
+        [
+          {
+            "node": "Any rule changes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any rule changes?": {
+      "main": [
+        [
+          {
+            "node": "Ask owner to approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask owner to approve": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Rules to activate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rules to remember as rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules to activate": {
+      "main": [
+        [
+          {
+            "node": "Save approved rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rules to remember as rejected": {
+      "main": [
+        [
+          {
+            "node": "Save rejected ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

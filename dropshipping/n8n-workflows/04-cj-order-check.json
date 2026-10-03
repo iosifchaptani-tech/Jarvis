@@ -1,0 +1,229 @@
+{
+  "name": "04 · CJ order check (every 3h)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9-21/3 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ee4b72aa-6f38-51de-a74d-f83d2ab098b4",
+      "name": "Every 3 hours (9-21h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2441b480-1ba7-55b6-bf5e-3df3596c4f1a",
+              "name": "telegram_chat_id",
+              "value": "PASTE_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "a805167f-7379-581c-affd-f94da50a92d7",
+              "name": "late_hours",
+              "value": 48,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e107a57f-5e38-52d2-94cb-b86424d1adda",
+      "name": "⚙️ Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "73f19c1d-d2fc-5f4b-9ee9-ef7cbd940854",
+      "name": "CJ: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "73bbf808-3341-52df-b198-2cf07d165be6",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "webhookId": "7c56ef6a-9c1f-5b02-8957-9e8dd02ef393"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/list",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNum",
+              "value": "1"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "59d90459-ea83-5682-8e0f-fa0b7d328e40",
+      "name": "CJ: recent orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const s = $('⚙️ Settings').first().json;\nconst res = $('CJ: recent orders').first().json;\nif (res.code !== 200) throw new Error('CJ order list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));\nconst list = res.data?.list || [];\nconst now = Date.now();\nconst age = d => d ? (now - Date.parse(String(d).replace(' ', 'T') + 'Z')) / 3600e3 : 0;\nconst unpaid = list.filter(o => ['CREATED', 'IN_CART', 'UNPAID'].includes(o.orderStatus));\nconst late = list.filter(o => o.paymentDate && !o.trackNumber\n  && ['PENDING', 'PROCESSING', 'UNSHIPPED'].includes(o.orderStatus) && age(o.paymentDate) > s.late_hours);\nif (!unpaid.length && !late.length) return [];\n\nconst parts = [];\nif (unpaid.length) parts.push(`💳 ${unpaid.length} CJ order(s) waiting for you to pay:\\n`\n  + unpaid.map(o => `- ${o.orderNum}${o.orderAmount ? ' ($' + o.orderAmount + ')' : ''}`).join('\\n')\n  + '\\nOpen CJ -> My Orders and pay them.');\nif (late.length) parts.push(`⏰ ${late.length} paid order(s) have no tracking after ${s.late_hours}h:\\n`\n  + late.map(o => `- ${o.orderNum} (paid ${o.paymentDate})`).join('\\n')\n  + '\\nOpen a ticket with your CJ agent and email the customer an honest update.');\nreturn [{ json: { text: parts.join('\\n\\n').slice(0, 4000) } }];\n"
+      },
+      "id": "ecaa734f-20c3-5aab-87ed-538456568828",
+      "name": "Find problems",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6d06409e-6321-5666-a06b-2db1310add81",
+      "name": "Send reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every 3 hours (9-21h)": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Settings": {
+      "main": [
+        [
+          {
+            "node": "CJ: get token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: get token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "CJ: recent orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: recent orders": {
+      "main": [
+        [
+          {
+            "node": "Find problems",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find problems": {
+      "main": [
+        [
+          {
+            "node": "Send reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}
