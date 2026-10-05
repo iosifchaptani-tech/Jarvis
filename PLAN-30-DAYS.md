@@ -5,32 +5,39 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Each day has **one main focus 🎯** plus a short list. Do the focus first. If you only manage that, the day still counts.
 - 👤 = you · 🤖 = Claude (me or PowerShell Claude) · ⚙️ = the n8n agents (automatic)
 
-## 📍 Status (updated Sat 3 Oct, day 6). New chats start here.
+## 📍 Status (updated Mon 5 Oct, day 8). New chats start here.
 
 **Done ✅**
-- **n8n and the agents** run on the PC, at the permanent address https://n8n.pivendo.com. They restart by themselves after a reboot.
-- **Product research** works, priced per country.
-- **Telegram** order alerts are tested.
-- **pivendo.com** is bought, and the policies are written.
-- **30-day plan** written (this file).
+- **System:** n8n and the agents run at https://n8n.pivendo.com; the PC never sleeps. Bot works (`/help`, `/content`); research comes daily at 07:00. Shopify webhook works.
+- **Gewerbe:** sent, waiting for the confirmation (Gewerbeschein).
+- **Shop products:**
+  - **Step Drill Bit Set** $34.99 (main product)
+  - **3-in-1 Knit Winter Set**: adults only, 4 colors, $24.99, "buy 2 for $39.99"
+- **Shop settings:** Markets US/CA/AU, shipping zones (US free, CA/AU $7.99), cookie banner, footer, contact page, corrected English shipping policy.
+- **Wok Wang:** info collected, draft built.
 
-**Open from day 5 ⏳**
-- [ ] Gewerbe form: filled in, but not yet **signed and emailed** to the Gewerbeamt.
-- [ ] Register on **ELSTER**.
-- [x] Shopify webhook → `https://n8n.pivendo.com/webhook/shopify-order-…` ✅
-- [ ] Delete the test order in n8n.
-- [ ] **Wok Wang** info and price.
+**In progress ⏳**
+- **PowerShell Claude:**
+  - winter set ships from the US warehouse
+  - Germany market off
+  - policy check
+  - Shopify Payments verification
+  - shop design (theme + homepage)
+- **CJ human agent:** waiting for the answer on DDP (duties) for US/CA/AU and the drill sizes.
+- **You:**
+  - ELSTER account
+  - TikTok, Instagram and YouTube accounts "pivendo"
 
-**Decisions waiting**
-- [ ] n8n agents **Opus → Sonnet**, which would make the $10 API credit last about 5× longer.
-- [ ] **Product pick on day 7:** the garden drill auger (#1 from the 2 Oct research) is shortlisted.
+**Still to do 🔲**
+1. Connect **pivendo.com** to Shopify, without touching `n8n.pivendo.com`.
+2. **PayPal** as a 2nd payment method.
+3. **Test order:** buy, check the Telegram alert, refund.
+4. **Videos** in CapCut from the scripts. Say "face cover", never "mask"; show all 3 pieces; adults only.
+5. **Open the shop** (remove the password) once the Gewerbe is confirmed and Payments is verified.
+6. **Wok Wang:** show the draft → changes → go live → send the invoice.
+7. **NFC review cards:** start selling after the Gewerbe arrives (€39 / €59 / €79).
 
-**New side project: Google review cards (NFC)**
-- **Cost:** €6 per card.
-- **Price:** 1 card €39 · 2 cards €59 · 3 cards €79 · founder's price €29 for the first 5 shops, in exchange for video permission.
-- **Before the first sale:** the Gewerbe must cover it, so field 18 = *Handel mit Waren aller Art (online und an Gewerbekunden) sowie Erstellung von Webseiten*. Give a receipt with the §19 UStG line.
-- **Filming:** with smart glasses, **only with permission** (§201 StGB), plus written OK to post.
-- **Upsell:** websites for the same shops.
+**Decisions waiting:** n8n agents Opus → Sonnet, to make the API credit last longer.
 
 ---
 
