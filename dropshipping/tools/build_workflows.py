@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "n8n-workflows")
 
 CJ = "https://developers.cjdropshipping.com/api2.0/v1"
-MODEL = "claude-sonnet-5-5"  # change to "claude-sonnet-5-5" to roughly halve AI cost
+MODEL = "claude-sonnet-5-5"  # cheaper than Opus and good enough for these agents; use "claude-opus-5-5" for the strongest model
 
 # --------------------------------------------------------------------- helpers
 
