@@ -15,13 +15,14 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - **3-in-1 Knit Winter Set**: adults only, 4 colors, $24.99, "buy 2 for $39.99"
 - **Shop settings:** Markets US/CA/AU, shipping zones (US free, CA/AU $7.99), cookie banner, footer, contact page, corrected English shipping policy.
 - **Wok Wang:** info collected, draft built.
+- **Shopify Payments:** identity verified, Revolut payout account added. "Payouts pending" is normal until the first sales.
+- **Agents model:** switched to Sonnet (half the price of Opus). To switch back, set the Anthropic Chat Model nodes to `claude-opus-5-5`.
 
 **In progress ⏳**
 - **PowerShell Claude:**
   - winter set ships from the US warehouse
   - Germany market off
   - policy check
-  - Shopify Payments verification
   - shop design (theme + homepage)
 - **CJ human agent:** waiting for the answer on DDP (duties) for US/CA/AU and the drill sizes.
 - **You:**
@@ -37,7 +38,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 6. **Wok Wang:** show the draft → changes → go live → send the invoice.
 7. **NFC review cards:** start selling after the Gewerbe arrives (€39 / €59 / €79).
 
-**Decisions waiting:** n8n agents Opus → Sonnet, to make the API credit last longer.
+**Decisions waiting:** none right now.
 
 ---
 
