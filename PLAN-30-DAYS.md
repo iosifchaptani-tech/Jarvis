@@ -39,6 +39,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 **Skipped on purpose:** PayPal. Shopify Payments (cards, Apple Pay, Google Pay, Shop Pay) pays out to Revolut. PayPal is already connected and approved in Shopify, but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
 
+**Focus (owner's choice, 5 Oct):** make the 2 current products perfect first. The daily research isn't needed right now, so the PC may sleep at night. The owner may also find products themselves.
+
+**Tomorrow:** wake the PC, send `/help` to the bot to check it works, then paste the pivendo.com domain prompt into PowerShell Claude.
+
 **Decisions waiting:** none right now.
 
 ---
