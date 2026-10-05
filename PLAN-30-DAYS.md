@@ -31,12 +31,13 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 **Still to do 🔲**
 1. Connect **pivendo.com** to Shopify, without touching `n8n.pivendo.com`.
-2. **PayPal** as a 2nd payment method.
-3. **Test order:** buy, check the Telegram alert, refund.
-4. **Videos** in CapCut from the scripts. Say "face cover", never "mask"; show all 3 pieces; adults only.
-5. **Open the shop** (remove the password) once the Gewerbe is confirmed and Payments is verified.
-6. **Wok Wang:** show the draft → changes → go live → send the invoice.
-7. **NFC review cards:** start selling after the Gewerbe arrives (€39 / €59 / €79).
+2. **Test order:** buy, check the Telegram alert, refund.
+3. **Videos** in CapCut from the scripts. Say "face cover", never "mask"; show all 3 pieces; adults only.
+4. **Open the shop** (remove the password) once the Gewerbe is confirmed and Payments is verified.
+5. **Wok Wang:** show the draft → changes → go live → send the invoice.
+6. **NFC review cards:** start selling after the Gewerbe arrives (€39 / €59 / €79).
+
+**Skipped on purpose:** PayPal. Shopify Payments (cards, Apple Pay, Google Pay, Shop Pay) pays out to Revolut. PayPal can be added later if customers ask for it.
 
 **Decisions waiting:** none right now.
 
