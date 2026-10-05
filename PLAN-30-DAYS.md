@@ -37,7 +37,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 5. **Wok Wang:** show the draft → changes → go live → send the invoice.
 6. **NFC review cards:** start selling after the Gewerbe arrives (€39 / €59 / €79).
 
-**Skipped on purpose:** PayPal. Shopify Payments (cards, Apple Pay, Google Pay, Shop Pay) pays out to Revolut. PayPal can be added later if customers ask for it.
+**Skipped on purpose:** PayPal. Shopify Payments (cards, Apple Pay, Google Pay, Shop Pay) pays out to Revolut. PayPal is already connected and approved in Shopify, but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
 
 **Decisions waiting:** none right now.
 
