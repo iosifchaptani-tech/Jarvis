@@ -3,6 +3,8 @@
 ## The owner
 - Explain things in **short, simple words**, but include every step they need.
 - They're a beginner on Windows. Give exact clicks and commands.
+- **If PowerShell Claude can do a task, don't give click-by-click steps.** Give one ready-to-paste prompt for PowerShell Claude instead. Only give clicks for things PowerShell Claude can't do.
+- Their Shopify admin is in **English**. Use English menu names.
 
 ## What is in this repo
 - `jarvis.py`, `START_JARVIS.bat`: a simple voice assistant (see `README.md`).
