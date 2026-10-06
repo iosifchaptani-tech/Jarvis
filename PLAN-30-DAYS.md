@@ -9,7 +9,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 **Done ✅**
 - **System:** n8n and the agents run at https://n8n.pivendo.com; the PC never sleeps. Bot works (`/help`, `/content`); research comes daily at 07:00. Shopify webhook works.
-- **Gewerbe:** sent, waiting for the confirmation (Gewerbeschein).
+- **Gewerbe:** confirmed ✅ (6 Oct). Next: ELSTER account → *Fragebogen zur steuerlichen Erfassung* (Kleinunternehmer) → Steuernummer (needed on invoices, e.g. Wok Wang).
 - **Shop products:**
   - **Step Drill Bit Set** $34.99 (main product)
   - **3-in-1 Knit Winter Set**: adults only, 4 colors, $24.99, "buy 2 for $39.99"
