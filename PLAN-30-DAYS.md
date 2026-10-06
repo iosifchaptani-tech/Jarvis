@@ -35,7 +35,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 **Still to do 🔲**
 1. **Webhook fix:** the event was "Cart creation" (wrong). PowerShell Claude recreates it as **Order payment** (6 Oct).
-2. **Test order:** buy, check the Telegram alert, refund.
+2. **Test order** in Shopify Payments **test mode** (test card 4242 4242 4242 4242, no real money). Check the Telegram alert. ⚠️ **Turn test mode OFF afterwards**, or real customers can't pay.
 3. **Videos** in CapCut from the scripts. Say "face cover", never "mask"; show all 3 pieces; adults only.
 4. **Open the shop** (remove the password) once the Gewerbe is confirmed and Payments is verified.
 5. **Wok Wang:** show the draft → changes → go live → send the invoice.
