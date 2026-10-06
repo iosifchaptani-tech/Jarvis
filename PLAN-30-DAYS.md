@@ -15,6 +15,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - **3-in-1 Knit Winter Set**: adults only, 4 colors, $24.99, "buy 2 for $39.99"
 - **Shop settings:** Markets US/CA/AU, shipping zones (US free, CA/AU $7.99), cookie banner, footer, contact page, corrected English shipping policy.
 - **Wok Wang:** info collected, draft built.
+- **pivendo.com** connected: primary domain with SSL; `n8n.pivendo.com` still works.
+- **Shop design** (Dawn) published; **policy fixes** live.
 - **Shopify Payments:** identity verified, Revolut payout account added. "Payouts pending" is normal until the first sales.
 - **Agents model:** switched to Sonnet (half the price of Opus). To switch back, set the Anthropic Chat Model nodes to `claude-opus-5-5`.
 
@@ -22,8 +24,6 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **PowerShell Claude:**
   - winter set ships from the US warehouse
   - Germany market off
-  - policy check
-  - shop design (theme + homepage)
 - **CJ agent (6 Oct):**
   - ✅ US: "LuWei Ordinary US" and "YunExpress Ordinary" are **DDP** (customer pays no duties). Always pick one of these for US drill orders.
   - CA/AU: CJ recommends **CJPacket Ordinary** for both products. It's DDP only if the product page shows **no yellow "DDU" box** for that country. Check this.
@@ -34,7 +34,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - TikTok, Instagram and YouTube accounts "pivendo"
 
 **Still to do 🔲**
-1. Connect **pivendo.com** to Shopify, without touching `n8n.pivendo.com`.
+1. **Webhook fix:** the event was "Cart creation" (wrong). PowerShell Claude recreates it as **Order payment** (6 Oct).
 2. **Test order:** buy, check the Telegram alert, refund.
 3. **Videos** in CapCut from the scripts. Say "face cover", never "mask"; show all 3 pieces; adults only.
 4. **Open the shop** (remove the password) once the Gewerbe is confirmed and Payments is verified.
