@@ -101,7 +101,8 @@ The exact time for each item is shown on its product page. Business days are Mon
 **Delays:** If we can't ship your order within the time shown, we email you with a new date. You can then cancel for a full refund.
 
 **Customs and import taxes**
-- **US and EU orders:** they ship from inside your region, so there are no customs fees.
+- **US orders:** import duties and taxes are already included. You pay nothing extra on delivery.
+- **EU orders:** they ship from a warehouse inside the EU, so there are no customs fees.
 - **Other countries:** your country may charge import taxes or fees on delivery. These are paid by you. For low-value orders they are often zero.
 
 **Wrong address:** Please check your address at checkout. If you spot a mistake, email us straight away. We can fix it only before the order ships. If a parcel comes back because the address was wrong, we can reship it, but you pay the new shipping cost.
@@ -353,7 +354,7 @@ Die genaue Lieferzeit steht auf jeder Produktseite. Werktage sind Montag bis Fre
 
 **Verzögerungen:** Können wir nicht in der angegebenen Zeit versenden, informieren wir dich per E-Mail. Du kannst dann kostenlos stornieren und bekommst dein Geld zurück.
 
-**Zoll:** Bestellungen innerhalb der EU und der USA kommen aus einem Lager in deiner Region, also ohne Zollgebühren. In anderen Ländern können Einfuhrabgaben anfallen, die du trägst.
+**Zoll:** Bei Bestellungen in die USA sind Einfuhrabgaben und Steuern bereits enthalten, du zahlst bei Lieferung nichts extra. Bestellungen innerhalb der EU kommen aus einem EU-Lager, also ohne Zollgebühren. In anderen Ländern können Einfuhrabgaben anfallen, die du trägst.
 
 **Falsche Adresse:** Bitte prüfe deine Adresse an der Kasse. Fehler können wir nur vor dem Versand korrigieren.
 

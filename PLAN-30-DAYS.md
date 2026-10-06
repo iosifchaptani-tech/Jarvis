@@ -24,7 +24,11 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - Germany market off
   - policy check
   - shop design (theme + homepage)
-- **CJ human agent:** waiting for the answer on DDP (duties) for US/CA/AU and the drill sizes.
+- **CJ agent (6 Oct):**
+  - ✅ US: "LuWei Ordinary US" and "YunExpress Ordinary" are **DDP** (customer pays no duties). Always pick one of these for US drill orders.
+  - CA/AU: CJ recommends **CJPacket Ordinary** for both products. It's DDP only if the product page shows **no yellow "DDU" box** for that country. Check this.
+  - ⚠️ Never pick a method with the "DDU" box (e.g. CJPacket Eub): the customer would pay duties.
+  - Drill set: 3 step bits **4-12 mm, 4-20 mm, 4-32 mm** (2 mm steps). Ask CJ whether the 3 saw drill bits in the size photo are included. The supplier ticket is in My CJ → Ticket.
 - **You:**
   - ELSTER account
   - TikTok, Instagram and YouTube accounts "pivendo"
