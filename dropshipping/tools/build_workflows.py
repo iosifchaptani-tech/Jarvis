@@ -273,8 +273,14 @@ A good product for this store:
 - sells for $20-60 and can be priced at 3x its landed cost (product + shipping);
 - shows a visible problem and a satisfying result within the first 2 seconds of a video;
 - is light, not fragile, has no sizes, is not branded and does not copy a brand;
-- is not cheap and fast on Amazon Prime, and is not already listed by a huge number of stores;
+- is not electric: nothing with a plug, USB, battery or motor (fewer returns, warranty claims and legal duties);
+- passes the 3-second test: a viewer who has never seen it stops scrolling because something unexpected happens on screen (a problem solved, a transformation). If everyone already knows what it does and how it looks in use, score it low;
+- gives a buyer a reason to wait 1-2 weeks for shipping: it is not sold in normal local shops and is not cheap and fast on Amazon Prime. If it is, score it low;
+- is not saturated: prefer products listed by few CJ stores. A product listed by over 1,000 stores needs a very strong reason to score above 50;
+- is not seasonal, or its season starts at least 6 weeks after today's date. Never pick a product whose season ends within 8 weeks;
 - is safe and legal: no batteries, children's products, cosmetics, supplements, medical or health claims, weapons.
+
+Explain in "risks" where a buyer could get it faster or cheaper (Amazon, local shops) and how saturated it is.
 
 Follow the PLAYBOOK rules exactly. They were learned from this store's own results and override your general opinion.
 Learn from PRODUCTS WE ALREADY TRIED: avoid repeating what failed, look for more of what worked.
@@ -286,7 +292,7 @@ const res = $('CJ: trending products').first().json;
 if (res.code !== 200) throw new Error('CJ product list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));
 
 const products = (res.data?.content || []).flatMap(c => c.productList || []);
-const banned = /(batter(y|ies)|lithium|power ?bank|charger|\bkids?\b|child|baby|toddler|infant|\btoys?\b|cosmetic|makeup|serum|cream|lotion|supplement|vitamin|capsule|medical|medicine|\bdrug|vape|e-?cig|knife|weapon|\bgun\b|laser|nike|adidas|iphone|airpods|samsung|disney|marvel|pokemon|lego|barbie|stanley|hello kitty|gucci|louis vuitton|chanel|dyson)/i;
+const banned = /(batter(y|ies)|lithium|power ?bank|charger|\bkids?\b|child|baby|toddler|infant|\btoys?\b|cosmetic|makeup|serum|cream|lotion|supplement|vitamin|capsule|medical|medicine|\bdrug|vape|e-?cig|rechargeable|\busb\b|electric|cordless|\bmotori[sz]ed\b|\bmotor\b|knife|weapon|\bgun\b|laser|nike|adidas|iphone|airpods|samsung|disney|marvel|pokemon|lego|barbie|stanley|hello kitty|gucci|louis vuitton|chanel|dyson)/i;
 const tried = rowsOf('Load past products');
 const triedPids = new Set(tried.map(p => p.pid));
 
