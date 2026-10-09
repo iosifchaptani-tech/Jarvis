@@ -23,7 +23,7 @@ Follow CLAUDE.md. Don't publish or change prices without my OK.
      - Can people get it cheaper or faster on Amazon or in normal shops? Search Amazon for it.
      - How saturated is it (how many CJ stores list it)?
      - Is it seasonal? Does the season last at least 6 more weeks?
-     - Not electric (no plug, USB, battery or motor).
+     - Electric is OK (USB, plug, motor), but no lasers and no built-in lithium batteries.
    - End with one verdict: ✅ test it, ⚠️ maybe, or ❌ skip.
 2. If it's OK and I say "add it":
    - Import it with the CJ app as a DRAFT, adults-only variants only.
