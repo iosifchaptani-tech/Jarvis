@@ -31,6 +31,14 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - CA/AU: **CJPacket Ordinary**, but only if the product page shows **no yellow "DDU" box**.
 - ❌ Never choose a method with the "DDU" box.
 
+**Product decisions (9 Oct)**
+- 🎄 **Christmas LED wreath** (USB only, LuWei Ordinary US = DDP, 5-11 days): **new main product**. Add it via ADD-PRODUCT. Price about $29.99. Stop US sales about Dec 8. Halloween version only as a 2nd variant ("Order by Oct 17").
+- 🧸 **Squishy mystery box:** only after the owner shows the CPC / ASTM F963 test report. Check whether CJ packs several items in one parcel.
+- 🔩 Drill: stays in the shop, no videos for now (later with the AI influencer).
+- 🧣 Winter set: stays in the shop, no videos.
+- ❌ Skipped: pumpkin night lamp (lithium battery, sold as a kids' gift, Halloween too close, 4,275 lists). Plain squishies without certificates (kids' toy, cheap on Amazon).
+- Bundles: keep separate products plus an honest "buy together, save $X" offer, so CJ ships every item. Test it with a test-mode order.
+
 **Still to do 🔲**
 1. **Open the shop:** remove the password (Online Store → Preferences), if not done yet.
 2. **Videos: 2-3 a day for 14 days.** This is the main job now. For the winter set, say "face cover", never "mask", show all 3 pieces, and use adults only.
