@@ -9,7 +9,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 **Done ✅**
 - **System:** n8n and the agents run at https://n8n.pivendo.com. The bot works (`/help`, `/content`), and research comes daily at 07:00 while the PC is on.
-- **Research agent (9 Oct):** stricter brief. Not electric, passes the 3-second video test, not cheap on Amazon or in local shops, not saturated, not seasonal.
+- **Research agent (9 Oct):** stricter brief. Passes the 3-second video test, not cheap on Amazon or in local shops, not saturated, not seasonal.
+- **Store plan (9 Oct):** a growing general store. 2 new products every 2-3 weeks; videos focus on the newest products. Electric products are OK now (no lasers, no built-in lithium). Price rule: 1.5× landed cost, at least $7 above it.
 - **Gewerbe:** confirmed (6 Oct).
 - **Shopify:**
   - pivendo.com connected (primary domain + SSL; `n8n.pivendo.com` untouched)

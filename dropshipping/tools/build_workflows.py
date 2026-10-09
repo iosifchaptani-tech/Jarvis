@@ -267,18 +267,18 @@ def build_error_alerts():
 
 # -------------------------------------------------------- 01 product research
 
-RESEARCH_SYSTEM = """You are the Product Research agent of a one-person dropshipping store. The supplier is CJ Dropshipping and traffic comes from free short phone videos (TikTok, Instagram Reels, YouTube Shorts) that the owner films with a product sample.
+RESEARCH_SYSTEM = """You are the Product Research agent of a growing general store (like a small Amazon) that adds 2 new products every 2-3 weeks. The supplier is CJ Dropshipping and traffic comes from free short phone videos (TikTok, Instagram Reels, YouTube Shorts) that the owner films with a product sample.
 
 A good product for this store:
-- sells for $20-60 and can be priced at 3x its landed cost (product + shipping);
+- sells for $20-60 at about 1.5x its landed cost (product + shipping). A small profit per order is fine; cheap products that sell often are welcome;
 - shows a visible problem and a satisfying result within the first 2 seconds of a video;
 - is light, not fragile, has no sizes, is not branded and does not copy a brand;
-- is not electric: nothing with a plug, USB, battery or motor (fewer returns, warranty claims and legal duties);
+- may be electric (USB, plug or motor are fine). Prefer USB or AA-battery power; avoid built-in lithium batteries (shipping limits) and anything with lasers;
 - passes the 3-second test: a viewer who has never seen it stops scrolling because something unexpected happens on screen (a problem solved, a transformation). If everyone already knows what it does and how it looks in use, score it low;
 - gives a buyer a reason to wait 1-2 weeks for shipping: it is not sold in normal local shops and is not cheap and fast on Amazon Prime. If it is, score it low;
 - is not saturated: prefer products listed by few CJ stores. A product listed by over 1,000 stores needs a very strong reason to score above 50;
 - is not seasonal, or its season starts at least 6 weeks after today's date. Never pick a product whose season ends within 8 weeks;
-- is safe and legal: no batteries, children's products, cosmetics, supplements, medical or health claims, weapons.
+- is safe and legal: no lithium batteries, children's products, cosmetics, supplements, medical or health claims, weapons.
 
 Explain in "risks" where a buyer could get it faster or cheaper (Amazon, local shops) and how saturated it is.
 
@@ -292,7 +292,7 @@ const res = $('CJ: trending products').first().json;
 if (res.code !== 200) throw new Error('CJ product list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));
 
 const products = (res.data?.content || []).flatMap(c => c.productList || []);
-const banned = /(batter(y|ies)|lithium|power ?bank|charger|\bkids?\b|child|baby|toddler|infant|\btoys?\b|cosmetic|makeup|serum|cream|lotion|supplement|vitamin|capsule|medical|medicine|\bdrug|vape|e-?cig|rechargeable|\busb\b|electric|cordless|\bmotori[sz]ed\b|\bmotor\b|knife|weapon|\bgun\b|laser|nike|adidas|iphone|airpods|samsung|disney|marvel|pokemon|lego|barbie|stanley|hello kitty|gucci|louis vuitton|chanel|dyson)/i;
+const banned = /(lithium|power ?bank|\bkids?\b|child|baby|toddler|infant|\btoys?\b|cosmetic|makeup|serum|cream|lotion|supplement|vitamin|capsule|medical|medicine|\bdrug|vape|e-?cig|knife|weapon|\bgun\b|laser|nike|adidas|iphone|airpods|samsung|disney|marvel|pokemon|lego|barbie|stanley|hello kitty|gucci|louis vuitton|chanel|dyson)/i;
 const tried = rowsOf('Load past products');
 const triedPids = new Set(tried.map(p => p.pid));
 
@@ -427,7 +427,7 @@ return picks.map((p, i) => {
   const main = lines[0];
   const ship = main.ship ?? 0;
   const landed = cjCost + ship;
-  // Pricing is a fixed rule, never an AI guess: 3x landed cost in the main market, and at least $min_profit_usd above it.
+  // Pricing is a fixed rule, never an AI guess: markup x landed cost in the main market, and at least $min_profit_usd above it.
   const price = Math.ceil(Math.max(landed * s.markup, landed + s.min_profit_usd)) - 0.01;
   const fees = price * 0.029 + 0.30;
 
@@ -492,8 +492,8 @@ def build_research():
         ("min_cj_price", 2),
         ("max_cj_price", 15),
         ("min_stock", 50),
-        ("markup", 3),
-        ("min_profit_usd", 15),
+        ("markup", 1.5),
+        ("min_profit_usd", 7),
         ("sell_countries", "US,DE,CA,AU"),
         ("intl_shipping_fee_usd", 7.99),
         ("min_country_profit_usd", 5),

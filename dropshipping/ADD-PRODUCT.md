@@ -14,9 +14,9 @@ I want to add a new product to my Shopify store: PASTE CJ LINK OR SKU HERE
 Follow CLAUDE.md. Don't publish or change prices without my OK.
 
 1. CHECK first and show me a ✅/❌ list:
-   - Cost (product + shipping) and my profit per order for US, CA and AU, using the same price rule as the agents (3× cost, at least $15 profit).
+   - Cost (product + shipping) and my profit per order for US, CA and AU, using the same price rule as the agents (1.5× cost, at least $7 above it; e.g. $12.74 cost → $19.99).
    - Shipping methods for US, CA and AU WITHOUT the "DDU" notice (customer must pay nothing extra), with delivery days. Is there US warehouse stock?
-   - Not allowed: kids' products (no CPSIA certificates), brand copies, medical claims, weapons, batteries/liquids if they can't ship, anything that needs certificates.
+   - Not allowed: kids' products (no CPSIA certificates), brand copies, medical claims, weapons, lasers, built-in lithium batteries or liquids if they can't ship, anything that needs certificates.
    - Stock level and seller rating.
    - The "shark" rules, each with ✅/❌ and one short reason:
      - 3-second test: does something surprising happen on screen (a problem solved, a transformation)?

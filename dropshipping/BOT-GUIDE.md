@@ -19,7 +19,7 @@ The research agent looks through CJ's trending products and sends you **3 produc
 |---|---|
 | **CJ SKU** + "Open in CJ" | the product number, plus a link to its page on CJ |
 | **Cost** | what CJ charges you: the product + shipping |
-| **Sell at** | your shop price, set by a fixed rule (3× your cost, at least $15 profit) |
+| **Sell at** | your shop price, set by a fixed rule (1.5× your cost, at least $7 above it) |
 | **By country** | your profit in the US / Germany / Canada / Australia. ✅ = worth selling there, ❌ = don't sell there |
 | **Score** | how good the agent thinks it is (0-100) |
 | **Video idea** | what to show in the first seconds of a video |

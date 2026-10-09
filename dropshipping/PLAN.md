@@ -92,7 +92,7 @@ $29.99 selling price, $6.00 CJ product + $6.50 US-warehouse shipping:
 | Typical first ad test | about $83 per sale, a **loss of about $69 per order**, so start with free videos |
 | Fixes | price at $34.99, or add a 2-pack at $44.99 (about $21 profit per order) |
 
-The research agent sets prices with a fixed rule, never an AI guess: **3× landed cost, at least $15 above it**. You can change this in ⚙️ Settings.
+The research agent sets prices with a fixed rule, never an AI guess: **1.5× landed cost, at least $7 above it** (changed 9 Oct: more, cheaper products). You can change this in ⚙️ Settings.
 
 ## 5. The 14 days
 
