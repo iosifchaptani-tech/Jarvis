@@ -18,6 +18,13 @@ Follow CLAUDE.md. Don't publish or change prices without my OK.
    - Shipping methods for US, CA and AU WITHOUT the "DDU" notice (customer must pay nothing extra), with delivery days. Is there US warehouse stock?
    - Not allowed: kids' products (no CPSIA certificates), brand copies, medical claims, weapons, batteries/liquids if they can't ship, anything that needs certificates.
    - Stock level and seller rating.
+   - The "shark" rules, each with ✅/❌ and one short reason:
+     - 3-second test: does something surprising happen on screen (a problem solved, a transformation)?
+     - Can people get it cheaper or faster on Amazon or in normal shops? Search Amazon for it.
+     - How saturated is it (how many CJ stores list it)?
+     - Is it seasonal? Does the season last at least 6 more weeks?
+     - Not electric (no plug, USB, battery or motor).
+   - End with one verdict: ✅ test it, ⚠️ maybe, or ❌ skip.
 2. If it's OK and I say "add it":
    - Import it with the CJ app as a DRAFT, adults-only variants only.
    - Map every Shopify variant to the right CJ variant.
