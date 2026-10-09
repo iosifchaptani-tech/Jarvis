@@ -36,7 +36,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - 🎄 **Christmas LED wreath** (USB only, LuWei Ordinary US = DDP, 5-11 days): **new main product**. Add it via ADD-PRODUCT. Price **$24.99** (owner decision 9 Oct; about $11 profit per order). Stop US sales about Dec 8. Halloween version only as a 2nd variant ("Order by Oct 17").
 - 🧸 **Squishy mystery box:** only after the owner shows the CPC / ASTM F963 test report. Check whether CJ packs several items in one parcel.
 - 🔩 Drill: stays in the shop, no videos for now (later with the AI influencer).
-- 🧣 Winter set: stays in the shop, no videos.
+- 🧣 Winter set: **removed** (owner decision 9 Oct). Archive it in Shopify; don't delete it. The store has 2 products: the drill + the Christmas LED wreath.
 - ❌ Skipped: pumpkin night lamp (lithium battery, sold as a kids' gift, Halloween too close, 4,275 lists). Plain squishies without certificates (kids' toy, cheap on Amazon).
 - Bundles: keep separate products plus an honest "buy together, save $X" offer, so CJ ships every item. Test it with a test-mode order.
 
