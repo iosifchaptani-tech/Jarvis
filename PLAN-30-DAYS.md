@@ -33,7 +33,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **Product decisions (9 Oct)**
-- 🎄 **Christmas LED wreath** (USB only, LuWei Ordinary US = DDP, 5-11 days): **new main product**. Add it via ADD-PRODUCT. Price about $29.99. Stop US sales about Dec 8. Halloween version only as a 2nd variant ("Order by Oct 17").
+- 🎄 **Christmas LED wreath** (USB only, LuWei Ordinary US = DDP, 5-11 days): **new main product**. Add it via ADD-PRODUCT. Price **$24.99** (owner decision 9 Oct; about $11 profit per order). Stop US sales about Dec 8. Halloween version only as a 2nd variant ("Order by Oct 17").
 - 🧸 **Squishy mystery box:** only after the owner shows the CPC / ASTM F963 test report. Check whether CJ packs several items in one parcel.
 - 🔩 Drill: stays in the shop, no videos for now (later with the AI influencer).
 - 🧣 Winter set: stays in the shop, no videos.
