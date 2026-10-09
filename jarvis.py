@@ -18,6 +18,9 @@ import webbrowser
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KEY_FILE = os.path.join(HERE, "api_key.txt")
+# The Pivendo store status, kept up to date by Claude. Jarvis reads it so he can
+# answer questions about the store.
+STORE_FILE = os.path.join(HERE, "PLAN-30-DAYS.md")
 
 # Easy questions go to the cheap, fast model; harder ones to the smart one.
 FAST_MODEL = "claude-haiku-4-5"
@@ -32,6 +35,21 @@ SYSTEM_PROMPT = (
     "loud, so keep them short (1-3 sentences), conversational, and never use "
     "markdown, bullet points, code blocks or emojis."
 )
+STORE_PROMPT = (
+    "\n\nThe user runs a small online store called Pivendo (pivendo.com): Shopify "
+    "plus CJ Dropshipping, selling to the USA, Canada and Australia. Automations in "
+    "n8n and a Telegram bot handle research, orders, support and a daily report. "
+    "When the user asks about the store, orders, products, videos or what to do "
+    "next, answer from these current notes. If the notes don't say, say you don't "
+    "know rather than guessing:\n\n"
+)
+STORE_LINKS = {
+    "store": "https://pivendo.com",
+    "pivendo": "https://pivendo.com",
+    "shopify": "https://admin.shopify.com",
+    "n8n": "https://n8n.pivendo.com",
+    "cj": "https://www.cjdropshipping.com",
+}
 
 
 # ---------------------------------------------------------------- speaking
@@ -117,6 +135,18 @@ def load_api_key():
     return key or None
 
 
+def store_notes():
+    """The status part of the store plan, or "" if the file isn't there."""
+    try:
+        with open(STORE_FILE, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return ""
+    start = text.find("## ")
+    end = text.find("\n---\n", start)
+    return text[start:end if end > 0 else None][:8000].strip()
+
+
 class Brain:
     def __init__(self):
         self.client = None
@@ -142,20 +172,22 @@ class Brain:
         anthropic = self.anthropic
         self.history.append({"role": "user", "content": text})
         model = pick_model(text)
+        notes = store_notes()
+        system = SYSTEM_PROMPT + (STORE_PROMPT + notes if notes else "")
         print("  (quick mode)" if model == FAST_MODEL else "  (smart mode)")
         try:
             if model == FAST_MODEL:
                 response = self.client.messages.create(
                     model=FAST_MODEL,
                     max_tokens=1024,
-                    system=SYSTEM_PROMPT,
+                    system=system,
                     messages=self.history,
                 )
             else:
                 response = self.client.beta.messages.create(
                     model=SMART_MODEL,
                     max_tokens=1024,
-                    system=SYSTEM_PROMPT,
+                    system=system,
                     messages=self.history,
                     output_config={"effort": "low"},  # quick answers for voice
                     # If Claude declines a request, the API retries it on another model.
@@ -215,6 +247,11 @@ def handle_command(text):
     if t.startswith("open google"):
         webbrowser.open("https://www.google.com")
         return "Opening Google."
+    words = set(t.replace(".", " ").replace("!", " ").split())
+    for word, url in STORE_LINKS.items():
+        if t.startswith("open") and word in words:
+            webbrowser.open(url)
+            return f"Opening {word}."
     if t.startswith("search "):
         query = text.strip()[7:]
         webbrowser.open("https://www.google.com/search?q=" + query.replace(" ", "+"))
