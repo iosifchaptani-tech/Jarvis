@@ -5,49 +5,47 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Each day has **one main focus 🎯** plus a short list. Do the focus first. If you only manage that, the day still counts.
 - 👤 = you · 🤖 = Claude (me or PowerShell Claude) · ⚙️ = the n8n agents (automatic)
 
-## 📍 Status (updated Mon 5 Oct, day 8). New chats start here.
+## 📍 Status (updated Fri 9 Oct, day 12). New chats start here.
 
 **Done ✅**
-- **System:** n8n and the agents run at https://n8n.pivendo.com; the PC never sleeps. Bot works (`/help`, `/content`); research comes daily at 07:00. Shopify webhook works.
-- **Gewerbe:** confirmed ✅ (6 Oct). Next: ELSTER account → *Fragebogen zur steuerlichen Erfassung* (Kleinunternehmer) → Steuernummer (needed on invoices, e.g. Wok Wang).
-- **Shop products:**
-  - **Step Drill Bit Set** $34.99 (main product)
-  - **3-in-1 Knit Winter Set**: adults only, 4 colors, $24.99, "buy 2 for $39.99"
-- **Shop settings:** Markets US/CA/AU, shipping zones (US free, CA/AU $7.99), cookie banner, footer, contact page, corrected English shipping policy.
-- **Wok Wang:** info collected, draft built.
-- **pivendo.com** connected: primary domain with SSL; `n8n.pivendo.com` still works.
-- **Shop design** (Dawn) published; **policy fixes** live.
-- **Shopify Payments:** identity verified, Revolut payout account added. "Payouts pending" is normal until the first sales.
-- **Agents model:** switched to Sonnet (half the price of Opus). To switch back, set the Anthropic Chat Model nodes to `claude-opus-5-5`.
+- **System:** n8n and the agents run at https://n8n.pivendo.com. The bot works (`/help`, `/content`), and research comes daily at 07:00 while the PC is on.
+- **Research agent (9 Oct):** stricter brief. Not electric, passes the 3-second video test, not cheap on Amazon or in local shops, not saturated, not seasonal.
+- **Gewerbe:** confirmed (6 Oct).
+- **Shopify:**
+  - pivendo.com connected (primary domain + SSL; `n8n.pivendo.com` untouched)
+  - Dawn design published, policy fixes live
+  - Markets US/CA/AU active, Germany off, backup region United States, store currency USD
+  - Shipping: US free, CA/AU $7.99
+  - Payments verified; payout in EUR to Revolut (Shopify converts at about 1.5-2%)
+- **Webhook:** event **Order payment** (fixed from "Cart creation").
+- **Test order** in test mode worked (Telegram alert, email, Shopify, and synced to CJ). Test mode is OFF again.
+- **CJ:** both products connected; every variant mapped (account CJ5881021).
+- **Products:**
+  - **Step Drill Bit Set** $34.99: 3 step bits 4-12 / 4-20 / 4-32 mm
+  - **3-in-1 Knit Winter Set** $24.99: adults only, 4 colors, "buy 2 for $39.99"
+- **Agents model:** Sonnet (half the price of Opus). To switch back, set the Anthropic Chat Model nodes to `claude-opus-5-5`.
 
-**In progress ⏳**
-- **PowerShell Claude:**
-  - winter set ships from the US warehouse
-  - Germany market off
-- **CJ agent (6 Oct):**
-  - ✅ US: "LuWei Ordinary US" and "YunExpress Ordinary" are **DDP** (customer pays no duties). Always pick one of these for US drill orders.
-  - CA/AU: CJ recommends **CJPacket Ordinary** for both products. It's DDP only if the product page shows **no yellow "DDU" box** for that country. Check this.
-  - ⚠️ Never pick a method with the "DDU" box (e.g. CJPacket Eub): the customer would pay duties.
-  - Drill set: 3 step bits **4-12 mm, 4-20 mm, 4-32 mm** (2 mm steps). Ask CJ whether the 3 saw drill bits in the size photo are included. The supplier ticket is in My CJ → Ticket.
-- **You:**
-  - ELSTER account
-  - TikTok, Instagram and YouTube accounts "pivendo"
+**Shipping rules for paying orders in CJ**
+- US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
+- Winter set to the US: the **US warehouse** (CJ picks it by itself).
+- CA/AU: **CJPacket Ordinary**, but only if the product page shows **no yellow "DDU" box**.
+- ❌ Never choose a method with the "DDU" box.
 
 **Still to do 🔲**
-1. **Webhook fix:** the event was "Cart creation" (wrong). PowerShell Claude recreates it as **Order payment** (6 Oct).
-2. **Test order** in Shopify Payments **test mode** (test card 4242 4242 4242 4242, no real money). Check the Telegram alert. ⚠️ **Turn test mode OFF afterwards**, or real customers can't pay.
-3. **Videos** in CapCut from the scripts. Say "face cover", never "mask"; show all 3 pieces; adults only.
-4. **Open the shop** (remove the password) once the Gewerbe is confirmed and Payments is verified.
-5. **Wok Wang:** show the draft → changes → go live → send the invoice.
-6. **NFC review cards:** start selling after the Gewerbe arrives (€39 / €59 / €79).
+1. **Open the shop:** remove the password (Online Store → Preferences), if not done yet.
+2. **Videos: 2-3 a day for 14 days.** This is the main job now. For the winter set, say "face cover", never "mask", show all 3 pieces, and use adults only.
+3. **Kill rule:** about 15 videos and nobody asks "where can I get this?" → kill the product and test the next one.
+4. **New products:** check them with `dropshipping/ADD-PRODUCT.md`. Test at most 2-3 at a time.
+5. **ELSTER account** → *Fragebogen zur steuerlichen Erfassung* (Kleinunternehmer) → Steuernummer. You need it on invoices.
+6. **Wok Wang:** show the draft → changes → go live → send the invoice.
+7. **NFC review cards** (€39 / €59 / €79).
+8. **Open questions:**
+   - Ask CJ whether the drill set includes the 3 saw drill bits from the size photo.
+   - Ask whether a default shipping method per country can be saved in CJ.
 
-**Skipped on purpose:** PayPal. Shopify Payments (cards, Apple Pay, Google Pay, Shop Pay) pays out to Revolut. PayPal is already connected and approved in Shopify, but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
+**Skipped on purpose:** PayPal. It's connected and approved but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
 
-**Focus (owner's choice, 5 Oct):** make the 2 current products perfect first. The daily research isn't needed right now, so the PC may sleep at night. The owner may also find products themselves.
-
-**Tomorrow:** wake the PC, send `/help` to the bot to check it works, then paste the pivendo.com domain prompt into PowerShell Claude.
-
-**Decisions waiting:** none right now.
+**Focus:** sell before building anything new. No new tools or automations until the first sales (except Higgsfield videos).
 
 ---
 
