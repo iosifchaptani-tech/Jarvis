@@ -47,8 +47,11 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ✅ Done 10 Oct: wreath draft cleaned up: type Christmas Decor, variants renamed **Christmas / Halloween**, only 3 photos (tree, Christmas gift box, Halloween). Projection and 6PCS photos removed from the gallery and the description, because we don't know yet whether it projects onto the ceiling.
 - ✅ Done 10 Oct: automatic discount **"Buy 2 wreaths, save $4.99"** created (wreath only, min. 2 items, once per order) and **deactivated** (shows "Expired"). To turn it on: Discounts → the discount → Edit the schedule (remove the end date). Then add "Buy 2 for $44.99 (you save $4.99)" to the description and test it with a test-mode order.
 - ❓ Open: does the wreath project stars/snowflakes onto the ceiling? Ask CJ or order a sample. If yes, add it to the text and the photos back.
+- ✅ Done 10 Oct: homepage built in a theme **copy** ("Copy of Dawn", not live yet): tagline "Useful finds, delivered." + "🎄 Christmas gifts to the US: please order by December 8." under the banner, and the 4 trust boxes now have the heading "Why Pivendo". Checked on desktop and phone. Live "Dawn" is unchanged.
 - 🤖 Next:
-  2. owner OKs the draft → set the wreath to Active (and the discount on)
+  2. owner OKs the homepage → publish "Copy of Dawn" (Online Store → Themes → Publish)
+  3. owner OKs the wreath draft → set the wreath to Active (and the discount on) → then the wreath banner on the homepage
+  4. final check (phone + test-mode order with 2 wreaths)
   3. homepage: wreath banner, the 2 products, "Why Pivendo", tagline "Useful finds, delivered.", "Order by December 8" note
   4. phone check + final check
 - Then: `/content SKU` for the wreath → start 2-3 videos a day 🎄
