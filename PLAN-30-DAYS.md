@@ -12,6 +12,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Research agent (9 Oct):** stricter brief. Passes the 3-second video test, not cheap on Amazon or in local shops, not saturated, not seasonal.
 - **Store plan (9 Oct):** a growing general store. 2 new products every 2-3 weeks; videos focus on the newest products. Electric products are OK now (no lasers, no built-in lithium). Price rule: 1.5× landed cost, at least $7 above it.
 - **Gewerbe:** confirmed (6 Oct).
+- **Wok Wang:** closed. They said no (owner told Claude on 11 Oct). The concept site stays as a portfolio piece.
 - **Shopify:**
   - pivendo.com connected (primary domain + SSL; `n8n.pivendo.com` untouched)
   - Dawn design published, policy fixes live
@@ -109,7 +110,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 3. **Kill rule:** about 15 videos and nobody asks "where can I get this?" → kill the product and test the next one.
 4. **New products:** check them with `dropshipping/ADD-PRODUCT.md`. Test at most 2-3 at a time.
 5. **ELSTER account** → *Fragebogen zur steuerlichen Erfassung* (Kleinunternehmer) → Steuernummer. You need it on invoices.
-6. **Wok Wang:** show the draft → changes → go live → send the invoice.
+6. ~~**Wok Wang:** show the draft → changes → go live → send the invoice.~~ Closed: Wok Wang said no (owner, 11 Oct).
 7. **NFC review cards** (€39 / €59 / €79).
 8. **Open questions:**
    - Ask CJ whether the drill set includes the 3 saw drill bits from the size photo.
@@ -168,7 +169,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 ### Day 9 · Tue 6 Oct · 🎯 Videos
 - [x] 👤 Make **5 videos** from the 5 scripts in **CapCut** (product photos + text + voice). Or send `/render ID` for the automatic photo video. *(done 11 Oct: 6 videos with Remotion + Higgsfield, in Desktop/Pivendo Videos)*
-- [ ] 👤 Show the **Wok Wang draft** to the owner and collect their changes.
+- [x] ~~👤 Show the **Wok Wang draft** to the owner and collect their changes.~~ *(closed: Wok Wang said no)*
 
 ### Day 10 · Wed 7 Oct · 🎯 Launch (if the Gewerbe is confirmed)
 - [x] 👤 Check: Gewerbe confirmed ✅, Payments verified ✅, product page ✅ → **remove the store password**. *(shop public since 10 Oct)*
@@ -177,7 +178,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❗ If the Gewerbe isn't confirmed yet, keep the password on and keep making videos. Launch the day it arrives.
 
 ### Day 11 · Thu 8 Oct · 🎯 Wok Wang revisions
-- [ ] 🤖 Make the Wok Wang changes.
+- [x] ~~🤖 Make the Wok Wang changes.~~ *(closed: Wok Wang said no)*
 - [ ] 👤 Post 3 videos.
 
 ---
@@ -185,8 +186,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 ## Week 2 · Rhythm + first money (days 12-18)
 
 ### Day 12 · Fri 9 Oct · 🎯 Wok Wang goes live
-- [ ] 🤖 Put the website online (their domain, cheap or free hosting).
-- [ ] 👤 **Send the invoice.** It's your first real money this month.
+- [x] ~~🤖 Put the website online (their domain, cheap or free hosting).~~ *(closed: Wok Wang said no)*
+- [x] ~~👤 **Send the invoice.** It's your first real money this month.~~ *(closed: Wok Wang said no)*
 - [ ] 👤 Post 3 videos.
 
 ### Day 13 · Sat 10 Oct · 🎯 Learn from the first videos
@@ -202,7 +203,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - [ ] 👤 Each day: post 3 videos and send stats.
 - [ ] 👤 Day 15: open a **Payoneer** account (free) so you're ready to top up CJ.
 - [ ] 👤 When the **ELSTER letter** arrives: fill in the *Fragebogen zur steuerlichen Erfassung* and choose **Kleinunternehmer**. Claude helps.
-- [ ] 👤 Wok Wang: ask for a **Google review** and any **referrals**. Other restaurants need websites too.
+- [x] ~~👤 Wok Wang: ask for a **Google review** and any **referrals**. Other restaurants need websites too.~~ *(closed: Wok Wang said no)*
 
 ### Day 18 · Thu 15 Oct
 - [ ] 👤 Buffer day: catch up on anything left from week 2.
@@ -250,14 +251,14 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 
 ---
 
-## Wok Wang: info to collect (day 5)
+## Wok Wang: info to collect (day 5) · closed, they said no
 - [x] Type of business, name, address, phone, **opening hours**
 - [x] **Menu with prices** (photo or PDF is fine)
-- [ ] Logo, plus photos of the food and the restaurant
+- [x] ~~Logo, plus photos of the food and the restaurant~~ *(closed: Wok Wang said no)*
 - [x] Just information, or **online ordering / delivery** links (Lieferando etc.)? *(online pickup ordering, cash payment)*
 - [x] Languages (German only, or English too?) *(German, formal "Sie")*
-- [ ] Domain (do they have one?) and who pays for hosting
-- [ ] **Price agreed:** e.g. €300-600 one-off + €15-25/month for hosting and changes
+- [x] ~~Domain (do they have one?) and who pays for hosting~~ *(closed: Wok Wang said no)*
+- [x] ~~**Price agreed:** e.g. €300-600 one-off + €15-25/month for hosting and changes~~ *(closed: Wok Wang said no)*
 
 ## Money rules for this month
 | Spend | When |
