@@ -34,9 +34,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)** (rewritten 10 Oct, evening)
-- 🎬 Test video 1 is built: `Boss Jarvis/.playwright-mcp/video/pivendo-wreath-video-1.mp4` (15 s; presenter option 4 + real CJ clips + Higgsfield music). Script to rebuild it: see the ffmpeg steps in this session (tools in `.playwright-mcp/video/tools`, CJ clips in `video/cj`).
-  - FIX before posting: CJ's burned-in text still shows under our text box in seconds 3-7. Make the box taller (cover y about 150-560) or crop the top.
+- 🎬 Video 1 is ready: `Boss Jarvis/.playwright-mcp/video/pivendo-wreath-video-1.mp4` (15 s; presenter option 4 + real CJ clips + Higgsfield music). Script to rebuild it: see the ffmpeg steps in this session (tools in `.playwright-mcp/video/tools`, CJ clips in `video/cj`).
+  - ✅ Fixed 10 Oct: solid navy text box (y 140-570) covers CJ's burned-in text. Ready to post.
   - Owner checks the video, then posts it with TikTok's "AI-generated" label and a trending sound.
+  - After posting: owner logs in to TikTok in the Playwright browser window → Claude reads TikTok Studio analytics per video (read-only) and writes the stats into the n8n feedback table. Supermetrics (TikTok Organic / Instagram Insights) only later, it's probably paid.
 - ✅ Found 10 Oct: the wreath IS a projector ("Christmas Projector Light" box, ceiling projection in CJ video 1). Ask the owner before updating Shopify: add projection to the description and put the ceiling photos back. Never use CJ video 2 after second 8 (exaggerated whole-house projections).
 - ⚠️ CJ video 2 has a blurred watermark (probably another creator's footage). Prefer CJ video 1 clips and our own edits.
 - Higgsfield: free plan, about 9.3 credits left. Free model can't keep the same face in new poses. Seed Audio music works (0.1 credit).
