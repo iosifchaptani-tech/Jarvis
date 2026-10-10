@@ -41,7 +41,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - honest About us page, linked in the footer
 - 👤 Owner:
   1. Log in to CJ in the Chrome tab PowerShell Claude opened, then write "logged in" to PowerShell Claude.
-  2. Send to the bot: `/product CJNSFSMZ00628 killed hard to show in video, short season`
+  2. ✅ (done 10 Oct by Claude in n8n)
 - ✅ Done 10 Oct (desktop Claude): real CJ cost for the wreath, see "Wreath costs" below.
 - ✅ Done 10 Oct: wreath listed with the CJ app and set to **Draft** in Shopify: $24.99, variants Christmas (CJYS315715002BY) + Halloween (CJYS315715001AZ), no compare-at price, collection Christmas, CJ default shipping LuWei Ordinary US.
 - ✅ Done 10 Oct: wreath draft cleaned up: type Christmas Decor, variants renamed **Christmas / Halloween**, only 3 photos (tree, Christmas gift box, Halloween). Projection and 6PCS photos removed from the gallery and the description, because we don't know yet whether it projects onto the ceiling.
@@ -54,7 +54,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ✅ Done 10 Oct: new theme copy **"Copy of Copy of Dawn"** (not live yet): drill banner removed; dark "Welcome" section at the top with the white Pivendo logo, "Useful finds, delivered.", Christmas note, buttons "Shop the wreath" + "About us"; teal logo in the header (150 px) + favicon. Checked on desktop and phone. White logo uploaded to Content → Files. Separate landing page: decided against (it costs buyers a click).
 - ✅ Done 10 Oct: owner published "Copy of Copy of Dawn" = live theme with logo + welcome section.
 - ✅ Done 10 Oct: wreath added to the n8n **products** table (row 15, SKU CJYS315715002BY, status testing), so `/content CJYS315715002BY` works. Note for agents: never claim projection.
-- ⚠️ The winter set (CJNSFSMZ00628-Dark black) is still "testing" in the products table → owner sends `/product CJNSFSMZ00628-Dark black killed hard to show in video, short season`.
+- ✅ Done 10 Oct (Claude, directly in the n8n feedback table, same as the /product command): winter set CJNSFSMZ00628-Dark black = **killed**, wreath CJYS315715002BY = **testing**.
 - 🎬 Video decision (10 Oct): no samples (no money now). Videos = the real CJ product footage + an AI presenter (Higgsfield) for hook/talking parts only. AI must never generate the wreath itself, never act as a real customer, and every video gets the platform's "AI-generated" label.
 - ❓ Product page says "Taxes included." Check Settings → Taxes and duties (US prices are normally shown without tax). Owner's decision.
 - ✅ Done 10 Oct: test-mode order **#1002** (1 Christmas + 1 Halloween): total $44.99 with "Buy 2 wreaths, save $4.99", synced to CJ (DP2610101254190648300) at a CJ cost of **$21.75** via LuWei Ordinary US, exactly as calculated. Test mode is OFF again (checked).
