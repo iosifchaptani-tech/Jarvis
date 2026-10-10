@@ -1,0 +1,883 @@
+{
+  "name": "07 · CJ auto-pay (optional)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "73da3527-1fe9-51ed-93d4-526506bbc25a",
+      "name": "Every 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e47778ac-e5ef-585c-8376-62be154f6c57",
+              "name": "telegram_chat_id",
+              "value": "PASTE_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "d3d1cc92-bc6c-5589-ba80-79744a55723d",
+              "name": "auto_pay",
+              "value": "no",
+              "type": "string"
+            },
+            {
+              "id": "69d94f6c-2d80-5925-95d2-82f152b7fc60",
+              "name": "max_order_usd",
+              "value": 40,
+              "type": "number"
+            },
+            {
+              "id": "f61a6e71-a52d-5bd8-b3de-db5f59c40b13",
+              "name": "daily_limit_usd",
+              "value": 100,
+              "type": "number"
+            },
+            {
+              "id": "aa7adf79-5fe0-5361-8126-308df28960dd",
+              "name": "min_profit_usd",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "0c891865-ddf6-5df7-8bf6-1c6479a6a3fe",
+              "name": "payment_fee_pct",
+              "value": 2.9,
+              "type": "number"
+            },
+            {
+              "id": "c56588b8-463c-5264-b8cd-d261464d6df1",
+              "name": "payment_fee_fixed",
+              "value": 0.3,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1de71f3e-1172-5f89-8f21-58ff4b17e98b",
+      "name": "⚙️ Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6a5c558d-0f4e-5ee6-935c-6e8202bf366a",
+              "leftValue": "={{ $json.auto_pay === 'yes' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "26836639-0a87-534b-aaf1-87127ef777c0",
+      "name": "Auto-pay switched on?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "orders"
+        },
+        "returnAll": true
+      },
+      "id": "5482f093-8735-5a4f-bfa3-78e556d79b64",
+      "name": "Load orders",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "payments"
+        },
+        "returnAll": true
+      },
+      "id": "49cbeff0-3334-58d0-9bc1-b2a35291efc7",
+      "name": "Load payments",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "cd5045ff-1268-53e0-a03c-1f772c8ac369",
+      "name": "CJ: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "8da762fc-ba33-5bc8-b462-98891cf52e73",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "webhookId": "4668040f-ca53-5771-95fb-a135d0ad7bed"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/list",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNum",
+              "value": "1"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f141c992-af5c-5c01-b6c3-c343a8a55b30",
+      "name": "CJ: open orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// CJ orders imported by the CJ app start as CREATED / IN_CART. Confirming them makes CJ calculate the\n// final price (status UNPAID). Confirming does not pay anything.\nconst res = $('CJ: open orders').first().json;\nif (res.code !== 200) throw new Error('CJ order list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));\nconst list = (res.data?.list || []).filter(o => ['CREATED', 'IN_CART'].includes(o.orderStatus) && !o.isSandbox);\nreturn list.length ? list.map(o => ({ json: { orderId: o.orderId, orderNum: o.orderNum } })) : [{ json: { none: true } }];\n"
+      },
+      "id": "2f4036c7-6a56-51ae-b733-48ec932a4809",
+      "name": "Orders to confirm",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f9cac72e-1cf6-59d0-a71f-a9f584cb434d",
+              "leftValue": "={{ !$json.none }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cf32b1ab-640f-57d9-b06c-00536ef79652",
+      "name": "Anything to confirm?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/confirmOrder",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ orderId: $json.orderId }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
+      },
+      "id": "55edb6b4-4ad9-57f2-8e6f-26f66c2ff580",
+      "name": "CJ: confirm order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "a3483fe6-5512-56e2-8f30-f6989838827b",
+      "name": "Wait 3s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        0
+      ],
+      "webhookId": "637a2072-83eb-57d3-b9b9-46445e9a8797",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/list",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNum",
+              "value": "1"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            },
+            {
+              "name": "status",
+              "value": "UNPAID"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3db1a431-48fe-5e76-b0c8-2cc9fabbab51",
+      "name": "CJ: unpaid orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "60d034b9-5c59-57e3-b40e-29d2a818b6cd",
+      "name": "Wait 2s (balance)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        0
+      ],
+      "webhookId": "508b1893-bb04-59f7-80a7-9877da969544"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/getBalance",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "84473c9a-8fec-5a90-a33a-d14a976f2d6c",
+      "name": "CJ: wallet balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        0
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\n// Deterministic money rules. The AI is not involved in paying.\nconst s = $('⚙️ Settings').first().json;\nconst today = $now.toFormat('yyyy-MM-dd');\nconst res = $('CJ: unpaid orders').first().json;\nif (res.code !== 200) throw new Error('CJ order list failed: ' + (res.message || JSON.stringify(res).slice(0, 300)));\nconst bal = $('CJ: wallet balance').first().json;\nlet balance = bal && bal.code === 200 ? Number(bal.data?.amount) || 0 : 0;\nconst norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');\nconst shop = rowsOf('Load orders');\nconst log = rowsOf('Load payments');\nlet budget = Number(s.daily_limit_usd) - log.filter(r => r.day === today && r.status === 'paid').reduce((t, r) => t + (Number(r.amount) || 0), 0);\n\nconst out = [];\nfor (const o of (res.data?.list || []).filter(o => o.orderStatus === 'UNPAID' && !o.isSandbox)) {\n  const mine = log.filter(r => r.cj_order_id === o.orderId);\n  if (mine.some(r => r.status === 'paid')) continue;                       // never pay twice\n  const amount = round2(Number(o.orderAmount) || 0);\n  const sale = shop.find(x => x.order_name && [norm(x.order_name), norm(x.order_id)].includes(norm(o.orderNum)));\n  const revenue = sale ? Number(sale.revenue) || 0 : 0;\n  const profit = round2(revenue - amount - revenue * s.payment_fee_pct / 100 - s.payment_fee_fixed);\n  const why = [];\n  if (!(amount > 0)) why.push('CJ has not calculated the price yet');\n  if (!sale) why.push('no matching Shopify order was found');\n  if (amount > s.max_order_usd) why.push(`it costs $${amount}, above your $${s.max_order_usd} limit per order`);\n  if (sale && profit < s.min_profit_usd) why.push(`profit would be only $${profit} (minimum $${s.min_profit_usd})`);\n  if (amount > budget) why.push(`today's auto-pay limit ($${s.daily_limit_usd}) would be passed`);\n  if (amount > balance) why.push(`your CJ balance ($${round2(balance)}) is too low - top it up with Payoneer`);\n  const row = { day: today, cj_order_id: o.orderId, order_name: o.orderNum, amount, revenue: round2(revenue), profit };\n  if (!why.length) {\n    budget -= amount; balance -= amount;\n    out.push({ json: { pay: true, ...row, note: '' } });\n  } else {\n    // Tell the owner once per order per day, not every 30 minutes\n    const told = mine.some(r => r.status === 'held' && r.day === today);\n    out.push({ json: { pay: false, notify: !told, ...row, note: why.join('; ') } });\n  }\n}\nreturn out;\n"
+      },
+      "id": "49ecfcce-e150-5f1d-8a7f-092b6e4b6ea3",
+      "name": "Decide payments (money rules)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2f59184c-18d5-5a72-aca5-3a98dd129763",
+              "leftValue": "={{ $json.pay }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "33e93af7-7cd9-57a5-af29-ce1607fe5191",
+      "name": "Pay it?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/pay/payBalance",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ orderId: $json.cj_order_id }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
+        }
+      },
+      "id": "b2cf3ae5-cad4-5395-a1f2-989c792b9f4c",
+      "name": "CJ: pay from balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3740,
+        -100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pair each payment answer from CJ with its order (same order as the items that went in).\nconst orders = $('Pay it?').all(0).map(i => i.json);\nreturn $input.all().map((r, i) => {\n  const o = orders[i];\n  const ok = r.json.code === 200 && r.json.result !== false;\n  return { json: { day: o.day, cj_order_id: o.cj_order_id, order_name: o.order_name, amount: o.amount,\n    revenue: o.revenue, profit: o.profit, status: ok ? 'paid' : 'failed', note: ok ? '' : String(r.json.message || r.json.error || 'unknown error').slice(0, 300) } };\n});\n"
+      },
+      "id": "770dd05c-d238-5158-87c2-5df6221c0b68",
+      "name": "Payment rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "payments"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ba653323-1896-57a9-870a-ab7a984bfa0c",
+      "name": "Log payments",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4180,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst paid = rows.filter(r => r.status === 'paid'), failed = rows.filter(r => r.status === 'failed');\nconst lines = [];\nif (paid.length) lines.push(`💸 Auto-paid ${paid.length} CJ order(s), $${paid.reduce((t, r) => t + r.amount, 0).toFixed(2)} in total:\\n`\n  + paid.map(r => `- ${r.order_name}: paid $${r.amount}, sold for $${r.revenue}, ~$${r.profit} profit`).join('\\n'));\nif (failed.length) lines.push(`❌ CJ refused ${failed.length} payment(s). Pay these by hand in CJ -> My Orders:\\n`\n  + failed.map(r => `- ${r.order_name} ($${r.amount}): ${r.note}`).join('\\n'));\nreturn [{ json: { text: lines.join('\\n\\n').slice(0, 4000) } }];\n"
+      },
+      "id": "b9e56ac9-4994-5a94-9244-b401073ac010",
+      "name": "Payment message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "77bc2b6e-baab-5822-a0ed-4b19a90a6160",
+      "name": "Tell owner (paid)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(i => i.json.notify).map(({ json: o }) => ({ json: {\n  day: o.day, cj_order_id: o.cj_order_id, order_name: o.order_name, amount: o.amount, revenue: o.revenue,\n  profit: o.profit, status: 'held', note: o.note } }));\n"
+      },
+      "id": "f27c333a-785d-5525-bff0-26484503fc2c",
+      "name": "Held rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "payments"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ea0e036e-9c10-58ed-80f3-f02537c40a1d",
+      "name": "Log held orders",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "=✋ Not auto-paid: CJ order {{ $json.order_name }} (${{ $json.amount }})\nWhy: {{ $json.note }}\n\nCheck it, then pay it in CJ -> My Orders if it's fine.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "27fd7989-f36f-5813-ba1b-d791b4c4f5a2",
+      "name": "Ask owner to pay by hand",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3960,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Every 30 minutes": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Settings": {
+      "main": [
+        [
+          {
+            "node": "Auto-pay switched on?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-pay switched on?": {
+      "main": [
+        [
+          {
+            "node": "Load orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load orders": {
+      "main": [
+        [
+          {
+            "node": "Load payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load payments": {
+      "main": [
+        [
+          {
+            "node": "CJ: get token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: get token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "CJ: open orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: open orders": {
+      "main": [
+        [
+          {
+            "node": "Orders to confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Orders to confirm": {
+      "main": [
+        [
+          {
+            "node": "Anything to confirm?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to confirm?": {
+      "main": [
+        [
+          {
+            "node": "CJ: confirm order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 3s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: confirm order": {
+      "main": [
+        [
+          {
+            "node": "Wait 3s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3s": {
+      "main": [
+        [
+          {
+            "node": "CJ: unpaid orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: unpaid orders": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s (balance)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s (balance)": {
+      "main": [
+        [
+          {
+            "node": "CJ: wallet balance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: wallet balance": {
+      "main": [
+        [
+          {
+            "node": "Decide payments (money rules)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide payments (money rules)": {
+      "main": [
+        [
+          {
+            "node": "Pay it?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pay it?": {
+      "main": [
+        [
+          {
+            "node": "CJ: pay from balance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Held rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: pay from balance": {
+      "main": [
+        [
+          {
+            "node": "Payment rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment rows": {
+      "main": [
+        [
+          {
+            "node": "Log payments",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Payment message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment message": {
+      "main": [
+        [
+          {
+            "node": "Tell owner (paid)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held rows": {
+      "main": [
+        [
+          {
+            "node": "Log held orders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ask owner to pay by hand",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}
