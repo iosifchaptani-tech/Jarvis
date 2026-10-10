@@ -52,7 +52,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ✅ Done 10 Oct: wreath banner (image with text + "Shop the wreath" button) added at the top of the homepage in "Copy of Dawn". The drill banner is now second.
 - ✅ Done 10 Oct: owner published "Copy of Dawn" = new live theme (old "Dawn" kept as backup). Phone check OK: homepage (wreath banner first) + wreath product page (Christmas/Halloween buttons, $24.99).
 - ✅ Done 10 Oct: new theme copy **"Copy of Copy of Dawn"** (not live yet): drill banner removed; dark "Welcome" section at the top with the white Pivendo logo, "Useful finds, delivered.", Christmas note, buttons "Shop the wreath" + "About us"; teal logo in the header (150 px) + favicon. Checked on desktop and phone. White logo uploaded to Content → Files. Separate landing page: decided against (it costs buyers a click).
-- 👤 Next: publish "Copy of Copy of Dawn" (Online Store → Themes → Publish).
+- ✅ Done 10 Oct: owner published "Copy of Copy of Dawn" = live theme with logo + welcome section.
+- ✅ Done 10 Oct: wreath added to the n8n **products** table (row 15, SKU CJYS315715002BY, status testing), so `/content CJYS315715002BY` works. Note for agents: never claim projection.
+- ⚠️ The winter set (CJNSFSMZ00628-Dark black) is still "testing" in the products table → owner sends `/product CJNSFSMZ00628-Dark black killed hard to show in video, short season`.
+- 🎬 Video decision (10 Oct): no samples (no money now). Videos = the real CJ product footage + an AI presenter (Higgsfield) for hook/talking parts only. AI must never generate the wreath itself, never act as a real customer, and every video gets the platform's "AI-generated" label.
 - ❓ Product page says "Taxes included." Check Settings → Taxes and duties (US prices are normally shown without tax). Owner's decision.
 - ✅ Done 10 Oct: test-mode order **#1002** (1 Christmas + 1 Halloween): total $44.99 with "Buy 2 wreaths, save $4.99", synced to CJ (DP2610101254190648300) at a CJ cost of **$21.75** via LuWei Ordinary US, exactly as calculated. Test mode is OFF again (checked).
 - ✅ Done 10 Oct: Telegram alert for #1002 came (owner). #1002 **cancelled in Shopify** (test refund $44.99, stock back, no customer email).
