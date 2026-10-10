@@ -43,8 +43,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   1. Log in to CJ in the Chrome tab PowerShell Claude opened, then write "logged in" to PowerShell Claude.
   2. Send to the bot: `/product CJNSFSMZ00628 killed hard to show in video, short season`
 - ✅ Done 10 Oct (desktop Claude): real CJ cost for the wreath, see "Wreath costs" below.
+- ✅ Done 10 Oct: wreath listed with the CJ app and set to **Draft** in Shopify: $24.99, variants Christmas (CJYS315715002BY) + Halloween (CJYS315715001AZ), no compare-at price, collection Christmas, CJ default shipping LuWei Ordinary US.
 - 🤖 Next:
-  2. add the wreath as a DRAFT at $24.99 and show it before it goes live
+  2. owner reviews the wreath draft (fix type "Drill Bits" → Christmas Decor; remove the 6PCS photo; check whether it also projects onto the ceiling), then set it to Active
+  2b. "Buy 2 for $44.99" automatic discount, created OFF; add the offer line to the description when it goes on
   3. homepage: wreath banner, the 2 products, "Why Pivendo", tagline "Useful finds, delivered.", "Order by December 8" note
   4. phone check + final check
 - Then: `/content SKU` for the wreath → start 2-3 videos a day 🎄
