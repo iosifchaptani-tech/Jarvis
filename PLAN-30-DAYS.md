@@ -34,6 +34,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)** (rewritten 10 Oct, evening)
+- 🚀 **SHOP IS PUBLIC (10 Oct, evening, owner removed the password).** Checked from outside: pivendo.com, the wreath page ($24.99) and /policies/legal-notice all open without a password; the legal notice has no placeholders. From now on, every Telegram order alert = **pay it in CJ yourself** (auto-pay off). AU = CJPacket Ordinary, never Eub.
+- 📱 TikTok: start with a personal account (Business/verification later). Bio with Impressum text: "Useful finds by our AI team 🎁 Impressum: pivendo.com/policies/legal-notice". Every video: "AI-generated" label + Content disclosure "Your brand". Call Pivendo "my shop", never "sponsor".
 - 📱 TikTok decision (10 Oct, evening): account **@pivendoteam** (display name "PivendoTeam"; username was free on 10 Oct). Rotating AI characters. **Main character = the owner's own ChatGPT character** (curly hair, sunglasses, dark blazer, night city, chess), also used on the owner's trading TikTok. The green-sweater man (option 4) is secondary. Video 1 (ffmpeg) rejected as too low quality, so videos are paused. Owner will make pictures with ChatGPT and animate them with free tools. Next: profile setup (Business account, logo picture, bio with "AI" disclosure, link once the shop password is removed).
 - 🎬 Video 1 (rejected by owner, keep as fallback): `Boss Jarvis/.playwright-mcp/video/pivendo-wreath-video-1.mp4` (15 s; presenter option 4 + real CJ clips + Higgsfield music). Script to rebuild it: see the ffmpeg steps in this session (tools in `.playwright-mcp/video/tools`, CJ clips in `video/cj`).
   - ✅ Fixed 10 Oct: solid navy text box (y 140-570) covers CJ's burned-in text. Ready to post.
@@ -42,7 +44,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ✅ Found 10 Oct: the wreath IS a projector ("Christmas Projector Light" box, ceiling projection in CJ video 1). Ask the owner before updating Shopify: add projection to the description and put the ceiling photos back. Never use CJ video 2 after second 8 (exaggerated whole-house projections).
 - ⚠️ CJ video 2 has a blurred watermark (probably another creator's footage). Prefer CJ video 1 clips and our own edits.
 - Higgsfield: free plan, about 9.3 credits left. Free model can't keep the same face in new poses. Seed Audio music works (0.1 credit).
-- Still open: "Taxes included" decision; remove the shop password when ready; delete #1002 in CJ (owner).
+- Still open: "Taxes included" decision; delete #1002 in CJ (owner); store contact name "Drop Ship" → "Pivendo" (Settings → Store details, optional).
 
 **Older notes (9 Oct)**
 
