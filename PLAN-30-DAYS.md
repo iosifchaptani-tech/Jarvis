@@ -32,6 +32,22 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - CA/AU: **CJPacket Ordinary**, but only if the product page shows **no yellow "DDU" box**.
 - ❌ Never choose a method with the "DDU" box.
 
+**▶️ Tomorrow (start here)**
+- Already done by PowerShell Claude (9 Oct):
+  - winter set archived, its "buy 2" discount off
+  - collections Tools / Christmas (empty) / All products
+  - menu Home · Christmas · Tools · Contact
+  - honest About us page, linked in the footer
+- 👤 Owner:
+  1. Log in to CJ in the Chrome tab PowerShell Claude opened, then write "logged in" to PowerShell Claude.
+  2. Send to the bot: `/product CJNSFSMZ00628 killed hard to show in video, short season`
+- 🤖 PowerShell Claude, after "logged in":
+  1. real CJ shipping for 2 wreaths (for the "2 for $44.99" offer)
+  2. add the wreath as a DRAFT at $24.99 and show it before it goes live
+  3. homepage: wreath banner, the 2 products, "Why Pivendo", tagline "Useful finds, delivered.", "Order by December 8" note
+  4. phone check + final check
+- Then: `/content SKU` for the wreath → start 2-3 videos a day 🎄
+
 **Product decisions (9 Oct)**
 - 🎄 **Christmas LED wreath** (USB only, LuWei Ordinary US = DDP, 5-11 days): **new main product**. Add it via ADD-PRODUCT. Price **$24.99** (owner decision 9 Oct; about $11 profit per order). Stop US sales about Dec 8. Halloween version only as a 2nd variant ("Order by Oct 17").
 - 🧸 **Squishy mystery box:** only after the owner shows the CPC / ASTM F963 test report. Check whether CJ packs several items in one parcel.
