@@ -140,39 +140,39 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 ## Week 1 · Foundations (days 5-11)
 
 ### Day 5 · Fri 2 Oct · 🎯 Admin start
-- [ ] 👤 **Gewerbeanmeldung online** at service-bw.de (about 20 minutes). Activity: *"Onlinehandel mit Waren aller Art (Dropshipping)"*.
+- [x] 👤 **Gewerbeanmeldung online** at service-bw.de (about 20 minutes). Activity: *"Onlinehandel mit Waren aller Art (Dropshipping)"*.
 - [ ] 👤 **Create an ELSTER account** at elster.de. The activation letter takes 1-2 weeks by post, and you need it for the tax form.
-- [ ] 👤 Shopify webhook → `https://n8n.pivendo.com/webhook/shopify-order-4u6tpie7jfgx`, then **Send test notification**.
-- [ ] 👤 Delete the test order in n8n (Data tables → orders).
-- [ ] 👤 Open research product #1 (garden drill auger) in the CJ app: photos, stock, and whether it fits a normal drill.
-- [ ] 👤 **Wok Wang:** call or message them. Collect the info list below and **agree a price**.
+- [x] 👤 Shopify webhook → `https://n8n.pivendo.com/webhook/shopify-order-4u6tpie7jfgx`, then **Send test notification**.
+- [x] 👤 Delete the test order in n8n (Data tables → orders).
+- [x] 👤 Open research product #1 (garden drill auger) in the CJ app: photos, stock, and whether it fits a normal drill.
+- [x] 👤 **Wok Wang:** call or message them. Collect the info list below and **agree a price**.
 
 ### Day 6 · Sat 3 Oct (public holiday) · 🎯 Shopify settings
-- [ ] 👤 **Markets:** turn on **US, CA, AU**. Leave **Germany/EU off** for now, since no product has EU stock and you then don't need LUCID.
-- [ ] 👤 **Shipping rates:** US free · rest of the world $7.99.
-- [ ] 👤 Cookie banner on · contact page · policies in the footer.
-- [ ] 👤 Create **TikTok, Instagram and YouTube** accounts called "pivendo". Use each normally for 10 minutes, without posting yet.
-- [ ] 🤖 Update workflow 01 in n8n to the latest version (the research price fix). Paste the prompt at the end of this file into PowerShell Claude.
+- [x] 👤 **Markets:** turn on **US, CA, AU**. Leave **Germany/EU off** for now, since no product has EU stock and you then don't need LUCID.
+- [x] 👤 **Shipping rates:** US free · rest of the world $7.99.
+- [x] 👤 Cookie banner on · contact page · policies in the footer.
+- [ ] 👤 Create **TikTok, Instagram and YouTube** accounts called "pivendo". Use each normally for 10 minutes, without posting yet. *(TikTok @pivendoteam done 10 Oct; Instagram + YouTube still open)*
+- [x] 🤖 Update workflow 01 in n8n to the latest version (the research price fix). Paste the prompt at the end of this file into PowerShell Claude.
 
 ### Day 7 · Sun 4 Oct · 🎯 Weekly review #1 + pick the product
-- [ ] 👤 Compare the research from days 5, 6 and 7, then **pick 1 product**. Send `/product SKU testing`.
-- [ ] 🤖 **Build the Wok Wang website draft** from the info you collected.
-- [ ] 👤 15-minute review: what's done, what's stuck? Tell Claude.
+- [x] 👤 Compare the research from days 5, 6 and 7, then **pick 1 product**. Send `/product SKU testing`.
+- [x] 🤖 **Build the Wok Wang website draft** from the info you collected.
+- [x] 👤 15-minute review: what's done, what's stuck? Tell Claude.
 
 ### Day 8 · Mon 5 Oct · 🎯 Product page
-- [ ] 👤 Import the product with the **CJ app** → send `/content SKU` → paste the page text.
+- [x] 👤 Import the product with the **CJ app** → send `/content SKU` → paste the page text.
   - Add a "**drill not included**" note if it's the auger.
   - Offer a **2-pack bundle**.
-- [ ] 👤 **Connect pivendo.com to Shopify:** Shopify → Settings → Domains → Connect existing domain. Claude helps with the DNS. Don't touch `n8n.pivendo.com`.
-- [ ] 👤 Start **Shopify Payments verification** (ID and bank account). Add PayPal.
+- [x] 👤 **Connect pivendo.com to Shopify:** Shopify → Settings → Domains → Connect existing domain. Claude helps with the DNS. Don't touch `n8n.pivendo.com`.
+- [x] 👤 Start **Shopify Payments verification** (ID and bank account). Add PayPal.
 
 ### Day 9 · Tue 6 Oct · 🎯 Videos
-- [ ] 👤 Make **5 videos** from the 5 scripts in **CapCut** (product photos + text + voice). Or send `/render ID` for the automatic photo video.
+- [x] 👤 Make **5 videos** from the 5 scripts in **CapCut** (product photos + text + voice). Or send `/render ID` for the automatic photo video. *(done 11 Oct: 6 videos with Remotion + Higgsfield, in Desktop/Pivendo Videos)*
 - [ ] 👤 Show the **Wok Wang draft** to the owner and collect their changes.
 
 ### Day 10 · Wed 7 Oct · 🎯 Launch (if the Gewerbe is confirmed)
-- [ ] 👤 Check: Gewerbe confirmed ✅, Payments verified ✅, product page ✅ → **remove the store password**.
-- [ ] 👤 Place 1 real test order with your own card, refund it, and check that Telegram alerts you.
+- [x] 👤 Check: Gewerbe confirmed ✅, Payments verified ✅, product page ✅ → **remove the store password**. *(shop public since 10 Oct)*
+- [x] 👤 Place 1 real test order with your own card, refund it, and check that Telegram alerts you. *(done 10 Oct in Shopify test mode: order #1002, Telegram alert came, order cancelled)*
 - [ ] 👤 **Post the first 2-3 videos.**
 - ❗ If the Gewerbe isn't confirmed yet, keep the password on and keep making videos. Launch the day it arrives.
 
@@ -251,11 +251,11 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 ---
 
 ## Wok Wang: info to collect (day 5)
-- [ ] Type of business, name, address, phone, **opening hours**
-- [ ] **Menu with prices** (photo or PDF is fine)
+- [x] Type of business, name, address, phone, **opening hours**
+- [x] **Menu with prices** (photo or PDF is fine)
 - [ ] Logo, plus photos of the food and the restaurant
-- [ ] Just information, or **online ordering / delivery** links (Lieferando etc.)?
-- [ ] Languages (German only, or English too?)
+- [x] Just information, or **online ordering / delivery** links (Lieferando etc.)? *(online pickup ordering, cash payment)*
+- [x] Languages (German only, or English too?) *(German, formal "Sie")*
 - [ ] Domain (do they have one?) and who pays for hosting
 - [ ] **Price agreed:** e.g. €300-600 one-off + €15-25/month for hosting and changes
 
