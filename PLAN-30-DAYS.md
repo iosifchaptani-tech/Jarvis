@@ -52,7 +52,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ✅ Done 10 Oct: wreath banner (image with text + "Shop the wreath" button) added at the top of the homepage in "Copy of Dawn". The drill banner is now second.
 - ✅ Done 10 Oct: owner published "Copy of Dawn" = new live theme (old "Dawn" kept as backup). Phone check OK: homepage (wreath banner first) + wreath product page (Christmas/Halloween buttons, $24.99).
 - ❓ Product page says "Taxes included." Check Settings → Taxes and duties (US prices are normally shown without tax). Owner's decision.
-- 🤖 Next: test-mode order with 2 wreaths (does the $4.99 discount show? does the order sync to CJ?). Ask the owner before turning test mode on, and turn it off again after.
+- ✅ Done 10 Oct: test-mode order **#1002** (1 Christmas + 1 Halloween): total $44.99 with "Buy 2 wreaths, save $4.99", synced to CJ (DP2610101254190648300) at a CJ cost of **$21.75** via LuWei Ordinary US, exactly as calculated. Test mode is OFF again (checked).
+- ⚠️ #1002 is still in CJ "Store orders" (unpaid). **Never pay it.** Later: cancel it in Shopify (refund) and remove it in CJ, with the owner's OK.
   3. homepage: wreath banner, the 2 products, "Why Pivendo", tagline "Useful finds, delivered.", "Order by December 8" note
   4. phone check + final check
 - Then: `/content SKU` for the wreath → start 2-3 videos a day 🎄
