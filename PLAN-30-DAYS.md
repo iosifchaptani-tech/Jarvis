@@ -34,7 +34,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Wreath: US **LuWei Ordinary US**, CA **CJPacket JYSP Sensitive** (or Ordinary), AU **CJPacket Ordinary** (never Eub, it's DDU).
 - ❌ Never choose a method with the "DDU" box.
 
-**▶️ Tomorrow (start here)** (rewritten 11 Oct, night)
+**▶️ Tomorrow (start here)** (rewritten 11 Oct, late night, for Mon 12 Oct)
+- 🎯 **Main job Mon 12 Oct: post the first video (pivendo-character2) and schedule the other 5** in TikTok Studio (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time). Nothing is posted yet (owner chose to start on 12 Oct).
+- Also on 12 Oct if there's time: TikTok bio ("PivendoTeam" + Impressum line), delete CJ test order #1002, start the ELSTER account (elster.de).
+- Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
 - ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
 - 🎬 **6 videos ready** in `Desktop/Pivendo Videos`: pivendo-hook1..4.mp4 (real footage only) + pivendo-character1/2.mp4 (owner's AI character, voice checked OK).
 - 👤 Posting plan (TikTok @pivendoteam, 1 video per day, US evening = about 00:00-03:00 German time, or schedule it):
