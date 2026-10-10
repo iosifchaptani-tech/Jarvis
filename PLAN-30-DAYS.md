@@ -34,6 +34,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)** (rewritten 11 Oct, night)
+- ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
 - 🎬 **6 videos ready** in `Desktop/Pivendo Videos`: pivendo-hook1..4.mp4 (real footage only) + pivendo-character1/2.mp4 (owner's AI character, voice checked OK).
 - 👤 Posting plan (TikTok @pivendoteam, 1 video per day, US evening = about 00:00-03:00 German time, or schedule it):
   1. Day 1: **pivendo-character2** (strongest: talking character + real projection)
