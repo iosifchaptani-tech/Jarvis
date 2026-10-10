@@ -44,7 +44,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   4. Then hook1, hook2, hook3
   - Every post: Content disclosure → "Your brand" ON. Character videos also: "AI-generated" label ON. Caption with "pivendo.com", and pin a comment "Shop: pivendo.com 🎄".
 - 🤖 48 h after each post: owner logs in to TikTok in the Playwright browser window and writes "analyze" → Claude reads TikTok Studio (read-only), compares the hooks, writes stats into the n8n feedback table.
-- Higgsfield trial: 16 credits left. ⚠️ Check Settings → Billing whether the trial auto-renews into a paid plan; cancel in time if not wanted.
+- ⚠️ **Higgsfield trial (checked 11 Oct): it auto-renews on 13 Oct at 23:26 for €59/month.** Owner decision: wait for the 50 bonus credits on Day 3 (from about 12 Oct, 23:26), then **cancel between 12 Oct 23:26 and 13 Oct 23:26** (higgsfield.ai → Settings → Subscription → Cancel auto-renewal; trial access stays until the end). Reminders set in the desktop app for 13 Oct 12:00 and 20:00. Claude cancels only after the owner says "cancel it". Free AI Influencer gens: 1 left (owner decides each one).
 - Video project for new edits: `Boss Jarvis/.playwright-mcp/video/remotion` (Remotion 4.0.528; compositions WreathHook1-4, WreathCharacter, WreathCharacter2).
 - Shop: public since 10 Oct. On a Telegram order alert: pay it in CJ yourself (AU = CJPacket Ordinary, never Eub). Stop US sales about Dec 8.
 - Still open (owner): "Taxes included" decision; delete test order #1002 in CJ; profile name "PivendoTeam" + Impressum line in the TikTok bio.
