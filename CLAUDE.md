@@ -16,6 +16,15 @@
   - Tests: `cd dropshipping/tools && npm install luxon@3 && node test_code_nodes.js`. They must all pass before every commit.
   - `POLICIES.md`: the store's legal texts in English and German, with blanks instead of the owner's name, address and email.
 
+## Keep the plan up to date (every session)
+- `PLAN-30-DAYS.md` is the shared to-do list for every Claude (PowerShell, desktop app, cloud).
+- **At the start:** run `git pull origin claude/great-dirac-2sqgzw`, then read the "📍 Status" part. Before you start a task, check whether it's already done; if you can, look in Shopify, CJ or n8n.
+- **Right after each finished task:**
+  - move it to "Done ✅" with the date, or delete it from "▶️ Tomorrow" / "Still to do"
+  - add anything new the owner decided
+- **Then commit and push only `PLAN-30-DAYS.md`** to `claude/great-dirac-2sqgzw`. The owner allows this without asking each time.
+- **Before the owner stops for the day:** rewrite "▶️ Tomorrow (start here)" so the next session knows exactly where to continue.
+
 ## Hard rules
 - **Keys and passwords:**
   - Never ask for API keys, tokens or passwords in chat.
@@ -26,7 +35,7 @@
   - Never pay, top up or buy anything.
 - **Personal data:** never commit the owner's name, home address or email.
 - **Honesty:** no fake reviews, discounts, countdowns or delivery times, and no brand copies. Germany/EU law applies: the owner lives in Germany.
-- **Ask first** before anything outside this PC: pushing, deleting, or changing Shopify, CJ or Telegram settings.
+- **Ask first** before anything outside this PC: pushing (except the plan updates above), deleting, or changing Shopify, CJ or Telegram settings.
 
 ## Things only the owner can do
 - Create accounts and pass ID or bank checks.
