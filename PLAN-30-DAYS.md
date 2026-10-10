@@ -30,6 +30,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
 - Winter set to the US: the **US warehouse** (CJ picks it by itself).
 - CA/AU: **CJPacket Ordinary**, but only if the product page shows **no yellow "DDU" box**.
+- Wreath: US **LuWei Ordinary US**, CA **CJPacket JYSP Sensitive** (or Ordinary), AU **CJPacket Ordinary** (never Eub, it's DDU).
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)**
@@ -41,12 +42,25 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - 👤 Owner:
   1. Log in to CJ in the Chrome tab PowerShell Claude opened, then write "logged in" to PowerShell Claude.
   2. Send to the bot: `/product CJNSFSMZ00628 killed hard to show in video, short season`
-- 🤖 PowerShell Claude, after "logged in":
-  1. real CJ shipping for 2 wreaths (for the "2 for $44.99" offer)
+- ✅ Done 10 Oct (desktop Claude): real CJ cost for the wreath, see "Wreath costs" below.
+- 🤖 Next:
   2. add the wreath as a DRAFT at $24.99 and show it before it goes live
   3. homepage: wreath banner, the 2 products, "Why Pivendo", tagline "Useful finds, delivered.", "Order by December 8" note
   4. phone check + final check
 - Then: `/content SKU` for the wreath → start 2-3 videos a day 🎄
+
+**Wreath costs (checked in CJ, 10 Oct)**
+- CJ SKU **CJYS315715002BY**, style "Christmas projection light" (USB, 240 g, 6,959 in stock at the factory). Link: https://www.cjdropshipping.com/product/cozy-led-star-projector-light---ceiling-atmosphere-lamp-for-home-decor-christmas-holiday-gift-night-light-p-2609120245271608200.html
+- Product $5.90 each. 2 wreaths ship together in one parcel.
+
+| To | Method (no DDU) | Days | 1 wreath | 2 wreaths |
+|---|---|---|---|---|
+| US | LuWei Ordinary US | 5-11 | $12.74 | $21.75 |
+| CA | CJPacket JYSP Sensitive | 7-15 | $12.04 | $21.06 |
+| AU | CJPacket Ordinary | 4-8 | $16.97 | $24.51 |
+
+- Profit after Shopify fees (about 5% + $0.30): US 1 ≈ $10.70, US 2 for $44.99 ≈ $20.70. CA/AU are higher because the customer pays $7.99 shipping (CA 1 ≈ $19, AU 1 ≈ $14).
+- ❌ AU: CJPacket Eub (the cheapest, CJ's default) shows the **DDU** box. Always switch AU orders to **CJPacket Ordinary**.
 
 **Product decisions (9 Oct)**
 - 🎄 **Christmas LED wreath** (USB only, LuWei Ordinary US = DDP, 5-11 days): **new main product**. Add it via ADD-PRODUCT. Price **$24.99** (owner decision 9 Oct; about $11 profit per order). Stop US sales about Dec 8. Halloween version only as a 2nd variant ("Order by Oct 17").
