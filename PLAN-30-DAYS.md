@@ -34,7 +34,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)** (rewritten 10 Oct, evening)
-- 🎬 Video 1 is ready: `Boss Jarvis/.playwright-mcp/video/pivendo-wreath-video-1.mp4` (15 s; presenter option 4 + real CJ clips + Higgsfield music). Script to rebuild it: see the ffmpeg steps in this session (tools in `.playwright-mcp/video/tools`, CJ clips in `video/cj`).
+- 📱 TikTok decision (10 Oct, evening): account **@pivendoteam** (display name "PivendoTeam"; username was free on 10 Oct). Rotating AI characters. **Main character = the owner's own ChatGPT character** (curly hair, sunglasses, dark blazer, night city, chess), also used on the owner's trading TikTok. The green-sweater man (option 4) is secondary. Video 1 (ffmpeg) rejected as too low quality, so videos are paused. Owner will make pictures with ChatGPT and animate them with free tools. Next: profile setup (Business account, logo picture, bio with "AI" disclosure, link once the shop password is removed).
+- 🎬 Video 1 (rejected by owner, keep as fallback): `Boss Jarvis/.playwright-mcp/video/pivendo-wreath-video-1.mp4` (15 s; presenter option 4 + real CJ clips + Higgsfield music). Script to rebuild it: see the ffmpeg steps in this session (tools in `.playwright-mcp/video/tools`, CJ clips in `video/cj`).
   - ✅ Fixed 10 Oct: solid navy text box (y 140-570) covers CJ's burned-in text. Ready to post.
   - Owner checks the video, then posts it with TikTok's "AI-generated" label and a trending sound.
   - After posting: owner logs in to TikTok in the Playwright browser window → Claude reads TikTok Studio analytics per video (read-only) and writes the stats into the n8n feedback table. Supermetrics (TikTok Organic / Instagram Insights) only later, it's probably paid.
