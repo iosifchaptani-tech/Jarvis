@@ -47,7 +47,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Higgsfield trial: 16 credits left. ⚠️ Check Settings → Billing whether the trial auto-renews into a paid plan; cancel in time if not wanted.
 - Video project for new edits: `Boss Jarvis/.playwright-mcp/video/remotion` (Remotion 4.0.528; compositions WreathHook1-4, WreathCharacter, WreathCharacter2).
 - Shop: public since 10 Oct. On a Telegram order alert: pay it in CJ yourself (AU = CJPacket Ordinary, never Eub). Stop US sales about Dec 8.
-- Still open (owner): "Taxes included" decision; delete test order #1002 in CJ; store contact name "Drop Ship" → "Pivendo"; profile name "PivendoTeam" + Impressum line in the TikTok bio.
+- Still open (owner): "Taxes included" decision; delete test order #1002 in CJ; profile name "PivendoTeam" + Impressum line in the TikTok bio.
 
 **Older notes (9 Oct)**
 
