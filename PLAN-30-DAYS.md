@@ -50,8 +50,9 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ✅ Done 10 Oct: homepage built in a theme **copy** ("Copy of Dawn", not live yet): tagline "Useful finds, delivered." + "🎄 Christmas gifts to the US: please order by December 8." under the banner, and the 4 trust boxes now have the heading "Why Pivendo". Checked on desktop and phone. Live "Dawn" is unchanged.
 - ✅ Done 10 Oct: wreath **Active** ($24.99, description has "Buy 2 for $44.99"), discount "Buy 2 wreaths, save $4.99" **Active** (no end date).
 - ✅ Done 10 Oct: wreath banner (image with text + "Shop the wreath" button) added at the top of the homepage in "Copy of Dawn". The drill banner is now second.
-- 👤 Next: **publish "Copy of Dawn"** (Online Store → Themes → Copy of Dawn → Publish). Claude was blocked from doing it (safety check).
-- 🤖 Then: final check (phone + test-mode order with 2 wreaths: does the $4.99 discount show? does it sync to CJ?)
+- ✅ Done 10 Oct: owner published "Copy of Dawn" = new live theme (old "Dawn" kept as backup). Phone check OK: homepage (wreath banner first) + wreath product page (Christmas/Halloween buttons, $24.99).
+- ❓ Product page says "Taxes included." Check Settings → Taxes and duties (US prices are normally shown without tax). Owner's decision.
+- 🤖 Next: test-mode order with 2 wreaths (does the $4.99 discount show? does the order sync to CJ?). Ask the owner before turning test mode on, and turn it off again after.
   3. homepage: wreath banner, the 2 products, "Why Pivendo", tagline "Useful finds, delivered.", "Order by December 8" note
   4. phone check + final check
 - Then: `/content SKU` for the wreath → start 2-3 videos a day 🎄
