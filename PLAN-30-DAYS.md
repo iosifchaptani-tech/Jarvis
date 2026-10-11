@@ -119,6 +119,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
    - Ask CJ whether the drill set includes the 3 saw drill bits from the size photo.
    - Ask whether a default shipping method per country can be saved in CJ.
 
+**Later (owner idea 11 Oct, NOT before the Pivendo videos and accounts are done):** a trading agent team on a **demo account only**: one agent back-tests the study-guide strategies on old market data, one trades the demo automatically, one reviews the losing trades and proposes rule changes (the owner approves each one), plus a trading journal the owner and Claude keep together. Study guide: https://app.notion.com/p/3f67f95d8d7581958d0fcbbccd473eca. Never a live/real-money account.
+
 **Skipped on purpose:** PayPal. It's connected and approved but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
 
 **Focus:** sell before building anything new. No new tools or automations until the first sales (except Higgsfield videos).
