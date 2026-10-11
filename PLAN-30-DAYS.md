@@ -26,6 +26,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - **Step Drill Bit Set** $34.99: 3 step bits 4-12 / 4-20 / 4-32 mm
   - **3-in-1 Knit Winter Set** $24.99: adults only, 4 colors, "buy 2 for $39.99"
 - **Agents model:** Sonnet (half the price of Opus). To switch back, set the Anthropic Chat Model nodes to `claude-opus-5-5`.
+- **Trading agents, Step 1 (12 Oct):** data plus the 2 Lines back-test are done. **Verdict: FAIL, no edge.** On unseen 2022–2026 data it averaged −0.135 R per trade, and before costs it is about zero. Report card: `Desktop\Trading Agents\reports\2lines-report-card.md`. Waiting for the owner's OK on Step 2.
 
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
@@ -120,6 +121,11 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
    - Ask whether a default shipping method per country can be saved in CJ.
 
 **Trading agents (owner started it 11 Oct, own folder `Desktop\Trading Agents`; read its docs/BRIEF.md):** a trading agent team on a **demo account only**: one agent back-tests the study-guide strategies on old market data, one trades the demo automatically, one reviews the losing trades and proposes rule changes (the owner approves each one), plus a trading journal the owner and Claude keep together. Study guide: https://app.notion.com/p/3f67f95d8d7581958d0fcbbccd473eca. Never a live/real-money account.
+- Step 1 is done (12 Oct, see Done ✅). **Next, the owner decides one or more:**
+  - start the shared journal of their real 2 Lines trades;
+  - back-test the other 3 strategies (Asian Sweep next);
+  - build the TradeLocker demo trader.
+- The CPI pending-order idea is parked.
 
 **Skipped on purpose:** PayPal. It's connected and approved but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
 
