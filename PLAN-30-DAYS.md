@@ -27,6 +27,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - **3-in-1 Knit Winter Set** $24.99: adults only, 4 colors, "buy 2 for $39.99"
 - **Agents model:** Sonnet (half the price of Opus). To switch back, set the Anthropic Chat Model nodes to `claude-opus-5-5`.
 - **Trading agents, Step 1 (12 Oct):** data plus the 2 Lines back-test are done. **Verdict: FAIL, no edge.** On unseen 2022–2026 data it averaged −0.135 R per trade, and before costs it is about zero. Report card: `Desktop\Trading Agents\reports\2lines-report-card.md`. Waiting for the owner's OK on Step 2.
+- **Trading agents, Step 2 (12 Oct, owner OK; demo trader comes last):**
+  - Notion **Trading Journal** made (private, next to the study guide).
+  - The other 3 strategies were back-tested: **all fail too** (`reports/other3-report-card.md`).
+  - Next: the review agent, then the demo trader.
 
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
