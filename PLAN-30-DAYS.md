@@ -30,7 +30,14 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Trading agents, Step 2 (12 Oct, owner OK; demo trader comes last):**
   - Notion **Trading Journal** made (private, next to the study guide).
   - The other 3 strategies were back-tested: **all fail too** (`reports/other3-report-card.md`).
-  - Next: the review agent, then the demo trader.
+  - Review agent built: runs on request ("review my trades").
+  - **Demo trader built** (`Desktop\Trading Agents	rader`): trades 2 Lines on the TradeLocker DEMO (GatesFX).
+  - **Owner next:**
+    1. Change the demo password.
+    2. Double-click `setup-login.cmd`.
+    3. Run `start-paper.cmd` before a session.
+    4. Show Claude the logs.
+    5. Then switch to demo.
 
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
