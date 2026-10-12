@@ -31,7 +31,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - Notion **Trading Journal** made (private, next to the study guide).
   - The other 3 strategies were back-tested: **all fail too** (`reports/other3-report-card.md`).
   - Review agent built: runs on request ("review my trades").
-  - **Demo trader built** (`Desktop\Trading Agents	rader`): trades 2 Lines on the TradeLocker DEMO (GatesFX).
+  - **Demo trader built** (folder `Trading Agents/trader` on the Desktop): trades 2 Lines on the TradeLocker DEMO (GatesFX).
   - **Owner next:**
     1. Change the demo password.
     2. Double-click `setup-login.cmd`.
