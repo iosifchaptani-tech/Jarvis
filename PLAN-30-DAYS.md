@@ -81,6 +81,11 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **5. Ask CJ (owner or cloud Claude):** delivery time to the US in November, and who pays the new US import duty on small parcels (the duty-free rule ended in 2026).
 - **Video factory: built and checked (13 Oct).** Folder `Boss Jarvis\.playwright-mcp\video\factory` (read its `README.md`). `make-videos.cmd 2` makes the next 2 videos from real footage: a no-music file for TikTok, a music file for YouTube/Instagram ("Christmas Village", rise at the reveal), a Pinterest picture, a captions file and a line in `Pivendo Videos/factory/queue.csv`. 14 recipes in 6 formats; 59 tests pass; the first two (r01 lights-off reveal, r02 unboxing) are in `Desktop/Pivendo Videos/factory/2026-10-13`. Limits: only about 13 seconds of real footage exist, so the videos share clips; more footage (a sample filmed by the owner) would help most. Recipe r07 says "I tested it": post it only after the owner really tested a sample. Videos made before 18 Oct carry the Halloween end card; from 18 Oct use `--xmas`.
 
+**Claude learned Higgsfield and Blender (13 Oct, owner's wish)**
+- Playbooks for every Claude: `.playwright-mcp/video/playbooks/` on the owner's PC (not in git). Start with `HIGGSFIELD-PLAYBOOK.md` and `BLENDER-PLAYBOOK.md`.
+- Higgsfield: all 16 Academy courses (175 lessons with prompts) and the 46 camera-move prompts were saved from the owner's account and distilled into four guides. The owner's paid access ended 13 Oct 23:26; a new plan is his decision.
+- Blender 5.2 is on the PC and Claude drives it by script (tested: 3D logo, lights, camera move, 3-second video in 88 s). Use: 3D logo, end cards, titles, backgrounds, transitions. **The product itself stays real footage.**
+
 **n8n runs on the Oracle server since 13 Oct 19:35 (PC can be off)**
 - Same n8n 2.41.3, same data, same address: `https://n8n.pivendo.com` answers from the server (Docker container `n8n`, Cloudflare tunnel as the service `cloudflared`). 8 workflows are active as before: 00, 01, 02, 03, 04, 05, 06, 07. The Shopify webhook and the Telegram bot did not have to be changed.
 - The owner ran `Desktop/Oracle Server/move-n8n-to-server.cmd` himself (it copies n8n's data and the tunnel key; Claude may not). Claude prepared and tested the server before and checked it after.
