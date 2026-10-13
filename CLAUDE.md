@@ -15,14 +15,15 @@
   - `n8n-workflows/*.json` are **generated**. Edit `tools/build_workflows.py`, then run `python tools/build_workflows.py`.
   - Tests: `cd dropshipping/tools && npm install luxon@3 && node test_code_nodes.js`. They must all pass before every commit.
   - `POLICIES.md`: the store's legal texts in English and German, with blanks instead of the owner's name, address and email.
+- `graphify-out/`: a knowledge graph of this repo (`graph.json`, `GRAPH_REPORT.md`, `graph.html`), made with graphify. Use it to find where something lives: `graphify query "<question>"` or `graphify explain "<name>"`. After code changes run `graphify update .` (no API key needed). Its `cache/` folder is not committed.
 
 ## Keep the plan up to date (every session)
 - `PLAN-30-DAYS.md` is the shared to-do list for every Claude (PowerShell, desktop app, cloud).
-- **At the start:** run `git pull origin claude/great-dirac-2sqgzw`, then read the "📍 Status" part. Before you start a task, check whether it's already done; if you can, look in Shopify, CJ or n8n.
+- **At the start:** run `git pull origin main`, then read the "📍 Status" part. Before you start a task, check whether it's already done; if you can, look in Shopify, CJ or n8n.
 - **Right after each finished task:**
   - move it to "Done ✅" with the date, or delete it from "▶️ Tomorrow" / "Still to do"
   - add anything new the owner decided
-- **Then commit and push only `PLAN-30-DAYS.md`** to `claude/great-dirac-2sqgzw`. The owner allows this without asking each time.
+- **Then commit and push only `PLAN-30-DAYS.md`** to `main`. The owner allows this without asking each time.
 - **Before the owner stops for the day:** rewrite "▶️ Tomorrow (start here)" so the next session knows exactly where to continue.
 
 ## Hard rules

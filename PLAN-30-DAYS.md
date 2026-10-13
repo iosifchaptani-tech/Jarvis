@@ -5,7 +5,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Each day has **one main focus 🎯** plus a short list. Do the focus first. If you only manage that, the day still counts.
 - 👤 = you · 🤖 = Claude (me or PowerShell Claude) · ⚙️ = the n8n agents (automatic)
 
-## 📍 Status (updated Fri 9 Oct, day 12). New chats start here.
+## 📍 Status (updated Mon 13 Oct, day 16). New chats start here.
 
 **Done ✅**
 - **System:** n8n and the agents run at https://n8n.pivendo.com. The bot works (`/help`, `/content`), and research comes daily at 07:00 while the PC is on.
@@ -64,6 +64,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - **Video supply:** 6 different videos last 3 days at 2 a day. After that new ones are needed: free re-edits of the real footage (a limited number before they look alike), more CJ clips, a filmed sample, or AI-character clips (credits; ask before each one).
   - **Still open:** TikTok cannot post by itself without an outside service (owner chose none), so it stays "Claude prepares, owner clicks". Instagram and the analysis need the PC on until there is a server.
 - Being built: workflow "08 · Social publisher" (`/queue`, ✅/❌, YouTube upload, Instagram publish, 48 h stats into the feedback table). It needs API logins that only the owner can create (Meta developer app, Google Cloud project); the steps will be in `dropshipping/SOCIAL-SETUP.md`.
+- **Repo and tools (13 Oct, cloud Claude):**
+  - PR #3 merged. The store work and this plan now live on **main**; every Claude pulls and pushes `main` (CLAUDE.md updated).
+  - **Jarvis Galaxy**, a map of every function, section and file in this repo: **that page was deleted by mistake on 13 Oct** (desktop Claude took it for a leftover test page of its own "Jarvis Galaxy" showcase and the owner agreed to delete it; the old link is dead). It can be published again from `graphify-out/graph.html` when the owner says so.
+  - The knowledge graph behind it is committed in `graphify-out/` (how to use it: CLAUDE.md).
 
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
@@ -109,6 +113,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Not running after a restart:** Jarvis Galaxy (off on purpose). n8n and the tunnel start again with Docker and Windows.
 
 **🤖 Claude's side, waiting for a word from the owner:** "done" after the three TikTok clicks (then Claude checks them and prepares the next three); "oracle done"; the reviewer's result on workflow 08 (then import as inactive with `-OnlyWorkflows 02,08`); add the "choose the music first" line to the workflow's approve and to-do messages.
+- 🤖 **Trading autopilot (owner pasted the prompt on 13 Oct, 15:00):** the 4 files from `claude/wizardly-lamport-m2e3m9` are in `Desktop\Trading Agents\autopilot` (byte-identical, 17 tests pass). A builder is building the rest of `AUTOPILOT.md` (demo only, nothing started yet). Owner only: change the demo password, make the trading Telegram bot with @BotFather and type its token into the setup window, and run the autostart script himself (Task Scheduler and power plan are system settings). `rules/active/` starts empty: the autopilot trades nothing until a rule passes the gate and the shadow stage.
 - Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
 - ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
 - 🎬 **6 videos ready** in `Desktop/Pivendo Videos`: pivendo-hook1..4.mp4 (real footage only) + pivendo-character1/2.mp4 (owner's AI character, voice checked OK).
@@ -192,10 +197,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
    - Ask whether a default shipping method per country can be saved in CJ.
 
 **Trading agents (owner started it 11 Oct, own folder `Desktop\Trading Agents`; read its docs/BRIEF.md):** a trading agent team on a **demo account only**: one agent back-tests the study-guide strategies on old market data, one trades the demo automatically, one reviews the losing trades and proposes rule changes (the owner approves each one), plus a trading journal the owner and Claude keep together. Study guide: https://app.notion.com/p/3f67f95d8d7581958d0fcbbccd473eca. Never a live/real-money account.
-- Step 1 is done (12 Oct, see Done ✅). **Next, the owner decides one or more:**
-  - start the shared journal of their real 2 Lines trades;
-  - back-test the other 3 strategies (Asian Sweep next);
-  - build the TradeLocker demo trader.
+- Steps 1 and 2 are done (12 Oct, see Done ✅): journal, all 4 back-tests (no edge in any), review agent and demo trader. **Next: the owner's 5 steps listed under Done ✅** (demo password, `setup-login.cmd`, `start-paper.cmd`, show the logs, then demo).
+- **Owner decision 13 Oct: autopilot.** Run 24/7 on the demo. The lab may invent and add its own rules (no ✅ needed, owner can `/reject`). Goal: demo above its start balance 14 days after the start. Cloud Claude wrote the test gate, the safety limits (17 tests) and the build plan: `trading/AUTOPILOT.md` on branch `claude/wizardly-lamport-m2e3m9`. **Next:** the owner pastes the autopilot prompt into the Claude desktop app, which builds and starts it. Owner only: change the demo password and make the trading Telegram bot with @BotFather.
 - The CPI pending-order idea is parked.
 
 **Skipped on purpose:** PayPal. It's connected and approved but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
@@ -354,7 +357,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 ## Prompt for day 6 (update workflow 01)
 Paste into PowerShell Claude, opened as administrator in the Jarvis folder:
 ```
-Please update only the n8n workflow "01 · Product research (daily)" to the newest version from GitHub branch claude/great-dirac-2sqgzw (file dropshipping/n8n-workflows/01-product-research.json). Download that one file, then run the setup from the SAME folder I used before, so my saved settings and webhook path are kept:
+Please update only the n8n workflow "01 · Product research (daily)" to the newest version from GitHub branch main (file dropshipping/n8n-workflows/01-product-research.json). Download that one file, then run the setup from the SAME folder I used before, so my saved settings and webhook path are kept:
 powershell -ExecutionPolicy Bypass -File dropshipping\setup.ps1 -PublicUrl https://n8n.pivendo.com -ReplaceWorkflows
 I'll type any keys myself. Afterwards check that all workflows are active and that https://n8n.pivendo.com still works. Follow CLAUDE.md.
 ```
