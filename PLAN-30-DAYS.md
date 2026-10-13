@@ -57,6 +57,12 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Consequences:
   - YouTube can be uploaded early with a publish time, so it also goes out with the PC off.
   - Instagram has no such timer in its API: it posts only while n8n is running. With the PC off it needs a server (Oracle free: card needed, now 2 cores/12 GB; Hetzner about €5.50-6 a month plus VAT). **Server decision still open.**
+- **Later on 13 Oct the owner asked for 2 videos a day, times chosen by Claude, with ongoing analysis so it gets better over time.**
+  - **Times: 12:30 and 20:30 US Eastern** (US lunch and US evening; 18:30 and 02:30 German time in most weeks). These are a starting point: a time only changes when the numbers show it, as a rule the owner approves.
+  - **Daily analysis:** a scheduled task in the Claude desktop app ("Pivendo: daily social stats and next steps", every day about 15:00, only while the PC and the app are on). It reads TikTok Studio, YouTube and Instagram **read-only** in Claude's Chrome window, saves the numbers to `Desktop/Pivendo Videos/stats/stats.csv`, writes `stats/REPORT.md`, and keeps a short "Social stats (latest)" block in this plan.
+  - **TikTok, prepared by Claude on 13 Oct, each waiting for the owner's final click:** hook4 (post now), hook1 (13 Oct 18:30), character2 (14 Oct 02:30, AI label on). Still to prepare: hook2 (14 Oct 18:30), hook3 (15 Oct 02:30), character1 (15 Oct 18:30, AI label on). All have "Your brand" on.
+  - **Video supply:** 6 different videos last 3 days at 2 a day. After that new ones are needed: free re-edits of the real footage (a limited number before they look alike), more CJ clips, a filmed sample, or AI-character clips (credits; ask before each one).
+  - **Still open:** TikTok cannot post by itself without an outside service (owner chose none), so it stays "Claude prepares, owner clicks". Instagram and the analysis need the PC on until there is a server.
 - Being built: workflow "08 · Social publisher" (`/queue`, ✅/❌, YouTube upload, Instagram publish, 48 h stats into the feedback table). It needs API logins that only the owner can create (Meta developer app, Google Cloud project); the steps will be in `dropshipping/SOCIAL-SETUP.md`.
 
 **Shipping rules for paying orders in CJ**
