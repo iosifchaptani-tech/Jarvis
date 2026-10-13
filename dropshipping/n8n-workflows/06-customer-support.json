@@ -1,0 +1,663 @@
+{
+  "name": "06 · Customer support (email)",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {}
+      },
+      "id": "f5915b58-cf01-51b0-9548-0dcab33b9f33",
+      "name": "New customer email",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3ee6a640-e37d-5c7c-8a91-7fbe0166d61a",
+              "name": "telegram_chat_id",
+              "value": "PASTE_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "f9f9dd61-49d7-54da-99a6-19f17833832a",
+              "name": "support_email",
+              "value": "PASTE_YOUR_SUPPORT_EMAIL",
+              "type": "string"
+            },
+            {
+              "id": "bb076ee8-01b3-5414-a64a-e1af926b48cf",
+              "name": "store_name",
+              "value": "PASTE_YOUR_STORE_NAME",
+              "type": "string"
+            },
+            {
+              "id": "815b92db-821c-5311-9b92-59a47de3ec35",
+              "name": "email_signature",
+              "value": "Best regards,\\nThe support team",
+              "type": "string"
+            },
+            {
+              "id": "c4876ffe-f27b-53f3-9222-3934265859bb",
+              "name": "shipping_policy",
+              "value": "Orders are processed in 1-3 business days and delivered in 3-7 business days in the US. Every order gets a tracking number by email.",
+              "type": "string"
+            },
+            {
+              "id": "f69aa99f-ea32-5c32-addd-91409be93312",
+              "name": "refund_policy",
+              "value": "PASTE A SHORT SUMMARY OF YOUR SHOPIFY REFUND POLICY",
+              "type": "string"
+            },
+            {
+              "id": "6e550555-e3c7-596a-9ca5-726f2328094a",
+              "name": "auto_send",
+              "value": "no",
+              "type": "string"
+            },
+            {
+              "id": "f0905d44-e50c-5e32-a902-e0ae29771137",
+              "name": "min_confidence",
+              "value": 0.85,
+              "type": "number"
+            },
+            {
+              "id": "a87ee99b-c476-51a7-8d07-8adcde2c2a1b",
+              "name": "ignore_senders",
+              "value": "noreply,no-reply,mailer-daemon,postmaster,notifications,shopify.com,cjdropshipping.com,paypal.com,stripe.com,facebookmail.com,tiktok.com,google.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "55419737-7c23-51bf-b1cb-3485857bcfda",
+      "name": "⚙️ Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "orders"
+        },
+        "returnAll": true
+      },
+      "id": "603e2272-92b6-517f-905f-5cedc93dc13b",
+      "name": "Load orders",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "playbook"
+        },
+        "returnAll": true
+      },
+      "id": "80d26749-677f-57a5-8974-a86732e68108",
+      "name": "Load playbook",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support"
+        },
+        "returnAll": true
+      },
+      "id": "1c6179e7-4371-5f98-aed2-7f906cb36a7a",
+      "name": "Load support history",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        0
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "8025b983-31a6-5a05-b566-0f5aaff6cf26",
+      "name": "CJ: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "27243d54-f202-5f98-a2ac-730d4c38b69f",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ],
+      "webhookId": "9859488c-a015-5846-971d-e479f49763ad"
+    },
+    {
+      "parameters": {
+        "url": "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/list",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageNum",
+              "value": "1"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CJ-Access-Token",
+              "value": "={{ $('CJ: get token').first().json.data.accessToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "73ce12c6-1253-57d6-b7ba-23574550173a",
+      "name": "CJ: recent orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ],
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\n// One brief per new email: who wrote, what they asked, and the facts about their orders.\nconst s = $('⚙️ Settings').first().json;\nconst emails = $('New customer email').all().map(i => i.json);\nconst own = String(s.support_email || '').toLowerCase();\nconst ignore = String(s.ignore_senders || '').toLowerCase().split(',').map(x => x.trim()).filter(Boolean);\nconst orders = rowsOf('Load orders');\nconst history = rowsOf('Load support history');\nconst cj = $('CJ: recent orders').first().json;\nconst cjList = cj && cj.code === 200 ? (cj.data?.list || []) : [];\nconst norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');\nconst human = { CREATED: 'received, being processed', IN_CART: 'received, being processed', UNPAID: 'received, being processed',\n  PENDING: 'being prepared at the warehouse', PROCESSING: 'being prepared at the warehouse', UNSHIPPED: 'being prepared at the warehouse',\n  SHIPPED: 'shipped', DELIVERED: 'delivered', CANCELLED: 'cancelled' };\nconst DANGER = /(chargeback|dispute|paypal claim|claim with|lawyer|attorney|legal action|\\bsue\\b|police|fraud|scam|trading standards|consumer protection|\\bbbb\\b|small claims)/i;\n\n// What the owner taught the agent: approved answers and rewrites\nconst tickets = {};\nfor (const r of history) (tickets[r.ticket_id] = tickets[r.ticket_id] || []).push(r);\nconst good = history.filter(r => ['approved', 'owner_reply'].includes(r.decision) && r.final_reply).slice(-4)\n  .map(r => `- [${r.intent}] ${String(r.final_reply).slice(0, 500)}`).join('\\n') || '- none yet';\nconst fixes = Object.values(tickets).map(rs => {\n  const d = rs.find(r => r.draft), o = rs.find(r => r.decision === 'owner_reply');\n  return d && o ? `- customer: \"${String(d.question).slice(0, 200)}\"\\n  your draft: \"${String(d.draft).slice(0, 300)}\"\\n  owner sent instead: \"${String(o.final_reply).slice(0, 400)}\"` : null;\n}).filter(Boolean).slice(-3).join('\\n') || '- none yet';\nconst rules = activeRules(rowsOf('Load playbook'), ['support']);\nconst sig = String(s.email_signature || '').replace(/\\\\n/g, '\\n');\n\nconst out = [];\nemails.forEach((e, i) => {\n  const fromRaw = String(e.from || '');\n  const m = fromRaw.match(/<([^>]+)>/);\n  const address = (m ? m[1] : fromRaw).trim().toLowerCase();\n  const name = (m ? fromRaw.slice(0, fromRaw.indexOf('<')) : '').replace(/\"/g, '').trim();\n  const subject = String(e.subject || '(no subject)').trim();\n  if (!address.includes('@') || address === own || ignore.some(x => address.includes(x))) return;\n  if (/^(auto(matic)? ?reply|out of office|undeliverable|delivery status|mail delivery)/i.test(subject)) return;\n\n  let body = String(e.textPlain || '').trim()\n    || String(e.textHtml || '').replace(/<(style|script)[\\s\\S]*?<\\/\\1>/gi, '').replace(/<br\\s*\\/?>/gi, '\\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');\n  body = body.split(/\\n\\s*(?:On .{5,200}wrote:|-{2,}\\s*Original Message|From: .+@)/i)[0]\n    .split('\\n').filter(l => !l.trim().startsWith('>')).join('\\n').replace(/\\n{3,}/g, '\\n\\n').trim().slice(0, 3000);\n\n  const mentioned = [...`${subject} ${body}`.matchAll(/#?\\b(\\d{3,8})\\b/g)].map(x => x[1]);\n  const mine = orders.filter(o => (o.email && String(o.email).toLowerCase() === address)\n    || mentioned.some(n => norm(o.order_name) === n || norm(o.order_id) === n)).slice(-3);\n  const known = [];\n  const facts = mine.map(o => {\n    const c = cjList.find(x => x.orderNum && [norm(o.order_name), norm(o.order_id)].includes(norm(x.orderNum)));\n    known.push(o.order_name, o.order_id);\n    let line = `- Order ${o.order_name} placed ${o.day}: ${o.items} (ship to ${o.country}). Status: `;\n    if (!c) line += 'no supplier update yet (orders usually leave the warehouse within 1-3 business days)';\n    else {\n      line += human[c.orderStatus] || String(c.orderStatus).toLowerCase();\n      if (c.trackNumber) {\n        known.push(c.trackNumber);\n        line += `. Carrier: ${c.logisticName || 'unknown'}. Tracking number: ${c.trackNumber}. Tracking link: https://t.17track.net/en#nums=${c.trackNumber}`;\n      }\n    }\n    return line;\n  });\n\n  const prompt = `STORE: ${s.store_name}\nPOLICIES (the only promises allowed):\nShipping: ${s.shipping_policy}\nReturns and refunds: ${s.refund_policy}\nSign every reply with:\n${sig}\n\nPLAYBOOK (rules learned from the owner's feedback - follow them):\n${rulesText(rules)}\n\nAPPROVED ANSWERS (match this tone):\n${good}\n\nCORRECTIONS (the owner rewrote these drafts - learn from them):\n${fixes}\n\nCUSTOMER: ${name || '(no name)'} <${address}>\nORDER FACTS (from the store and the supplier - the only order facts you may state):\n${facts.join('\\n') || '- no order found for this email address or order number'}\n\nEMAIL\nSubject: ${subject}\n${body}\n\nReply with only this JSON:\n{\"intent\":\"where_is_my_order|shipping_time|product_question|order_change|refund_return|damaged_wrong_missing|complaint|legal_chargeback|spam|other\",\"confidence\":<0.0-1.0>,\"needs_owner\":<true|false>,\"reason\":\"<why the owner must decide, or empty>\",\"summary\":\"<one short line for the owner>\",\"reply\":\"<the email reply>\"}`;\n\n  out.push({ json: {\n    ticket_id: 'T' + $now.toFormat('MMddHHmmss') + i,\n    from_email: address, from_name: name, subject, question: body,\n    order_name: mine.map(o => o.order_name).join(','), has_order: mine.length > 0,\n    known_ids: known.filter(Boolean).map(String), danger: DANGER.test(`${subject} ${body}`), prompt,\n  } });\n});\nreturn out;\n"
+      },
+      "id": "fc730dda-ddf3-596d-a167-76fc47c2abc0",
+      "name": "Build support briefs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "You are the Support agent of a small online store. You read one customer email and draft the reply the owner would send.\n\nHow to answer:\n- Friendly, calm, short (under 120 words), plain text, in the customer's language. Use their first name if you know it.\n- Only state facts you are given: the ORDER FACTS and the POLICIES. If a fact is missing, say you are checking and will follow up. Never guess a status, a date or a tracking number.\n- When there is a tracking number, give it with its tracking link.\n- End with the signature you are given.\n\nWhat you must never do (set needs_owner to true instead):\n- Promise or refuse a refund, return, replacement, discount, compensation or anything free.\n- Handle damaged, wrong or missing items, complaints, cancellations, address changes, chargebacks, PayPal or bank disputes, or legal threats.\n- Admit fault, blame the supplier by name, mention CJ or dropshipping, or share another customer's data.\n\nFollow the PLAYBOOK rules exactly; they come from the owner's feedback. Copy the tone of the APPROVED ANSWERS and learn from the owner's CORRECTIONS. Reply with only the JSON the user asks for.",
+          "maxIterations": 3
+        }
+      },
+      "id": "8d617a10-c83a-5b36-b1bc-68ce88261282",
+      "name": "Support agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-sonnet-5-5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "id": "58f9c6c3-b1da-51be-a6fa-b1c43b3cefd4",
+      "name": "Claude (Support agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        1980,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deterministic safety check: the AI drafts, but only code decides what may be sent without the owner.\nconst s = $('⚙️ Settings').first().json;\nconst briefs = $('Build support briefs').all().map(i => i.json);\nconst SAFE = ['where_is_my_order', 'shipping_time', 'product_question'];\nconst PROMISE = /(refund|money back|reimburs|compensat|discount|coupon|voucher|free (replacement|gift|item|shipping)|guarantee|replacement|we will (send|ship) (you )?(a )?new)/i;\nconst norm = v => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');\n\nreturn $input.all().map((item, i) => {\n  const b = briefs[i];\n  let a = null;\n  try {\n    const raw = item.json.output ?? '';\n    const text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n    a = JSON.parse(text.match(/\\{[\\s\\S]*\\}/)[0]);\n  } catch (e) { a = null; }\n  const reply = String(a?.reply || '').trim();\n  const intent = String(a?.intent || 'other');\n  const conf = Math.max(0, Math.min(1, Number(a?.confidence) || 0));\n  const known = b.known_ids.map(norm);\n  const unknownIds = (reply.match(/\\b(?=[A-Z0-9]*\\d)[A-Z0-9]{10,30}\\b/gi) || []).filter(t => !known.includes(norm(t)));\n\n  const why = [];\n  if (!a || !reply) why.push('the AI draft could not be read');\n  if (String(s.auto_send).toLowerCase() !== 'yes') why.push('auto-send is off, so you approve every reply');\n  if (!SAFE.includes(intent)) why.push(`\"${intent}\" emails always go to you`);\n  if (conf < s.min_confidence) why.push(`the AI is only ${Math.round(conf * 100)}% sure`);\n  if (a?.needs_owner) why.push('the AI asked for you' + (a.reason ? ': ' + a.reason : ''));\n  if (b.danger) why.push('the email mentions a dispute, chargeback or legal step');\n  if (PROMISE.test(reply)) why.push('the draft mentions refunds, discounts or replacements');\n  if (unknownIds.length) why.push(`the draft contains a number I can't verify (${unknownIds[0]})`);\n  if (intent === 'where_is_my_order' && !b.has_order) why.push('no matching order was found');\n\n  const { prompt, known_ids, danger, has_order, ...rest } = b;\n  return { json: { ...rest, intent, confidence: Math.round(conf * 100) / 100, summary: String(a?.summary || ''),\n    draft: reply, auto: why.length === 0, why: why.join('; ') } };\n});\n"
+      },
+      "id": "6c099947-230f-58c1-b34e-fd1d67fa29cf",
+      "name": "Decide (safety check)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ff165200-4bd6-5f6b-820f-f02ea4b191e7",
+              "leftValue": "={{ $json.auto }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "148867fb-537c-5d4b-a128-2ca89392896c",
+      "name": "Safe to auto-send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('⚙️ Settings').first().json.support_email }}",
+        "toEmail": "={{ $json.from_email }}",
+        "subject": "={{ /^re:/i.test($json.subject) ? $json.subject : 'Re: ' + $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.draft }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2c78efa4-89f8-5c5a-a11b-dc1732e18645",
+      "name": "Send reply email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Safe to auto-send?').all(0).map(({ json: t }) => ({ json: ({ day: $now.toFormat('yyyy-MM-dd'), ticket_id: t.ticket_id, from_email: t.from_email, from_name: t.from_name,\n  subject: t.subject, question: t.question, intent: t.intent, confidence: t.confidence, order_name: t.order_name,\n  draft: t.draft, final_reply: t.draft, decision: 'auto_sent', note: '' }) }));\n"
+      },
+      "id": "04a3626d-7c9e-5657-9aba-b01c54bae59d",
+      "name": "Auto-sent rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "cee84c6e-15c2-516d-a5e9-df87050f6401",
+      "name": "Log auto replies",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3080,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "=✉️ Auto-replied to {{ $json.from_email }} ({{ $json.intent }}): {{ $json.summary }}\n\n{{ $json.final_reply.slice(0, 1500) }}\n\nNot right? /reply {{ $json.ticket_id }} <better answer> sends a correction and teaches the agent.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "1d223640-5862-5b28-a398-3918e7b4cc43",
+      "name": "Tell owner (auto-sent)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(({ json: t }) => ({ json: ({ day: $now.toFormat('yyyy-MM-dd'), ticket_id: t.ticket_id, from_email: t.from_email, from_name: t.from_name,\n  subject: t.subject, question: t.question, intent: t.intent, confidence: t.confidence, order_name: t.order_name,\n  draft: t.draft, final_reply: '', decision: 'pending', note: t.why }) }));\n"
+      },
+      "id": "89bbc5c6-09b4-559f-b548-8afdda71b89e",
+      "name": "Waiting rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "c777ae6a-ec66-5066-907b-34ff8928a65f",
+      "name": "Log waiting emails",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+        "text": "=📨 Customer email {{ $json.ticket_id }} needs you\nFrom: {{ $json.from_name }} <{{ $json.from_email }}>\nSubject: {{ $json.subject }}\nTopic: {{ $json.intent }} ({{ Math.round($json.confidence * 100) }}% sure){{ $json.order_name ? ' · order ' + $json.order_name : '' }}\nWhy you: {{ $json.note }}\n\nThey wrote:\n{{ $json.question.slice(0, 1200) }}\n\nDraft reply:\n{{ ($json.draft || '(no draft)').slice(0, 1800) }}\n\n➡️ /send {{ $json.ticket_id }} sends this draft\n➡️ /reply {{ $json.ticket_id }} your text sends your own answer\n➡️ /skip {{ $json.ticket_id }} closes it without a reply",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f13e9047-e482-5050-b48f-ecb73e28da0a",
+      "name": "Ask owner",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Claude (Support agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Support agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New customer email": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Settings": {
+      "main": [
+        [
+          {
+            "node": "Load orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load orders": {
+      "main": [
+        [
+          {
+            "node": "Load playbook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load playbook": {
+      "main": [
+        [
+          {
+            "node": "Load support history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load support history": {
+      "main": [
+        [
+          {
+            "node": "CJ: get token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: get token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "CJ: recent orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CJ: recent orders": {
+      "main": [
+        [
+          {
+            "node": "Build support briefs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build support briefs": {
+      "main": [
+        [
+          {
+            "node": "Support agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Support agent": {
+      "main": [
+        [
+          {
+            "node": "Decide (safety check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (safety check)": {
+      "main": [
+        [
+          {
+            "node": "Safe to auto-send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safe to auto-send?": {
+      "main": [
+        [
+          {
+            "node": "Send reply email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Waiting rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send reply email": {
+      "main": [
+        [
+          {
+            "node": "Auto-sent rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-sent rows": {
+      "main": [
+        [
+          {
+            "node": "Log auto replies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tell owner (auto-sent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Waiting rows": {
+      "main": [
+        [
+          {
+            "node": "Log waiting emails",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ask owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

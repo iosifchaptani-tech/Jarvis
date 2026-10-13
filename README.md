@@ -21,6 +21,16 @@ If Jarvis goes quiet, that text tells you where he got stuck.
 - "Open YouTube" / "Open Google"
 - "Search cute cats" (opens a Google search)
 
+## Your Pivendo store
+
+- "Open my store" / "Open Shopify" / "Open n8n" / "Open CJ" opens that page.
+- With an API key, you can ask about the store, e.g. "What's next for my store?" or
+  "Which shipping method for a US drill order?". Jarvis answers from the status part of
+  `PLAN-30-DAYS.md`, so keep that file up to date (Claude does this).
+- Jarvis only works while his window is open and you talk to him. The work that happens
+  while you sleep (research, order alerts, support drafts, the evening report) is done by
+  the n8n automations in `dropshipping/`, and they report to you in Telegram.
+
 ## Let him answer any question (optional)
 
 Jarvis uses Claude to answer questions. For that he needs a **Claude API key**. The key is
