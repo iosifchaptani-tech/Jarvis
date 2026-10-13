@@ -88,6 +88,18 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 9. **Higgsfield, optional, before 23:26.** Trial access ends tonight with about 66 credits left; nothing more to cancel. Claude asks before every single generation.
 10. **If there is time: trading bot.** Change the demo password, double-click `trader/setup-login.cmd`, run `start-paper.cmd`, show Claude the logs.
 
+**⏸ Paused on 13 Oct, about 04:30, because the owner switched the PC off. Resume from here:**
+- **Workflow 08 (social publisher):** built, 61 tests pass, **not imported, not committed** (uncommitted files in `dropshipping/`; a backup copy is in `.playwright-mcp/backup/social-publisher-2026-10-13/`). The reviewer said "safe to import as inactive" **after** these fixes, which are **all still to do** (a fixer was started and stopped before it changed anything):
+  1. `setup.ps1` `-OnlyWorkflows 02,08` loads nothing when typed unquoted in PowerShell 5.1 ("2,8"): accept a list, split, pad to 2 digits, stop when nothing matches.
+  2. `setup.ps1` archives the old workflow before the new one is proven to start: import new inactive → deactivate old → activate new → on failure reactivate old → archive old only on success.
+  3. Reject races: re-check the status right before the Instagram publish call; make `/reject` say clearly when a YouTube video is already scheduled (link and Studio clicks; no delete call).
+  4. Wording of a failed YouTube upload ("check Studio before retry"), and a duplicate warning on `/retry` for failed uploads too.
+  5. A failed Telegram alert must not block the publishing branches; test that "Save marks" has no onError.
+  6. `SOCIAL-SETUP.md`: a re-import resets youtube_auto, instagram_auto, post_times and ig_user_id; how to load the new 02 before any social login exists.
+  7. Add "Choose the music first." to the approve and to-do messages and to `BOT-GUIDE.md`.
+- **TikTok:** the three prepared uploads lived only in open browser tabs. If the PC was shut down they are gone and must be prepared again (about 5 minutes for Claude; files in `.playwright-mcp/upload/no-music/`, captions in `Pivendo Videos/v2/POSTING-PLAN.txt`). TikTok Studio keeps at most one unsaved draft.
+- **Not running after a restart:** Jarvis Galaxy (off on purpose). n8n and the tunnel start again with Docker and Windows.
+
 **🤖 Claude's side, waiting for a word from the owner:** "done" after the three TikTok clicks (then Claude checks them and prepares the next three); "oracle done"; the reviewer's result on workflow 08 (then import as inactive with `-OnlyWorkflows 02,08`); add the "choose the music first" line to the workflow's approve and to-do messages.
 - Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
 - ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
