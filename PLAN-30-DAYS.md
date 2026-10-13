@@ -294,7 +294,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 ## Prompt for day 6 (update workflow 01)
 Paste into PowerShell Claude, opened as administrator in the Jarvis folder:
 ```
-Please update only the n8n workflow "01 · Product research (daily)" to the newest version from GitHub branch claude/great-dirac-2sqgzw (file dropshipping/n8n-workflows/01-product-research.json). Download that one file, then run the setup from the SAME folder I used before, so my saved settings and webhook path are kept:
+Please update only the n8n workflow "01 · Product research (daily)" to the newest version from GitHub branch main (file dropshipping/n8n-workflows/01-product-research.json). Download that one file, then run the setup from the SAME folder I used before, so my saved settings and webhook path are kept:
 powershell -ExecutionPolicy Bypass -File dropshipping\setup.ps1 -PublicUrl https://n8n.pivendo.com -ReplaceWorkflows
 I'll type any keys myself. Afterwards check that all workflows are active and that https://n8n.pivendo.com still works. Follow CLAUDE.md.
 ```

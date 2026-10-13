@@ -18,11 +18,11 @@
 
 ## Keep the plan up to date (every session)
 - `PLAN-30-DAYS.md` is the shared to-do list for every Claude (PowerShell, desktop app, cloud).
-- **At the start:** run `git pull origin claude/great-dirac-2sqgzw`, then read the "📍 Status" part. Before you start a task, check whether it's already done; if you can, look in Shopify, CJ or n8n.
+- **At the start:** run `git pull origin main`, then read the "📍 Status" part. Before you start a task, check whether it's already done; if you can, look in Shopify, CJ or n8n.
 - **Right after each finished task:**
   - move it to "Done ✅" with the date, or delete it from "▶️ Tomorrow" / "Still to do"
   - add anything new the owner decided
-- **Then commit and push only `PLAN-30-DAYS.md`** to `claude/great-dirac-2sqgzw`. The owner allows this without asking each time.
+- **Then commit and push only `PLAN-30-DAYS.md`** to `main`. The owner allows this without asking each time.
 - **Before the owner stops for the day:** rewrite "▶️ Tomorrow (start here)" so the next session knows exactly where to continue.
 
 ## Hard rules
