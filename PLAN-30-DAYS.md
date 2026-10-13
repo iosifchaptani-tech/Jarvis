@@ -66,7 +66,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Being built: workflow "08 · Social publisher" (`/queue`, ✅/❌, YouTube upload, Instagram publish, 48 h stats into the feedback table). It needs API logins that only the owner can create (Meta developer app, Google Cloud project); the steps will be in `dropshipping/SOCIAL-SETUP.md`.
 - **Repo and tools (13 Oct, cloud Claude):**
   - PR #3 merged. The store work and this plan now live on **main**; every Claude pulls and pushes `main` (CLAUDE.md updated).
-  - **Jarvis Galaxy**, a map of every function, section and file in this repo: **that page was deleted by mistake on 13 Oct** (desktop Claude took it for a leftover test page of its own "Jarvis Galaxy" showcase and the owner agreed to delete it; the old link is dead). It can be published again from `graphify-out/graph.html` when the owner says so.
+  - **Jarvis Repo Map**, a map of every function, section and file in this repo: https://claude.ai/artifact/XcuH8BVkPTEgERqfA5dsVw (private; share it from the page's Share menu). It was published again on 13 Oct from `graphify-out/graph.html`, unchanged (260 points, 441 links). The first page ("Jarvis Galaxy", link ending `…SGXBmq`) was deleted by mistake the same day by desktop Claude; that old link is dead.
   - The knowledge graph behind it is committed in `graphify-out/` (how to use it: CLAUDE.md).
 
 **Social stats (latest)** (13 Oct, 15:00, first automatic check)
