@@ -88,6 +88,13 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 9. **Higgsfield, optional, before 23:26.** Trial access ends tonight with about 66 credits left; nothing more to cancel. Claude asks before every single generation.
 10. **If there is time: trading bot.** Change the demo password, double-click `trader/setup-login.cmd`, run `start-paper.cmd`, show Claude the logs.
 
+**▶ Resumed on 13 Oct, 13:40:**
+- **n8n was offline from the shutdown until 13:40**: Docker Desktop did not start with Windows, so the 07:00 research did not run. Claude started Docker; `n8n.pivendo.com` answers again. To avoid this: Docker Desktop → Settings → General → "Start Docker Desktop when you sign in" (owner's click), or the move to Oracle.
+- **TikTok already has one public video:** the owner posted **hook1 (v1)** himself on 12 Oct at 18:29 (83 views, 0 likes on 13 Oct, 13:40). So hook1 is left out of the new batch.
+- **Three uploads are prepared again in Claude's Chrome window** (no-music versions, captions, "Your brand"), each waiting for the owner to pick the music and press Schedule: **hook4 → 13 Oct 18:30**, **character2 → 14 Oct 02:30 (AI label on)**, **hook2 → 14 Oct 18:30**. Next to prepare: hook3 (15 Oct 02:30), character1 (15 Oct 18:30, AI label on).
+- TikTok Studio restored the last unsaved draft with "Continue" after the restart (only one draft is kept).
+- The fixer for the 7 review fixes below was started again at 13:40.
+
 **⏸ Paused on 13 Oct, about 04:30, because the owner switched the PC off. Resume from here:**
 - **Workflow 08 (social publisher):** built, 61 tests pass, **not imported, not committed** (uncommitted files in `dropshipping/`; a backup copy is in `.playwright-mcp/backup/social-publisher-2026-10-13/`). The reviewer said "safe to import as inactive" **after** these fixes, which are **all still to do** (a fixer was started and stopped before it changed anything):
   1. `setup.ps1` `-OnlyWorkflows 02,08` loads nothing when typed unquoted in PowerShell 5.1 ("2,8"): accept a list, split, pad to 2 digits, stop when nothing matches.
