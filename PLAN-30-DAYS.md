@@ -5,7 +5,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Each day has **one main focus 🎯** plus a short list. Do the focus first. If you only manage that, the day still counts.
 - 👤 = you · 🤖 = Claude (me or PowerShell Claude) · ⚙️ = the n8n agents (automatic)
 
-## 📍 Status (updated Fri 9 Oct, day 12). New chats start here.
+## 📍 Status (updated Mon 13 Oct, day 16). New chats start here.
 
 **Done ✅**
 - **System:** n8n and the agents run at https://n8n.pivendo.com. The bot works (`/help`, `/content`), and research comes daily at 07:00 while the PC is on.
@@ -39,6 +39,11 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
     4. Show Claude the logs.
     5. Then switch to demo.
 
+- **Repo and tools (13 Oct, cloud Claude):**
+  - PR #3 merged. The store work and this plan now live on **main**; every Claude pulls and pushes `main` (CLAUDE.md updated).
+  - **Jarvis Galaxy**, a map of every function, section and file in this repo: https://claude.ai/artifact/YP44N3p8MGFEp8a1SGXBmq (private; share it from the page's Share menu).
+  - The knowledge graph behind it is committed in `graphify-out/` (how to use it: CLAUDE.md).
+
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
 - Winter set to the US: the **US warehouse** (CJ picks it by itself).
@@ -47,6 +52,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)** (rewritten 11 Oct, late night, for Mon 12 Oct)
+- ⚠️ 13 Oct (cloud Claude): the owner has not yet said what got done on 12 Oct (first video, CJ test order, ELSTER, Higgsfield). Ask first, then tick the items below.
 - 🎯 **Main job Mon 12 Oct: post the first video (pivendo-character2) and schedule the other 5** in TikTok Studio (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time). Nothing is posted yet (owner chose to start on 12 Oct).
 - Also on 12 Oct if there's time: TikTok bio ("PivendoTeam" + Impressum line), delete CJ test order #1002, start the ELSTER account (elster.de).
 - Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
@@ -132,10 +138,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
    - Ask whether a default shipping method per country can be saved in CJ.
 
 **Trading agents (owner started it 11 Oct, own folder `Desktop\Trading Agents`; read its docs/BRIEF.md):** a trading agent team on a **demo account only**: one agent back-tests the study-guide strategies on old market data, one trades the demo automatically, one reviews the losing trades and proposes rule changes (the owner approves each one), plus a trading journal the owner and Claude keep together. Study guide: https://app.notion.com/p/3f67f95d8d7581958d0fcbbccd473eca. Never a live/real-money account.
-- Step 1 is done (12 Oct, see Done ✅). **Next, the owner decides one or more:**
-  - start the shared journal of their real 2 Lines trades;
-  - back-test the other 3 strategies (Asian Sweep next);
-  - build the TradeLocker demo trader.
+- Steps 1 and 2 are done (12 Oct, see Done ✅): journal, all 4 back-tests (no edge in any), review agent and demo trader. **Next: the owner's 5 steps listed under Done ✅** (demo password, `setup-login.cmd`, `start-paper.cmd`, show the logs, then demo).
 - The CPI pending-order idea is parked.
 
 **Skipped on purpose:** PayPal. It's connected and approved but **Inactive**. Later: rename the PayPal business name from "My Store" to Pivendo, then click **Activate** (Settings → Payments → PayPal).
