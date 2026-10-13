@@ -69,6 +69,12 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   - **Jarvis Galaxy**, a map of every function, section and file in this repo: **that page was deleted by mistake on 13 Oct** (desktop Claude took it for a leftover test page of its own "Jarvis Galaxy" showcase and the owner agreed to delete it; the old link is dead). It can be published again from `graphify-out/graph.html` when the owner says so.
   - The knowledge graph behind it is committed in `graphify-out/` (how to use it: CLAUDE.md).
 
+**Social stats (latest)** (13 Oct, 15:00, first automatic check)
+- **No numbers read.** The logged-in Chrome window was in use by another Claude chat, and the public pages show cookie walls or hide the videos. Nothing was clicked or changed.
+- Total views: TikTok not read (last known 83 on hook1 v1, 13 Oct 13:40) · YouTube not read · Instagram not read (no Reels visible).
+- Best video: too early to say (one public video).
+- **Next:** press Schedule on the prepared TikTok uploads (hook4, character2, hook2; pick the music first), and keep the Chrome window free of other chats at 15:00, or press "Run now" on the task later. Details: `Desktop/Pivendo Videos/stats/REPORT.md`.
+
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
 - Winter set to the US: the **US warehouse** (CJ picks it by itself).
