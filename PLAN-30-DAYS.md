@@ -52,7 +52,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - ❌ Never choose a method with the "DDU" box.
 
 **▶️ Tomorrow (start here)** (rewritten 13 Oct, 04:00 German time, for Tue 13 Oct after school)
-- ⚠️ **First: Higgsfield.** The trial renews **today, Tue 13 Oct, at 23:26 for €59/month.** Cancel before then: higgsfield.ai → Settings → Subscription → Cancel auto-renewal. Claude cancels only after the owner says "cancel it".
+- ✅ Higgsfield auto-renewal cancelled by the owner (told Claude 13 Oct). Trial access stays until it ends; no €59 charge.
 - Ask the owner what got done on 12 Oct (first TikTok video, CJ test order #1002, ELSTER) and tick it off below.
 - 🎯 **Main job: start the trading autopilot.** Paste the prompt below into the Claude desktop app. Owner only: change the demo password, and make the trading Telegram bot with @BotFather. Plan: `trading/AUTOPILOT.md` on branch `claude/wizardly-lamport-m2e3m9`.
   ```
@@ -75,7 +75,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   4. Then hook1, hook2, hook3
   - Every post: Content disclosure → "Your brand" ON. Character videos also: "AI-generated" label ON. Caption with "pivendo.com", and pin a comment "Shop: pivendo.com 🎄".
 - 🤖 48 h after each post: owner logs in to TikTok in the Playwright browser window and writes "analyze" → Claude reads TikTok Studio (read-only), compares the hooks, writes stats into the n8n feedback table.
-- Higgsfield free AI Influencer gens: 1 left (owner decides each one).
+- Higgsfield free AI Influencer gens: 1 left until the trial ends (owner decides each one).
 - Video project for new edits: `Boss Jarvis/.playwright-mcp/video/remotion` (Remotion 4.0.528; compositions WreathHook1-4, WreathCharacter, WreathCharacter2).
 - Shop: public since 10 Oct. On a Telegram order alert: pay it in CJ yourself (AU = CJPacket Ordinary, never Eub). Stop US sales about Dec 8.
 - Still open (owner): "Taxes included" decision; delete test order #1002 in CJ; profile name "PivendoTeam" + Impressum line in the TikTok bio.
