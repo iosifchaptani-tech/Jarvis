@@ -51,10 +51,20 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Wreath: US **LuWei Ordinary US**, CA **CJPacket JYSP Sensitive** (or Ordinary), AU **CJPacket Ordinary** (never Eub, it's DDU).
 - ❌ Never choose a method with the "DDU" box.
 
-**▶️ Tomorrow (start here)** (rewritten 11 Oct, late night, for Mon 12 Oct)
-- ⚠️ 13 Oct (cloud Claude): the owner has not yet said what got done on 12 Oct (first video, CJ test order, ELSTER, Higgsfield). Ask first, then tick the items below.
-- 🎯 **Main job Mon 12 Oct: post the first video (pivendo-character2) and schedule the other 5** in TikTok Studio (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time). Nothing is posted yet (owner chose to start on 12 Oct).
-- Also on 12 Oct if there's time: TikTok bio ("PivendoTeam" + Impressum line), delete CJ test order #1002, start the ELSTER account (elster.de).
+**▶️ Tomorrow (start here)** (rewritten 13 Oct, 04:00 German time, for Tue 13 Oct after school)
+- ⚠️ **First: Higgsfield.** The trial renews **today, Tue 13 Oct, at 23:26 for €59/month.** Cancel before then: higgsfield.ai → Settings → Subscription → Cancel auto-renewal. Claude cancels only after the owner says "cancel it".
+- Ask the owner what got done on 12 Oct (first TikTok video, CJ test order #1002, ELSTER) and tick it off below.
+- 🎯 **Main job: start the trading autopilot.** Paste the prompt below into the Claude desktop app. Owner only: change the demo password, and make the trading Telegram bot with @BotFather. Plan: `trading/AUTOPILOT.md` on branch `claude/wizardly-lamport-m2e3m9`.
+  ```
+  Follow CLAUDE.md in my Jarvis repo. In the Jarvis repo folder run: git fetch origin claude/wizardly-lamport-m2e3m9
+  Copy the 4 files in trading/ from that branch into Desktop\Trading Agents\autopilot and run its tests.
+  Read trading/AUTOPILOT.md and docs/BRIEF.md, then build everything AUTOPILOT.md lists, reusing the trader, data and review agent that already exist.
+  Walk me through the steps only I can do. I type passwords and tokens only into the setup window.
+  Then start it, check it starts again after a PC restart, and send me the first Telegram status.
+  Update PLAN-30-DAYS.md and push it to main.
+  ```
+- 🎬 **Videos:** if nothing is posted yet, post **pivendo-character2** and schedule the other 5 in TikTok Studio (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time).
+- If there's time: TikTok bio ("PivendoTeam" + Impressum line), delete CJ test order #1002, start the ELSTER account (elster.de).
 - Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
 - ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
 - 🎬 **6 videos ready** in `Desktop/Pivendo Videos`: pivendo-hook1..4.mp4 (real footage only) + pivendo-character1/2.mp4 (owner's AI character, voice checked OK).
@@ -65,7 +75,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   4. Then hook1, hook2, hook3
   - Every post: Content disclosure → "Your brand" ON. Character videos also: "AI-generated" label ON. Caption with "pivendo.com", and pin a comment "Shop: pivendo.com 🎄".
 - 🤖 48 h after each post: owner logs in to TikTok in the Playwright browser window and writes "analyze" → Claude reads TikTok Studio (read-only), compares the hooks, writes stats into the n8n feedback table.
-- ⚠️ **Higgsfield trial (checked 11 Oct): it auto-renews on 13 Oct at 23:26 for €59/month.** Owner decision: wait for the 50 bonus credits on Day 3 (from about 12 Oct, 23:26), then **cancel between 12 Oct 23:26 and 13 Oct 23:26** (higgsfield.ai → Settings → Subscription → Cancel auto-renewal; trial access stays until the end). Reminders set in the desktop app for 13 Oct 12:00 and 20:00. Claude cancels only after the owner says "cancel it". Free AI Influencer gens: 1 left (owner decides each one).
+- Higgsfield free AI Influencer gens: 1 left (owner decides each one).
 - Video project for new edits: `Boss Jarvis/.playwright-mcp/video/remotion` (Remotion 4.0.528; compositions WreathHook1-4, WreathCharacter, WreathCharacter2).
 - Shop: public since 10 Oct. On a Telegram order alert: pay it in CJ yourself (AU = CJPacket Ordinary, never Eub). Stop US sales about Dec 8.
 - Still open (owner): "Taxes included" decision; delete test order #1002 in CJ; profile name "PivendoTeam" + Impressum line in the TikTok bio.
