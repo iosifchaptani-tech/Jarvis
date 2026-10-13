@@ -42,14 +42,22 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Higgsfield (13 Oct):** auto-renewal **cancelled** by the owner. The page says "Auto-renewal cancelled. Your access lasts until October 13 at 23:26." No €59 charge.
 - **Second Claude account (13 Oct):** the desktop app runs on a new Claude account. The old account's private artifact links and desktop reminders are not visible there. PowerShell Claude was still on the old account (weekly limit until 16 Oct, 13:00); the owner signed it in to the new account on 13 Oct and a test answered OK. Claude's Chrome window is logged in to n8n (11 workflows, 00-05 and 07 published).
 
-**Video check (13 Oct, Claude looked at all 6 frame by frame)**
-- Technically fine for TikTok, Reels and Shorts: 1080×1920, 30 fps, 10-18 s, sound present.
-- ⚠️ **Videos and product page don't match.** All 6 videos sell the ceiling projection ("Christmas on your ceiling"); the product page only says "small glowing wreath, desk decoration" and never mentions projection. The projection is still unconfirmed (CJ footage only). Owner decides: confirm with CJ, then add it to the page, before the videos send traffic.
-- The 2 character videos show the AI person for 8 s before the product appears; hook4 and hook1 show the product or the effect in the first second.
-- Small fixes possible with a free re-render (Remotion): the end-card question box runs edge to edge (hidden under TikTok's buttons), the end card is 3 s long, the "AI presenter" note is very small and low, character2 is silent for its last 1.2 s, sound is a bit quiet (about −18 LUFS), "Halloween" on the end card is out of date after 17 Oct.
-- TikTok @pivendoteam on 13 Oct, 02:20: bio is set, 0 public videos.
+- **Private pages back on the new account (13 Oct):** Lattelino, Wok Wang, holiday flat, Start-Kit, Galaxy showcase and Pitch Playbook were republished unchanged. The new links are in each project's STATUS.md and in the global notes.
+- **Wreath product page (13 Oct, owner's decision "add it to the page now"):** the projection is on the page. Text: "in a dark room it also works as a mini projector … best in a dark room … photos come from the manufacturer". Two ceiling photos (stills from CJ's clip) were added, and the doubled description block was removed. **CJ has still not confirmed the projection**: if the real effect is weaker, expect refunds. Asking CJ support stays worth doing.
+- **Videos v2 (13 Oct, free re-render with Remotion, no credits):** 12 files in `Desktop/Pivendo Videos/v2`: each of the 6 videos as `-halloween` (use until 17 Oct) and `-xmas` (from 18 Oct). Fixed: end card 2.5 s with a question box inside the safe area on every video, bigger "AI presenter" note, sound at about −14 to −16 LUFS, no silent ending, standard colour range, and character2 now uses the **real** CJ plug-in clip (the AI hand scene is gone). The source backup is `.playwright-mcp/video/remotion/src-backup-2026-10-13`. Captions and the posting order are in `v2/POSTING-PLAN.txt`.
 
-**Owner's new wish (13 Oct): 24/7 posting on TikTok, Instagram and YouTube with AI agents, also when the PC is off.** Needs first: Instagram + YouTube accounts (owner), a place to run n8n when the PC is off (owner signs up), and a posting route for each platform. Decisions pending; nothing built yet.
+**Video check (13 Oct, Claude looked at all 6 frame by frame)**
+- The 2 character videos show the AI person for 8 s before the product appears; hook4 and hook1 show the product or the effect in the first second. **New posting order: hook4 → hook1 → character2 → hook2 → hook3 → character1.**
+- I can't hear the character's voice; only the loudness was measured.
+- TikTok @pivendoteam on 13 Oct, 02:20: bio is set, 0 public videos. Instagram `pivendoteam` and YouTube `@PivendoTeam` exist (seen in the owner's browser tabs on 13 Oct).
+
+**Owner decisions on 24/7 posting (13 Oct)** (this one job is allowed although the plan says "no new automations until the first sales")
+- **No outside posting service.** Instagram and YouTube are posted from n8n through the official APIs. **TikTok stays manual:** the owner schedules in TikTok Studio (at most 10 days ahead), because TikTok only lets self-made apps post private videos.
+- **Nothing goes public without the owner's ✅ in Telegram.**
+- Consequences:
+  - YouTube can be uploaded early with a publish time, so it also goes out with the PC off.
+  - Instagram has no such timer in its API: it posts only while n8n is running. With the PC off it needs a server (Oracle free: card needed, now 2 cores/12 GB; Hetzner about €5.50-6 a month plus VAT). **Server decision still open.**
+- Being built: workflow "08 · Social publisher" (`/queue`, ✅/❌, YouTube upload, Instagram publish, 48 h stats into the feedback table). It needs API logins that only the owner can create (Meta developer app, Google Cloud project); the steps will be in `dropshipping/SOCIAL-SETUP.md`.
 
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
@@ -58,17 +66,20 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Wreath: US **LuWei Ordinary US**, CA **CJPacket JYSP Sensitive** (or Ordinary), AU **CJPacket Ordinary** (never Eub, it's DDU).
 - ❌ Never choose a method with the "DDU" box.
 
-**▶️ Tomorrow (start here)** (rewritten 11 Oct, late night, for Mon 12 Oct)
-- 🎯 **Main job Mon 12 Oct: post the first video (pivendo-character2) and schedule the other 5** in TikTok Studio (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time). Nothing is posted yet (owner chose to start on 12 Oct).
-- Also on 12 Oct if there's time: TikTok bio ("PivendoTeam" + Impressum line), delete CJ test order #1002, start the ELSTER account (elster.de).
+**▶️ Tomorrow (start here)** (rewritten 13 Oct, 03:00, for Tue 13 Oct)
+- 🎯 **Main job: schedule the v2 videos in TikTok Studio** (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time). Use the files in `Desktop/Pivendo Videos/v2` and the captions in `v2/POSTING-PLAN.txt`. Order: hook4, hook1, character2, hook2 as `-halloween` (until 17 Oct), then hook3 and character1 as `-xmas`. Nothing was public on 13 Oct, 02:20. The old v1 files and the old order below are out of date.
+- 👤 Owner, for the Instagram and YouTube automation: follow `dropshipping/SOCIAL-SETUP.md` once it exists (Meta developer app, Google Cloud project), and decide about the server.
+- 👤 Owner: connect Notion and n8n in the new Claude account (Connect buttons), if Claude should use them there.
+- 🤖 Open for Claude: a second "Jarvis Galaxy" test page is still on the new account (delete only with the owner's OK); ask CJ whether the wreath really projects.
+- Also if there's time: Impressum line in the TikTok bio, delete CJ test order #1002, start the ELSTER account (elster.de).
 - Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
 - ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
 - 🎬 **6 videos ready** in `Desktop/Pivendo Videos`: pivendo-hook1..4.mp4 (real footage only) + pivendo-character1/2.mp4 (owner's AI character, voice checked OK).
 - 👤 Posting plan (TikTok @pivendoteam, 1 video per day, US evening = about 00:00-03:00 German time, or schedule it):
-  1. Day 1: **pivendo-character2** (strongest: talking character + real projection)
-  2. Day 2: **pivendo-hook4** (top competitor's POV format)
-  3. Day 3: **pivendo-character1**
-  4. Then hook1, hook2, hook3
+  1. Day 1: **hook4** (v2; shows the product in the first second)
+  2. Day 2: **hook1** (v2; opens on the ceiling effect)
+  3. Day 3: **character2** (v2; real plug-in clip)
+  4. Then hook2, hook3, character1 (order changed on 13 Oct after the frame check; the old order started with character2)
   - Every post: Content disclosure → "Your brand" ON. Character videos also: "AI-generated" label ON. Caption with "pivendo.com", and pin a comment "Shop: pivendo.com 🎄".
 - 🤖 48 h after each post: owner logs in to TikTok in the Playwright browser window and writes "analyze" → Claude reads TikTok Studio (read-only), compares the hooks, writes stats into the n8n feedback table.
 - ✅ **Higgsfield trial: auto-renewal cancelled on 13 Oct** (see Done ✅). Trial access ends 13 Oct at 23:26; 66 credits were left at 02:00. Free AI Influencer gens: 1 left (owner decides each one).
