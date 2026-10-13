@@ -85,6 +85,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Total views: TikTok not read (last known 83 on hook1 v1, 13 Oct 13:40) · YouTube not read · Instagram not read (no Reels visible).
 - Best video: too early to say (one public video).
 - **Next:** press Schedule on the prepared TikTok uploads (hook4, character2, hook2; pick the music first), and keep the Chrome window free of other chats at 15:00, or press "Run now" on the task later. Details: `Desktop/Pivendo Videos/stats/REPORT.md`.
+- **Daily videos (13 Oct, automatic run):** no new videos made: r01 (wait for the ceiling) and r02 (unboxing) were already waiting and passed the picture check. **Not put into the browser:** Claude's Chrome window was in use by another Claude chat, so nothing is prepared on TikTok, YouTube or Instagram yet. Open question for the owner: the end card says "US: order by Dec 8", but this plan says about 25 Nov and CJ has not confirmed delivery times.
 
 - **Gmail (13 Oct):** dship00720@gmail.com is connected to cloud Claude (Gmail connector). Claude reads and drafts; it asks before sending or deleting.
 - ⚠️ **Fake-buyer emails:** since the shop went public, about 9 emails like "can I order to Italy/France?", "are you open?", "I need the manager" came from odd addresses. This is a known scam aimed at new shops. Don't reply, don't click their links, and never take payment outside the Shopify checkout. Real buyers just order on pivendo.com.
