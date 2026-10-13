@@ -15,6 +15,7 @@
   - `n8n-workflows/*.json` are **generated**. Edit `tools/build_workflows.py`, then run `python tools/build_workflows.py`.
   - Tests: `cd dropshipping/tools && npm install luxon@3 && node test_code_nodes.js`. They must all pass before every commit.
   - `POLICIES.md`: the store's legal texts in English and German, with blanks instead of the owner's name, address and email.
+- `graphify-out/`: a knowledge graph of this repo (`graph.json`, `GRAPH_REPORT.md`, `graph.html`), made with graphify. Use it to find where something lives: `graphify query "<question>"` or `graphify explain "<name>"`. After code changes run `graphify update .` (no API key needed). Its `cache/` folder is not committed.
 
 ## Keep the plan up to date (every session)
 - `PLAN-30-DAYS.md` is the shared to-do list for every Claude (PowerShell, desktop app, cloud).

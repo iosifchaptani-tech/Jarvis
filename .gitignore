@@ -8,3 +8,6 @@ venv/
 dropshipping/.setup-state.json
 dropshipping/.tunnel.log
 dropshipping/setup-log.txt
+
+# graphify rebuilds this cache from the code (graphify update .)
+graphify-out/cache/
