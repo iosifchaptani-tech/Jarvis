@@ -39,6 +39,18 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
     4. Show Claude the logs.
     5. Then switch to demo.
 
+- **Higgsfield (13 Oct):** auto-renewal **cancelled** by the owner. The page says "Auto-renewal cancelled. Your access lasts until October 13 at 23:26." No €59 charge.
+- **Second Claude account (13 Oct):** the desktop app runs on a new Claude account. The old account's private artifact links and desktop reminders are not visible there. PowerShell Claude was still on the old account (weekly limit until 16 Oct, 13:00); the owner signed it in to the new account on 13 Oct and a test answered OK. Claude's Chrome window is logged in to n8n (11 workflows, 00-05 and 07 published).
+
+**Video check (13 Oct, Claude looked at all 6 frame by frame)**
+- Technically fine for TikTok, Reels and Shorts: 1080×1920, 30 fps, 10-18 s, sound present.
+- ⚠️ **Videos and product page don't match.** All 6 videos sell the ceiling projection ("Christmas on your ceiling"); the product page only says "small glowing wreath, desk decoration" and never mentions projection. The projection is still unconfirmed (CJ footage only). Owner decides: confirm with CJ, then add it to the page, before the videos send traffic.
+- The 2 character videos show the AI person for 8 s before the product appears; hook4 and hook1 show the product or the effect in the first second.
+- Small fixes possible with a free re-render (Remotion): the end-card question box runs edge to edge (hidden under TikTok's buttons), the end card is 3 s long, the "AI presenter" note is very small and low, character2 is silent for its last 1.2 s, sound is a bit quiet (about −18 LUFS), "Halloween" on the end card is out of date after 17 Oct.
+- TikTok @pivendoteam on 13 Oct, 02:20: bio is set, 0 public videos.
+
+**Owner's new wish (13 Oct): 24/7 posting on TikTok, Instagram and YouTube with AI agents, also when the PC is off.** Needs first: Instagram + YouTube accounts (owner), a place to run n8n when the PC is off (owner signs up), and a posting route for each platform. Decisions pending; nothing built yet.
+
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
 - Winter set to the US: the **US warehouse** (CJ picks it by itself).
@@ -59,7 +71,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
   4. Then hook1, hook2, hook3
   - Every post: Content disclosure → "Your brand" ON. Character videos also: "AI-generated" label ON. Caption with "pivendo.com", and pin a comment "Shop: pivendo.com 🎄".
 - 🤖 48 h after each post: owner logs in to TikTok in the Playwright browser window and writes "analyze" → Claude reads TikTok Studio (read-only), compares the hooks, writes stats into the n8n feedback table.
-- ⚠️ **Higgsfield trial (checked 11 Oct): it auto-renews on 13 Oct at 23:26 for €59/month.** Owner decision: wait for the 50 bonus credits on Day 3 (from about 12 Oct, 23:26), then **cancel between 12 Oct 23:26 and 13 Oct 23:26** (higgsfield.ai → Settings → Subscription → Cancel auto-renewal; trial access stays until the end). Reminders set in the desktop app for 13 Oct 12:00 and 20:00. Claude cancels only after the owner says "cancel it". Free AI Influencer gens: 1 left (owner decides each one).
+- ✅ **Higgsfield trial: auto-renewal cancelled on 13 Oct** (see Done ✅). Trial access ends 13 Oct at 23:26; 66 credits were left at 02:00. Free AI Influencer gens: 1 left (owner decides each one).
 - Video project for new edits: `Boss Jarvis/.playwright-mcp/video/remotion` (Remotion 4.0.528; compositions WreathHook1-4, WreathCharacter, WreathCharacter2).
 - Shop: public since 10 Oct. On a Telegram order alert: pay it in CJ yourself (AU = CJPacket Ordinary, never Eub). Stop US sales about Dec 8.
 - Still open (owner): "Taxes included" decision; delete test order #1002 in CJ; profile name "PivendoTeam" + Impressum line in the TikTok bio.
