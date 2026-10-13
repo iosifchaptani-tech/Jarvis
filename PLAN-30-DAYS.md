@@ -75,6 +75,9 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Best video: too early to say (one public video).
 - **Next:** press Schedule on the prepared TikTok uploads (hook4, character2, hook2; pick the music first), and keep the Chrome window free of other chats at 15:00, or press "Run now" on the task later. Details: `Desktop/Pivendo Videos/stats/REPORT.md`.
 
+- **Gmail (13 Oct):** dship00720@gmail.com is connected to cloud Claude (Gmail connector). Claude reads and drafts; it asks before sending or deleting.
+- ⚠️ **Fake-buyer emails:** since the shop went public, about 9 emails like "can I order to Italy/France?", "are you open?", "I need the manager" came from odd addresses. This is a known scam aimed at new shops. Don't reply, don't click their links, and never take payment outside the Shopify checkout. Real buyers just order on pivendo.com.
+
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
 - Winter set to the US: the **US warehouse** (CJ picks it by itself).
@@ -243,7 +246,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - [x] 👤 **Markets:** turn on **US, CA, AU**. Leave **Germany/EU off** for now, since no product has EU stock and you then don't need LUCID.
 - [x] 👤 **Shipping rates:** US free · rest of the world $7.99.
 - [x] 👤 Cookie banner on · contact page · policies in the footer.
-- [ ] 👤 Create **TikTok, Instagram and YouTube** accounts called "pivendo". Use each normally for 10 minutes, without posting yet. *(TikTok @pivendoteam done 10 Oct; Instagram + YouTube still open)*
+- [ ] 👤 Create **TikTok, Instagram and YouTube** accounts called "pivendo". Use each normally for 10 minutes, without posting yet. *(TikTok @pivendoteam done 10 Oct; Instagram @pivendoteam done 12 Oct, seen in Gmail; YouTube still open)*
 - [x] 🤖 Update workflow 01 in n8n to the latest version (the research price fix). Paste the prompt at the end of this file into PowerShell Claude.
 
 ### Day 7 · Sun 4 Oct · 🎯 Weekly review #1 + pick the product
