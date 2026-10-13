@@ -72,12 +72,23 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Wreath: US **LuWei Ordinary US**, CA **CJPacket JYSP Sensitive** (or Ordinary), AU **CJPacket Ordinary** (never Eub, it's DDU).
 - ❌ Never choose a method with the "DDU" box.
 
-**▶️ Tomorrow (start here)** (rewritten 13 Oct, 03:00, for Tue 13 Oct)
-- 🎯 **Main job: schedule the v2 videos in TikTok Studio** (tiktok.com/tiktokstudio → Upload → Schedule, one per day around 01:00 German time). Use the files in `Desktop/Pivendo Videos/v2` and the captions in `v2/POSTING-PLAN.txt`. Order: hook4, hook1, character2, hook2 as `-halloween` (until 17 Oct), then hook3 and character1 as `-xmas`. Nothing was public on 13 Oct, 02:20. The old v1 files and the old order below are out of date.
-- 👤 Owner, for the Instagram and YouTube automation: follow `dropshipping/SOCIAL-SETUP.md` once it exists (Meta developer app, Google Cloud project), and decide about the server.
-- 👤 Owner: connect Notion and n8n in the new Claude account (Connect buttons), if Claude should use them there.
-- 🤖 Open for Claude: a second "Jarvis Galaxy" test page is still on the new account (delete only with the owner's OK); ask CJ whether the wreath really projects.
-- Also if there's time: Impressum line in the TikTok bio, delete CJ test order #1002, start the ELSTER account (elster.de).
+**▶️ Tomorrow (start here)** (rewritten 13 Oct, 04:10, for Tue 13 Oct after sleep)
+
+**TikTok state (13 Oct, 04:10):** three uploads are prepared in Claude's Chrome window with the **no-music** versions, captions and labels, each waiting for the owner: hook4 (post now), hook1 (13 Oct 18:30), character2 (14 Oct 02:30, AI label on). **Owner's rule: he chooses the music himself before every post (Sounds → pick → Save), and Claude reminds him each time.** Still to prepare: hook2 (14 Oct 18:30), hook3 (15 Oct 02:30), character1 (15 Oct 18:30, AI label on). The old "one a day at 01:00" plan is out of date.
+
+**👤 Owner's to-do list for 13 Oct, outside TikTok**
+1. **Oracle, 2 steps (5 min).** Claude is not allowed to change network settings there. In the Oracle tab: (a) trading-bot → IP administration → row `10.0.0.107` → Actions → Edit → Ephemeral public IP → confirm; (b) Instances → trading-bot → Networking → "Connect public subnet to internet" → Connect. Then write "oracle done": Claude installs Docker and n8n and copies n8n over. The final switch needs the owner once more for the Cloudflare tunnel.
+2. **Claude app (2 min).** Sidebar → Scheduled → "Pivendo: daily social stats and next steps" → Run now once, and approve the browser tools. Connect Notion and n8n with the Connect buttons if Claude should use them on the new account. Close the old PowerShell Claude window and open a new one.
+3. **Instagram + YouTube, first posts by hand (15 min).** Until the automation is live: post **hook4** from the phone apps and pick the music there. The no-music files are in OneDrive: `Desktop/Pivendo Videos/v2/no-music`; captions are in `v2/POSTING-PLAN.txt`. Switch the AI label on for the two character videos only.
+4. **API logins for the automation (about 1 hour, can wait a day).** Follow `dropshipping/SOCIAL-SETUP.md`: Part 1 YouTube (about 20 min), Part 2 Instagram (about 40 min). Type keys only into n8n, never into chat. Claude imports the workflow only after the review is finished.
+5. **Ask CJ about the projection (5 min).** The shop page now says the wreath projects shapes onto the ceiling, but CJ never confirmed it. Ask CJ support for a real customer video or a clear yes/no. Claude can write the message.
+6. **Shop admin (10 min).** Decide "Taxes included" (Settings → Taxes and duties; US prices are normally shown without tax). Delete test order #1002 in CJ ("Mehr" → delete/ignore; never pay it).
+7. **ELSTER (10 min).** Create the account at elster.de. The activation letter takes 1-2 weeks, so starting now saves time.
+8. **Telegram, as every day.** Read the 07:00 research, tap ✅/❌ on the 21:30 Coach report, and pay CJ yourself if an order alert comes (AU = CJPacket Ordinary, never Eub).
+9. **Higgsfield, optional, before 23:26.** Trial access ends tonight with about 66 credits left; nothing more to cancel. Claude asks before every single generation.
+10. **If there is time: trading bot.** Change the demo password, double-click `trader/setup-login.cmd`, run `start-paper.cmd`, show Claude the logs.
+
+**🤖 Claude's side, waiting for a word from the owner:** "done" after the three TikTok clicks (then Claude checks them and prepares the next three); "oracle done"; the reviewer's result on workflow 08 (then import as inactive with `-OnlyWorkflows 02,08`); add the "choose the music first" line to the workflow's approve and to-do messages.
 - Wok Wang is closed (they said no). Shopify store name is already "Pivendo" (checked 11 Oct).
 - ✅ Owner decision (11 Oct): **no more wreath videos for now.** The 6 are enough; post them first and only make new ones (more of the winning format) after the stats.
 - 🎬 **6 videos ready** in `Desktop/Pivendo Videos`: pivendo-hook1..4.mp4 (real footage only) + pivendo-character1/2.mp4 (owner's AI character, voice checked OK).
