@@ -117,12 +117,21 @@ def table_insert(wf, name, table, pos):
     }, pos)
 
 
-def telegram(wf, name, text_expr, pos, chat_expr="={{ $('⚙️ Settings').first().json.telegram_chat_id }}"):
-    return wf.add(name, "n8n-nodes-base.telegram", 1.2, {
-        "chatId": chat_expr,
-        "text": text_expr,
-        "additionalFields": {"appendAttribution": False},
-    }, pos)
+def telegram(wf, name, text_expr, pos, chat_expr="={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
+             html=False, buttons=None, **extra):
+    fields = {"appendAttribution": False}
+    if html:
+        # n8n sends Telegram text as Markdown unless told otherwise, and one stray "_" or "*" (a link, a
+        # hashtag) makes Telegram refuse the whole message. HTML mode only needs & < > escaped, which the
+        # Code nodes do with esc(). <code>...</code> also gives the owner tap-to-copy text.
+        fields["parse_mode"] = "HTML"
+    params = {"chatId": chat_expr, "text": text_expr, "additionalFields": fields}
+    if buttons:
+        # Inline buttons. A tap comes back through the one Telegram trigger (workflow 02) as a callback query.
+        params["replyMarkup"] = "inlineKeyboard"
+        params["inlineKeyboard"] = {"rows": [{"row": {"buttons": [
+            {"text": label, "additionalFields": {"callback_data": data}} for label, data in buttons]}}]}
+    return wf.add(name, "n8n-nodes-base.telegram", 1.2, params, pos, **extra)
 
 
 def cj_token(wf, pos):
@@ -245,6 +254,92 @@ function parseAgentJson(nodeName) {
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error(`${nodeName} did not return JSON: ` + text.slice(0, 300));
   return JSON.parse(m[0]);
+}
+"""
+
+# Shared JavaScript for the social posts (workflows 02 and 08); needs JS_RULES. The social_posts table is
+# append-only, like the playbook: every change is a new row that holds only the columns that changed, and a
+# post's current state is all of its rows merged in order. Nothing is edited or deleted, so two workflows
+# can write at the same time and the table is also the log of what happened to a post.
+JS_POSTS = r"""
+const POST_COLS = ['day', 'at', 'post_id', 'sku', 'product', 'video', 'video_url', 'ai', 'status', 'post_at', 'slot',
+  'caption_tiktok', 'caption_instagram', 'yt_title', 'yt_description', 'yt_status', 'yt_video_id',
+  'ig_status', 'ig_media_id', 'tiktok_status', 'stats_done', 'note', 'rules_version'];
+function postRow(post_id, changes) {
+  const row = Object.fromEntries(POST_COLS.map(c => [c, '']));
+  return { ...row, day: $now.toFormat('yyyy-MM-dd'), at: $now.toUTC().toISO(), post_id, ...changes };
+}
+function foldPosts(rows) {
+  const posts = {};
+  for (const r of [...rows].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))) {
+    if (!r || !r.post_id) continue;
+    const p = posts[r.post_id] = posts[r.post_id] || {};
+    for (const c of POST_COLS) if (r[c] !== undefined && r[c] !== null && r[c] !== '') p[c] = r[c];
+    if (r.yt_status) p.yt_since = r.at;   // when each platform last changed, to spot a post that got stuck half-way
+    if (r.ig_status) p.ig_since = r.at;
+  }
+  return Object.values(posts);
+}
+const esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');   // Telegram HTML mode
+const ms = iso => DateTime.fromISO(String(iso || '')).toMillis();                                       // NaN when empty
+const zoneOf = s => { const z = String(s.time_zone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'Europe/Berlin'; };
+const when = (iso, zone) => DateTime.fromISO(String(iso || ''), { zone, locale: 'en' }).toFormat("ccc d LLL 'at' HH:mm");
+const shopOf = s => String(s.shop_url || 'pivendo.com').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+// The owner chooses the music for every video himself, before it is posted, and is reminded every time. The agents
+// never pick or name a song. The bot cannot add a sound to a YouTube or Instagram post (their APIs have no call for
+// it), so for the platforms the bot posts, the music must already be inside the video file.
+function musicLine(s) {
+  const bot = [['youtube_auto', 'YouTube'], ['instagram_auto', 'Instagram']].filter(([k]) => String(s[k] || '').trim().toLowerCase() === 'yes').map(x => x[1]);
+  return '🎵 Choose the music first. TikTok: in TikTok Studio tap Sounds, pick one, then Save.'
+    + (bot.length ? ` ${bot.join(' and ')}: the bot posts ${bot.length > 1 ? 'them' : 'it'} and cannot add a sound, so the music must already be inside the video file.` : '');
+}
+// Why an API call failed, in one line. Reads Meta and Google error answers and n8n's own error items.
+const apiError = j => {
+  const e = j && j.error;
+  if (!e) return '';
+  if (typeof e === 'string') return e.slice(0, 300);
+  return String(e.error_user_msg || e.message || e.description || JSON.stringify(e)).slice(0, 300);
+};
+// Posting slots: post_times are wall-clock times in post_timezone (where the buyers are). The owner is shown
+// every time in his own zone (time_zone). post_at is stored in UTC, so it is one exact moment everywhere.
+const postZoneOf = s => { const z = String(s.post_timezone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'America/New_York'; };
+function postTimes(s) {
+  const list = String(s.post_times || '').split(/[\s,;]+/).map(t => {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    return m && +m[1] < 24 && +m[2] < 60 ? m[1].padStart(2, '0') + ':' + m[2] : null;
+  }).filter(Boolean);
+  return list.length ? [...new Set(list)].sort() : ['12:30', '20:30'];
+}
+// The next free slot: at most one post per slot, and at least min_lead_hours from now. `taken` holds the
+// moments (in milliseconds) that already have an approved post. Luxon keeps the wall-clock time when the
+// clocks change (the gap to the owner's zone then moves by an hour for a week or two, because the US and
+// Europe change on different days), and moves a time that does not exist that night to the next valid one.
+function nextSlot(now, taken, s) {
+  const lead = isNaN(num(s.min_lead_hours)) ? 2 : Math.max(0, num(s.min_lead_hours));
+  const earliest = now.toMillis() + lead * 3600e3;
+  let day = now.setZone(postZoneOf(s)).startOf('day');
+  for (let i = 0; i < 400; i++, day = day.plus({ days: 1 })) {
+    const free = postTimes(s).map(slot => ({ slot, at: day.set({ hour: +slot.slice(0, 2), minute: +slot.slice(3) }) }))
+      .filter(c => c.at.toMillis() >= earliest && !taken.has(c.at.toMillis()))
+      .sort((a, b) => a.at.toMillis() - b.at.toMillis())[0];
+    if (free) return { slot: free.slot, post_at: free.at.toUTC().toISO() };
+  }
+  throw new Error('No free posting slot found in the next 400 days');
+}
+// A posted video also gets a row in the content table. The Coach and the Content agent join video stats
+// (feedback ref "P...-yt", "P...-ig", "P...-tt") with that table, exactly like the stats of a /content script.
+// The format is what both agents see next to the numbers, so it also carries two facts they need:
+// - "views only": numbers the bot read itself have no link clicks or sales, a 0 there is not "no sales";
+// - "slot 12:30": the posting slot, so the Coach can compare lunch against evening and propose a better time.
+const PLATFORM = { yt: ['youtube-short', 'yt_title'], ig: ['instagram-reel', 'caption_instagram'], tt: ['tiktok', 'caption_tiktok'] };
+function contentRow(p, tag, zone, viewsOnly = false) {
+  const [name, field] = PLATFORM[tag];
+  const format = name + (viewsOnly ? ', views only' : '') + (p.slot ? `, slot ${p.slot}` : '');
+  const text = String(p[field] || '');
+  const posted = DateTime.fromISO(String(p.post_at || ''), { zone });
+  return { day: (posted.isValid ? posted : $now).toFormat('yyyy-MM-dd'), content_id: `${p.post_id}-${tag}`,
+    sku: p.sku || '', product: p.product || '', format, hook: text.split('\n')[0].slice(0, 200), shots: p.video_url || '',
+    on_screen_text: '', voiceover: '', caption: tag === 'yt' ? String(p.yt_description || '') : text, rules_version: p.rules_version || '' };
 }
 """
 
@@ -561,21 +656,28 @@ Honesty rules you must never break:
 - No health, medical or safety claims, no competitor brand names.
 - Never pretend to be a customer; the videos come from the store.
 
+Music: the owner chooses the music of every video himself. Never name, suggest or pick a song, a sound, an artist or "a trending sound" - not in a script, a caption or a voiceover.
+
 Follow the PLAYBOOK rules exactly; they were learned from this store's own results. Copy the patterns of the videos that WORKED and avoid the ones that FLOPPED. Reply with only the JSON the user asks for."""
 
 PARSE_CMD_JS = r"""
 const s = $('⚙️ Settings').first().json;
-const msg = $('Telegram message in').first().json.message || {};
-const chatId = String(msg.chat?.id ?? '');
-const text = String(msg.text || '').trim();
+const update = $('Telegram message in').first().json;
+// A tap on an inline button arrives as a "callback query" instead of a message. Its data, for example
+// "approve:P1013025812", is handled exactly like the typed command "/approve P1013025812".
+const tap = update.callback_query;
+const msg = (tap ? tap.message : update.message) || {};
+const chatId = String(msg.chat?.id ?? tap?.from?.id ?? '');
+const text = tap ? '/' + String(tap.data || '').replace(':', ' ') : String(msg.text || '').trim();
 const [first, ...args] = text.split(/\s+/);
 const cmd = String(first || '').toLowerCase().replace(/^\//, '').replace(/@.*$/, '');
 
 if (String(s.telegram_chat_id).startsWith('PASTE')) return [{ json: { route: 'setup', chatId, args, text } }];
 if (chatId !== String(s.telegram_chat_id)) return [];  // ignore everyone except the owner
 
-const known = ['content', 'video', 'product', 'rules', 'clips', 'render', 'send', 'reply', 'skip'];
-return [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text } }];
+const known = ['content', 'video', 'product', 'rules', 'clips', 'render', 'send', 'reply', 'skip',
+               'queue', 'approve', 'reject', 'posts', 'tiktok', 'youtube', 'instagram', 'retry'];
+return [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text, tapId: tap ? String(tap.id || '') : '' } }];
 """
 
 CONTENT_BRIEF_JS = JS_RULES + r"""
@@ -868,6 +970,315 @@ if (sent) return [{ json: { ok: false, reply: `Ticket ${id} was already answered
 return [{ json: { ok: true, send: false, row: row('skipped', '', ''), reply: `🗑️ Ticket ${id} closed without a reply.` } }];
 """
 
+# ---- social posts: /queue, the Approve / Reject buttons, /posts, /tiktok, /retry (publishing itself is workflow 08)
+
+POST_SYSTEM = """You are the Social Post agent of a one-person online store. You write the texts that go with ONE finished short vertical video: a TikTok caption, an Instagram Reels caption, a YouTube Shorts title and a YouTube description.
+
+You cannot see the video. You only know the product facts and what the owner says the video shows. Describe only that.
+
+What works:
+- The first words name the problem or the result. No "hey guys", no brand intro.
+- Short, plain words, like a real person. One idea. End with a soft pointer to the shop.
+- TikTok: one or two short lines. Instagram: two or three short lines. YouTube title: clear and searchable, what the product is and does.
+- Hashtags: a few specific ones per platform (product type, use, room or hobby). No spam tags like #fyp, #viral or #foryou.
+
+Honesty rules you must never break:
+- No reviews, testimonials, ratings, star counts or "customers say".
+- No discounts, sales, countdowns, "limited", "last chance", "selling fast" or "sold out".
+- No prices and no delivery promises ("fast shipping", "free shipping", "arrives in X days").
+- No health, medical or safety claims, no competitor brand names, no "best seller", no "number one", no guarantees.
+- The video comes from the store. Never write as a buyer ("I bought", "my order", "my review"). An AI presenter is never a "customer", a "buyer" or a real person.
+- Do not overclaim what the product does. Say what the footage shows. For lamps and projectors never say "the whole ceiling" or "the whole room": say "on the ceiling" or "on the wall", and add "best in a dark room".
+
+Music: the owner chooses the music of every video himself. Never name, suggest or pick a song, a sound, an artist or "a trending sound", and never credit music in a text.
+
+Follow the PLAYBOOK rules exactly; they were learned from this store's own results. Copy the patterns of the videos that WORKED and avoid the ones that FLOPPED. Reply with only the JSON the user asks for."""
+
+POST_BRIEF_JS = JS_RULES + JS_POSTS + r"""
+// /queue, step 1: check the command and build the brief for the Post agent (which product, which rules).
+const s = $('⚙️ Settings').first().json;
+const cmd = $('Parse command').first().json;
+const fail = text => [{ json: { ok: false, reply: esc(text) } }];
+const [url = '', skuArg = '', ...rest] = cmd.args || [];
+// Instagram and YouTube fetch the file themselves, so it must be a direct, public https link to an .mp4
+const okUrl = /^https:\/\/[^\s?#]+\.mp4(\?\S*)?$/i.test(url) && /^[\x21-\x7e]+$/.test(url) && !/[<>"']/.test(url);
+if (!okUrl || !skuArg) return fail('Usage: /queue <video link> <SKU> [ai] [what the video shows]\n'
+  + 'Example: /queue https://cdn.shopify.com/videos/star-lamp-1.mp4 CJ1234567 ai presenter holds the lamp, stars on the wall\n\n'
+  + 'The link must start with https:// and end with .mp4, and it must open without logging in.\n'
+  + 'Add "ai" when the video has an AI presenter or an AI voice.');
+const ai = String(rest[0] || '').toLowerCase() === 'ai';
+const shows = (ai ? rest.slice(1) : rest).join(' ').slice(0, 300);
+const key = skuArg.toLowerCase();
+const product = [...rowsOf('Load products (post)')].reverse().find(p =>
+  String(p.sku).toLowerCase() === key || String(p.pid).toLowerCase() === key);
+if (!product) return fail(`I can't find SKU "${skuArg}" in the products table. Use the SKU you used for /content.`);
+// The same video is never queued twice
+const twin = foldPosts(rowsOf('Load posts (queue)')).find(p => p.video_url === url && p.status !== 'rejected');
+if (twin) return fail(`This video is already in your list as ${twin.post_id}. Send /posts to see it.`);
+
+// Learn from past videos, like the Content agent: scripts and posts joined with their latest stats
+const stats = {};
+for (const f of rowsOf('Load stats (post)')) if (f.kind === 'video') stats[f.ref] = f;
+const measured = rowsOf('Load videos (post)')
+  .filter(c => stats[c.content_id])
+  .map(c => ({ ...c, views: +stats[c.content_id].views || 0, clicks: +stats[c.content_id].clicks || 0, sales: +stats[c.content_id].sales || 0 }))
+  .sort((a, b) => b.views - a.views);
+const fmt = v => `- "${v.hook}" (${v.format}) -> ${v.views} views, ${v.clicks} link clicks, ${v.sales} sales`;
+const worked = measured.slice(0, 5).map(fmt).join('\n') || '- no measured videos yet';
+const flopped = measured.length > 5 ? measured.slice(-3).map(fmt).join('\n') : '- not enough data yet';
+
+const rules = activeRules(rowsOf('Load playbook (post)'), ['content']);
+const prompt = `Write the texts for ONE finished short vertical video. You cannot see it.
+
+VIDEO
+What it shows (told by the owner): ${shows || 'not described - keep it general and claim nothing about what happens on screen'}
+Presenter: ${ai ? 'an AI presenter or AI voice made by the store. Never a customer, a buyer or a real person.' : 'no AI. The video comes from the store, not from a customer.'}
+
+PRODUCT
+Name: ${product.name}
+Who buys it: ${product.target_buyer}
+Video idea from research: ${product.angle}
+Known risks: ${product.risks}
+Shop address: ${shopOf(s)}
+
+PLAYBOOK (rules learned from this store's results - follow them):
+${rulesText(rules)}
+
+VIDEOS THAT WORKED (copy these patterns):
+${worked}
+
+VIDEOS THAT FLOPPED (avoid these patterns):
+${flopped}
+
+Reply with only this JSON (put hashtags only in the hashtag lists, never inside the texts):
+{"caption_tiktok":"<max 150 characters>","hashtags_tiktok":["<3-5 tags>"],
+ "caption_instagram":"<max 300 characters>","hashtags_instagram":["<3-5 tags>"],
+ "yt_title":"<max 70 characters>","yt_description":"<2-4 short sentences>","hashtags_youtube":["<2-3 tags>"]}`;
+
+return [{ json: { ok: true, prompt, url, ai: ai ? 'yes' : 'no', shows, sku: product.sku, product: product.name,
+                  rules_version: rules.map(r => r.rule_id + 'v' + r.version).join(',') } }];
+"""
+
+CHECK_POST_JS = JS_RULES + JS_PARSE_JSON + JS_POSTS + r"""
+// /queue, step 2. Deterministic checks: the AI writes the texts, but only code decides what is stored and
+// shown. Texts that break an honesty rule are not queued at all. Everything stays short enough that the
+// owner sees the full text before approving, which is also far inside every platform's own limit
+// (YouTube title 100 characters, description 5,000 bytes; Instagram and TikTok captions 2,200 characters).
+const s = $('⚙️ Settings').first().json;
+const brief = $('Build post brief').first().json;
+const fail = text => [{ json: { ok: false, reply: esc(text) } }];
+let a;
+try { a = parseAgentJson('Post agent'); }
+catch (e) { return fail('The Post agent did not return usable texts. Send the same /queue command again.'); }
+
+const shop = shopOf(s);
+const SPAM = /^#(fyp|foryou|foryoupage|viral|trending|explore|explorepage|follow|followme|like4like)$/i;
+const clean = t => String(t ?? '').replace(/<\/?[a-z][^>]*>/gi, '').replace(/[<>]/g, '').replace(/#[\p{L}\p{N}_]+/gu, '').replace(/[ \t]+/g, ' ')
+  .replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+const tags = (list, max) => [...new Set((Array.isArray(list) ? list : String(list || '').split(/[\s,]+/))
+  .map(h => '#' + String(h).replace(/[^\p{L}\p{N}_]/gu, '')).filter(h => h.length > 2 && !SPAM.test(h)))].slice(0, max);
+const cut = (t, max) => {
+  if (t.length <= max) return t;
+  const c = t.slice(0, max - 1).replace(/[\uD800-\uDBFF]$/, ''), sp = c.lastIndexOf(' ');   // never half an emoji
+  return (sp > max * 0.6 ? c.slice(0, sp) : c).trimEnd() + '…';
+};
+// text + the shop address (if the text does not name it) + hashtags, never longer than max
+const build = (text, hashtags, max, link) => {
+  const tail = (text.toLowerCase().includes(shop.toLowerCase()) ? '' : `\n\n${link}`) + (hashtags.length ? `\n\n${hashtags.join(' ')}` : '');
+  return cut(text, max - tail.length) + tail;
+};
+const raw = { tiktok: clean(a.caption_tiktok), instagram: clean(a.caption_instagram),
+              title: clean(a.yt_title).replace(/\n+/g, ' '), description: clean(a.yt_description) };
+if (Object.values(raw).some(t => !t)) return fail('The Post agent left a text empty. Send the same /queue command again.');
+const caption_tiktok = build(raw.tiktok, tags(a.hashtags_tiktok, 5), 600, `Shop: ${shop}`);
+const caption_instagram = build(raw.instagram, tags(a.hashtags_instagram, 5), 900, `Shop: ${shop}`);   // Instagram counts at most 5 hashtags
+const yt_title = cut(raw.title, 100);
+const yt_description = build(raw.description, tags(a.hashtags_youtube, 5), 1200, `Shop: https://${shop}`);
+
+const HONESTY = [
+  [/\b\d{1,3} ?% ?off\b|\b(discounts?|coupons?|promo ?codes?|vouchers?|sale|deals?|half price|clearance|black friday|save \d|save up to)\b/i, 'a discount or sale'],
+  [/\b(limited (time|stock|offer|edition)|last chance|hurry|only \d+ left|almost gone|selling (out|fast)|sold out|ends? (today|tonight|soon|at midnight)|while (stocks?|supplies) last|today only|don'?t miss out)\b/i, 'a countdown or "running out" claim'],
+  [/\b(free (shipping|delivery)|fast (shipping|delivery)|quick (shipping|delivery)|ships? (in|within|today|tomorrow|fast|free)|arrives? (in|within|by|tomorrow|before)|deliver(y|ed|s)? (in|within|by|before)|next[- ]day|same[- ]day|\d+[- ](day|hour)s? (delivery|shipping)|in time for (christmas|halloween|easter|valentine))/i, 'a delivery promise'],
+  [/[★⭐]|\b(\d([.,]\d)? ?(stars?|out of 5)|reviews?|testimonials?|rated|ratings?|customers?|buyers?|i (bought|ordered|purchased)|my (order|review|purchase))\b/i, 'a review or customer claim'],
+  [/\b((whole|entire|full) (ceiling|room|house|wall|bedroom)|fills? (the|your|a|any) (whole |entire )?(room|ceiling|bedroom)|guarantee[ds]?|best[- ]sell(er|ing)|number one|world'?s best|life[- ]changing|miracle|cures?|heals?)\b|\b100 ?%|#1\b/i, 'an overclaim'],
+  [/[$€£] ?\d|\b\d+([.,]\d{1,2})? ?(usd|dollars?|eur|euros?|bucks)\b/i, 'a price'],
+  // the owner chooses the music himself: the texts never name or credit a song (a plain "music" or "sound" is fine)
+  [/[♪♫]|\bmusic by\b|\b(original|trending|viral|popular) (sound|song|audio|track)\b|\b(song|sound|audio|track)\s*:|\bfeat\./i, 'a song or sound credit (you choose the music yourself)'],
+];
+const all = [caption_tiktok, caption_instagram, yt_title, yt_description].join('\n');
+const broken = HONESTY.map(([re, label]) => { const m = all.match(re); return m ? `${label}: "${m[0].trim()}"` : null; }).filter(Boolean);
+if (broken.length) return fail(`Not queued. The texts broke an honesty rule:\n- ${broken.join('\n- ')}\n\nSend the same /queue command again to get new texts.`);
+
+const post_id = 'P' + $now.toFormat('MMddHHmmss');
+const row = postRow(post_id, { sku: brief.sku, product: brief.product,
+  video: brief.url.split('?')[0].split('/').pop().replace(/\.mp4$/i, '').slice(0, 80), video_url: brief.url, ai: brief.ai,
+  status: 'awaiting_ok', caption_tiktok, caption_instagram, yt_title, yt_description, note: brief.shows, rules_version: brief.rules_version });
+const text = `🎬 New post ${post_id} is waiting for your OK
+Video: ${brief.url}
+Product: ${brief.product} (${brief.sku})
+AI presenter or AI voice: ${brief.ai}
+
+TIKTOK CAPTION
+${caption_tiktok}
+
+INSTAGRAM CAPTION
+${caption_instagram}
+
+YOUTUBE TITLE
+${yt_title}
+
+YOUTUBE DESCRIPTION
+${yt_description}
+
+${musicLine(s)}
+
+✅ Approve = it gets the next free slot (${postTimes(s).join(' or ')} in ${postZoneOf(s)}; I tell you the time in ${zoneOf(s)}).
+❌ Reject = it is dropped.
+Buttons not working? Send /approve ${post_id} or /reject ${post_id}`;
+return [{ json: { ok: true, row, text: esc(text.slice(0, 3900)) } }];
+"""
+
+POST_ACTION_JS = JS_RULES + JS_POSTS + r"""
+// The owner's decisions on queued posts: Approve / Reject (button or typed), /posts,
+// /tiktok | /youtube | /instagram <id> done (posted by hand) and /retry.
+const s = $('⚙️ Settings').first().json;
+const cmd = $('Parse command').first().json;
+const zone = zoneOf(s);
+const shop = shopOf(s);
+const now = $now.toMillis();
+const posts = foldPosts(rowsOf('Load posts'));
+const fail = text => [{ json: { ok: false, reply: esc(text) } }];
+const done = (msgs, rows = [], videos = []) => [{ json: { ok: true, save: rows.length > 0, rows, videos, msgs } }];
+const LABEL = { queued: '⏳ waiting', uploading: '⏳ uploading', scheduled: '✅ scheduled', publishing: '⏳ posting',
+  published: '✅ posted', todo: '☐ you post it', done: '✅ done', failed: '❌ failed', stuck: '❓ check by hand',
+  late: '⏰ too late, not posted', cancelled: '🚫 cancelled' };
+
+if (cmd.route === 'posts') {
+  const live = posts.filter(p => p.status === 'approved' && !isNaN(ms(p.post_at))).sort((a, b) => ms(a.post_at) - ms(b.post_at));
+  const waiting = posts.filter(p => p.status === 'awaiting_ok');
+  const line = p => `• ${p.post_id} · ${when(p.post_at, zone)} · ${p.product || p.sku}\n  YouTube ${LABEL[p.yt_status] || '-'} · Instagram ${LABEL[p.ig_status] || '-'} · TikTok ${LABEL[p.tiktok_status] || '-'}`;
+  const parts = [];
+  if (waiting.length) parts.push('WAITING FOR YOUR OK\n' + waiting.map(p => `• ${p.post_id} · ${p.product || p.sku}\n  /approve ${p.post_id} or /reject ${p.post_id}`).join('\n'));
+  const upcoming = live.filter(p => ms(p.post_at) > now);
+  if (upcoming.length) parts.push('COMING UP\n' + upcoming.map(line).join('\n'));
+  const recent = live.filter(p => ms(p.post_at) <= now).slice(-5).reverse();
+  if (recent.length) parts.push('LAST POSTS\n' + recent.map(line).join('\n'));
+  const text = parts.length ? `📅 Your posts (times in ${zone})\n\n${parts.join('\n\n')}` : 'No posts yet. Queue a finished video with\n/queue <video link> <SKU>';
+  return done([esc(text.slice(0, 3900))]);
+}
+
+const id = String((cmd.args || [])[0] || '').toUpperCase();
+const p = posts.find(x => String(x.post_id).toUpperCase() === id);
+if (!p) return fail(`I can't find post ${id || '(missing id)'}. Send /posts to see your posts.`);
+
+if (cmd.route === 'approve') {
+  if (p.status === 'approved') return fail(`${p.post_id} is already approved for ${when(p.post_at, zone)}.`);
+  if (p.status !== 'awaiting_ok') return fail(`${p.post_id} was rejected. Send the video again with /queue if you changed your mind.`);
+  // one post per slot: slots that already have an approved post are taken
+  const taken = new Set(posts.filter(x => x.status === 'approved' && !isNaN(ms(x.post_at))).map(x => ms(x.post_at)));
+  const { post_at, slot } = nextSlot($now, taken, s);
+  const at = `${when(post_at, zone)} (${zone})`;   // the owner always reads his own time zone
+  const auto = k => String(s[k] || '').trim().toLowerCase() === 'yes';
+  const yt = auto('youtube_auto'), ig = auto('instagram_auto'), isAi = p.ai === 'yes';
+  const row = postRow(p.post_id, { status: 'approved', post_at, slot, yt_status: yt ? 'queued' : 'todo',
+                                   ig_status: ig ? 'queued' : 'todo', tiktok_status: 'todo' });
+  const msgs = [esc(`✅ ${p.post_id} approved. Slot: ${at}. That is the ${slot} slot in ${postZoneOf(s)}.
+
+YouTube: ${yt ? 'the bot uploads it within 10 minutes. It stays private and YouTube makes it public at the slot time.' : 'you post it yourself (to-do below).'}
+Instagram: ${ig ? 'the bot posts it at the slot time.' : 'you post it yourself (to-do below).'}
+TikTok: you schedule it yourself (to-do below).
+
+${musicLine(s)}
+
+Changed your mind? /reject ${p.post_id}`)];
+  // A to-do for every platform the owner posts by hand. The texts come in <code> blocks: tap to copy.
+  const todo = (name, command, steps, copy) => msgs.push(
+    esc(`📋 ${name} to-do for ${p.post_id}\n` + steps.map((t, i) => `${i + 1}. ${t}`).join('\n') + `\n\nDone? Send: /${command} ${p.post_id} done`)
+    + copy.map(([label, text]) => `\n\n${esc(label)} (tap to copy):\n<code>${esc(text)}</code>`).join(''));
+  todo('TikTok', 'tiktok', [
+    `Download the video: ${p.video_url}`,
+    'Open tiktok.com/tiktokstudio → Upload, and choose the video.',
+    'Choose the music first. In TikTok Studio tap Sounds, pick one, then Save.',
+    'Paste the caption from below.',
+    `Schedule it for ${at}.`,
+    'Content disclosure: switch "Your brand" ON.',
+    ...(isAi ? ['Switch "AI-generated content" ON.'] : []),
+    `When it is live: write the comment "Shop: ${shop}" and pin it.`,
+  ], [['Caption', p.caption_tiktok]]);
+  if (!yt) todo('YouTube', 'youtube', [
+    `Download the video: ${p.video_url}`,
+    'Open studio.youtube.com → Create → Upload videos, and choose the video.',
+    'Choose the music first. It must already be inside the video file, or add the sound in the YouTube app instead of Studio.',
+    'Paste the title and the description from below.',
+    'Audience: choose "No, it\'s not made for kids".',
+    ...(isAi ? ['Show more → Altered content: choose "Yes".'] : []),
+    `Visibility → Schedule: ${at}.`,
+  ], [['Title', p.yt_title], ['Description', p.yt_description]]);
+  if (!ig) todo('Instagram', 'instagram', [
+    `Download the video: ${p.video_url}`,
+    'Open the Instagram app → + → Reel, and choose the video.',
+    'Choose the music first. In the Reel editor tap the music icon (Audio), pick one, then Done.',
+    'Paste the caption from below.',
+    ...(isAi ? ['More options → switch "AI label" ON.'] : []),
+    `More options → Schedule: ${at}.`,
+  ], [['Caption', p.caption_instagram]]);
+  return done(msgs, [row]);
+}
+
+if (cmd.route === 'reject') {
+  if (p.status === 'rejected') return fail(`${p.post_id} is already rejected.`);
+  // Reject stops everything that has not happened yet. What is already out, only the owner can delete: the bot has no
+  // call that deletes a video or a Reel, on purpose. A YouTube video is uploaded within 10 minutes of the approval and
+  // then waits there for its slot time, so Reject cannot take it back. The owner gets its link and the exact clicks.
+  const out = [];
+  const deleteSteps = '1. Open YouTube Studio → Content (left menu).\n2. Move the mouse over the video and click the three dots ⋮ (Options) → Delete forever.\n3. Tick the box and click Delete forever.';
+  if (p.yt_video_id) {
+    const wasPublic = ms(p.post_at) <= now;
+    out.push(`YouTube already has this video: ${wasPublic ? 'its slot time has passed, so it may be public already' : `it is scheduled, private until ${when(p.post_at, zone)} (${zone}), and then it goes public by itself`}. `
+      + `Rejecting does not remove it, and the bot cannot delete videos. To delete it yourself:\nVideo: https://studio.youtube.com/video/${p.yt_video_id}/edit\n${deleteSteps}`);
+  } else if (p.yt_status === 'uploading') out.push(`YouTube is uploading it right now and rejecting does not stop an upload that has started. In a few minutes you get a message with the video link. To delete the video yourself:\n${deleteSteps}`);
+  else if (['failed', 'stuck'].includes(p.yt_status)) out.push(`A YouTube upload that failed or got stuck may still have left a video. Look in YouTube Studio → Content. If it is there, delete it:\n${deleteSteps}`);
+  if (p.ig_status === 'publishing') out.push('Instagram is busy with it right now. Wait for the bot\'s next message: "not posted" means it is stopped. "is live" means you delete the Reel in the Instagram app.');
+  else if (p.ig_status === 'published') out.push('It is already on Instagram: delete the Reel in the app.');
+  else if (p.ig_status === 'stuck') out.push('Instagram may have posted it: look in the app and delete the Reel if it is there.');
+  if ([p.tiktok_status, p.yt_status, p.ig_status].includes('done')) out.push('You marked a platform as done by hand: delete it there too.');
+  return done([esc(`❌ ${p.post_id} rejected. ${p.status === 'approved' ? 'The bot will not post anything more for it.' : 'Nothing will be posted.'}`
+    + (out.length ? '\n\n' + out.map(t => '⚠️ ' + t).join('\n\n') : ''))], [postRow(p.post_id, { status: 'rejected' })]);
+}
+
+const BY_HAND = { tiktok: ['tiktok_status', 'tt', 'TikTok'], youtube: ['yt_status', 'yt', 'YouTube'], instagram: ['ig_status', 'ig', 'Instagram'] };
+if (BY_HAND[cmd.route]) {
+  const [field, tag, name] = BY_HAND[cmd.route];
+  if (String(cmd.args[1] || '').toLowerCase() !== 'done') return fail(`Usage: /${cmd.route} <post id> done\nExample: /${cmd.route} ${p.post_id} done`);
+  if (p.status !== 'approved') return fail(`${p.post_id} is not approved, so there is nothing to mark.`);
+  if (p[field] === 'done') return fail(`${name} is already marked as done for ${p.post_id}.`);
+  if (p[field] !== 'todo') return fail(`${name} for ${p.post_id} is handled by the bot (${LABEL[p[field]] || p[field] || 'not started'}). Nothing to mark.`);
+  return done([esc(`✅ ${name} marked as done for ${p.post_id}.
+
+48 hours after it goes live, send its numbers so the agents can learn:
+/video ${p.post_id}-${tag} <views> <link clicks> <sales>`)], [postRow(p.post_id, { [field]: 'done' })], [contentRow(p, tag, zone)]);
+}
+
+// /retry: only after the bot reported a failure. It is the owner who decides to try again, never the bot.
+const again = [['yt_status', 'YouTube'], ['ig_status', 'Instagram']].filter(([k]) => ['failed', 'stuck', 'late'].includes(p[k]));
+if (p.status !== 'approved' || !again.length) return fail(`Nothing to retry for ${p.post_id}. /retry only works after the bot told you that YouTube or Instagram failed.`);
+const changes = Object.fromEntries(again.map(([k]) => [k, 'queued']));
+const passed = ms(p.post_at) <= now;
+if (passed) {
+  // A slot in the past would be skipped again as "too late", so the post goes out now. Its slot becomes the
+  // real local time, so a late post is never counted as a normal lunch or evening post when slots are compared.
+  changes.post_at = $now.toUTC().toISO();
+  changes.slot = $now.setZone(postZoneOf(s)).toFormat('HH:mm');
+}
+// "stuck" = nobody knows if it went out. A failed YouTube upload is just as unsure: n8n sends the file in chunks and
+// the call can fail after the last one, so the video may be on YouTube although the upload was reported as failed.
+const unsure = again.some(([k]) => p[k] === 'stuck' || (k === 'yt_status' && p[k] === 'failed'));
+return done([esc(`🔁 ${p.post_id}: ${again.map(x => x[1]).join(' and ')} will be tried again within 10 minutes`
+  + (passed ? ', and it goes public right away because the slot time has passed.' : '.')
+  + (unsure ? `\n\n⚠️ If it is already there, it will be posted twice. Already there? Send /reject ${p.post_id} now (it drops the whole post).` : ''))],
+  [postRow(p.post_id, changes)]);
+"""
+
 HELP_TEXT = """🤖 Commands
 /content SKU - product page copy + 5 video scripts
 /clips SKU link1 link2 link3 - save your own phone clips (Google Drive/Dropbox links)
@@ -878,24 +1289,41 @@ HELP_TEXT = """🤖 Commands
 /send T123 - send the support agent's draft reply
 /reply T123 your text - send your own reply instead (the agent learns from it)
 /skip T123 - close a support email without replying
+/queue LINK SKU ai - queue a finished video for TikTok, Instagram and YouTube (leave out "ai" if no AI is in it)
+/posts - show waiting, coming and last posts
+/tiktok P123 done - tell the bot you scheduled a post on TikTok yourself
+/retry P123 - try again after the bot said a post failed
 
 Research arrives every morning, the report every evening."""
 
 
 def build_commands():
     wf = Workflow("02 · Telegram commands (content + feedback)")
+    # A bot has only one webhook, so this is the only Telegram trigger in the whole system: every command
+    # and every tap on an inline button (callback_query) comes in here and is routed by "Parse command".
     wf.add("Telegram message in", "n8n-nodes-base.telegramTrigger", 1.1,
-           {"updates": ["message"], "additionalFields": {}}, [0, 300], webhookId=wf.webhook_id("tg"))
+           {"updates": ["message", "callback_query"], "additionalFields": {}}, [0, 300], webhookId=wf.webhook_id("tg"))
     settings(wf, [
         ("telegram_chat_id", "PASTE_YOUR_TELEGRAM_CHAT_ID"),
         ("voice", "en-US-EmmaMultilingualNeural"),
         ("cta_text", "Link in bio"),
         ("support_email", "PASTE_YOUR_SUPPORT_EMAIL"),
         ("email_signature", "Best regards,\nThe support team"),
+        # social posts. post_times are clock times in post_timezone (the buyers: lunch and evening in the US);
+        # one approved video per slot. time_zone is the owner's own zone: every message shows times in it.
+        # youtube_auto / instagram_auto: "no" = you get a to-do message and post by hand; "yes" after SOCIAL-SETUP.md.
+        ("post_times", "12:30,20:30"),
+        ("post_timezone", "America/New_York"),
+        ("time_zone", "Europe/Berlin"),
+        ("min_lead_hours", 2),
+        ("youtube_auto", "no"),
+        ("instagram_auto", "no"),
+        ("shop_url", "pivendo.com"),
     ], [220, 300])
     code(wf, "Parse command", PARSE_CMD_JS, [440, 300])
     switch(wf, "Route", "route", ["content", "video", "product", "rules", "setup", "help", "clips", "render",
-                                   "send", "reply", "skip"], [660, 300])
+                                   "send", "reply", "skip", "queue", "approve", "reject", "posts", "tiktok",
+                                   "youtube", "instagram", "retry"], [660, 300])
     reply_chat = "={{ $('Parse command').first().json.chatId }}"
 
     # /content
@@ -1040,6 +1468,65 @@ def build_commands():
     wf.connect("Ticket ok?", "Ticket problem", out=1)
     for i in (8, 9, 10):
         wf.connect("Route", "Load tickets", out=i)
+
+    # A tap on an inline button: tell Telegram it arrived, so the button stops showing its loading circle
+    if_true(wf, "Button tap?", "={{ !!$json.tapId }}", [660, 120])
+    wf.add("Answer button tap", "n8n-nodes-base.telegram", 1.2, {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.tapId }}",
+        "additionalFields": {"text": "OK, one moment…"},
+    }, [880, 120], onError="continueRegularOutput")
+    wf.connect("Parse command", "Button tap?")
+    wf.connect("Button tap?", "Answer button tap")
+
+    # /queue: one finished video -> Post agent writes the texts -> saved as "awaiting_ok" -> Approve / Reject buttons
+    table_get(wf, "Load products (post)", "products", [880, 2200])
+    table_get(wf, "Load playbook (post)", "playbook", [1100, 2200])
+    table_get(wf, "Load videos (post)", "content", [1320, 2200])
+    table_get(wf, "Load stats (post)", "feedback", [1540, 2200])
+    table_get(wf, "Load posts (queue)", "social_posts", [1760, 2200])
+    code(wf, "Build post brief", POST_BRIEF_JS, [1980, 2200])
+    if_true(wf, "Post brief ok?", "={{ $json.ok }}", [2200, 2200])
+    agent(wf, "Post agent", "={{ $json.prompt }}", POST_SYSTEM, [2420, 2100], [2420, 2320])
+    code(wf, "Check post texts", CHECK_POST_JS, [2640, 2100])
+    if_true(wf, "Post texts ok?", "={{ $json.ok }}", [2860, 2100])
+    code(wf, "Post row", "return [{ json: $input.first().json.row }];", [3080, 2040])
+    table_insert(wf, "Save post", "social_posts", [3300, 2040])
+    post_id = "$('Check post texts').first().json.row.post_id"
+    telegram(wf, "Ask to approve post", "={{ $('Check post texts').first().json.text }}", [3520, 2040], reply_chat,
+             html=True, buttons=[("✅ Approve", "={{ 'approve:' + %s }}" % post_id),
+                                 ("❌ Reject", "={{ 'reject:' + %s }}" % post_id)])
+    telegram(wf, "Queue problem", "={{ $json.reply }}", [3080, 2320], reply_chat, html=True)
+    wf.chain("Load products (post)", "Load playbook (post)", "Load videos (post)", "Load stats (post)",
+             "Load posts (queue)", "Build post brief", "Post brief ok?", "Post agent", "Check post texts",
+             "Post texts ok?", "Post row", "Save post", "Ask to approve post")
+    wf.connect("Post brief ok?", "Queue problem", out=1)
+    wf.connect("Post texts ok?", "Queue problem", out=1)
+    wf.connect("Route", "Load products (post)", out=11)
+
+    # Approve / Reject (button or typed), /posts, /tiktok /youtube /instagram <id> done, /retry.
+    # Approve only gives the post its slot and writes the to-dos. Uploading and publishing is workflow 08.
+    table_get(wf, "Load posts", "social_posts", [880, 2560])
+    code(wf, "Build post action", POST_ACTION_JS, [1100, 2560])
+    if_true(wf, "Post action ok?", "={{ $json.ok }}", [1320, 2560])
+    if_true(wf, "Save a row?", "={{ $json.save }}", [1540, 2500])
+    code(wf, "Post action rows", "return $('Build post action').first().json.rows.map(r => ({ json: r }));", [1760, 2440])
+    table_insert(wf, "Save post action", "social_posts", [1980, 2440])
+    code(wf, "Post video rows", "return $('Build post action').first().json.videos.map(r => ({ json: r }));", [2200, 2340])
+    table_insert(wf, "Save post as video", "content", [2420, 2340])
+    code(wf, "Post action messages", "return $('Build post action').first().json.msgs.map(text => ({ json: { text } }));",
+         [2200, 2560])
+    telegram(wf, "Send post action", "={{ $json.text }}", [2420, 2560], reply_chat, html=True)
+    telegram(wf, "Post action problem", "={{ $json.reply }}", [1540, 2700], reply_chat, html=True)
+    wf.chain("Load posts", "Build post action", "Post action ok?", "Save a row?", "Post action rows",
+             "Save post action", "Post action messages", "Send post action")
+    wf.connect("Save post action", "Post video rows")
+    wf.connect("Post video rows", "Save post as video")
+    wf.connect("Save a row?", "Post action messages", out=1)
+    wf.connect("Post action ok?", "Post action problem", out=1)
+    for i in range(12, 19):
+        wf.connect("Route", "Load posts", out=i)
     wf.save("02-telegram-commands.json")
 
 
@@ -1774,6 +2261,489 @@ def build_autopay():
     wf.save("07-cj-auto-pay.json")
 
 
+# ------------------------------------------------------------ 08 social publisher
+#
+# Only posts the owner approved in Telegram (workflow 02) are touched here, and only the platforms marked
+# "queued" (youtube_auto / instagram_auto = yes in workflow 02). TikTok is always posted by the owner.
+#   every 10 minutes: upload approved videos to YouTube (private, YouTube publishes them at the slot time),
+#                     and publish Instagram Reels whose slot time has come
+#   every evening:    read the 48-hour numbers into the feedback table for the Coach, check the two logins
+# Every Code node here only compares rows and builds texts, so each one finishes in a few milliseconds.
+
+PLAN_RUN_JS = JS_RULES + JS_POSTS + r"""
+// What to do in this run. At most one YouTube upload and one Instagram post per run; the next run takes the next.
+// The double-post guard: a post is only picked while its platform status is "queued". Before any API call
+// this node's rows are saved ("uploading" / "publishing"), so if n8n crashes half-way the post is never
+// picked again by itself. It is reported as stuck instead, and the owner decides (/retry).
+const s = $('⚙️ Settings').first().json;
+const zone = zoneOf(s);
+const now = $now.toMillis();
+const hours = (v, d) => (isNaN(num(v)) ? d : Math.max(0, num(v)));
+const maxLate = hours(s.max_late_hours, 12) * 3600e3;
+const stuckAfter = hours(s.stuck_minutes, 30) * 60e3;
+const graph = String(s.graph_api || 'https://graph.facebook.com/v25.0').trim().replace(/\/+$/, '');
+const igUser = String(s.ig_user_id || '').trim();
+const posts = foldPosts(rowsOf('Load posts'))
+  .filter(p => p.status === 'approved' && !isNaN(ms(p.post_at)))
+  .sort((a, b) => ms(a.post_at) - ms(b.post_at));
+
+const rows = [], alerts = [];
+let yt = null, ig = null;
+for (const p of posts) {
+  const late = now - ms(p.post_at);                       // above 0 = the slot time has passed
+  const lateText = `Its slot (${when(p.post_at, zone)}) passed ${Math.round(late / 3600e3)} hours ago`;
+
+  // YouTube: upload right after approval. The video stays private and YouTube publishes it at the slot time.
+  if (p.yt_status === 'queued') {
+    if (late > maxLate) {
+      rows.push(postRow(p.post_id, { yt_status: 'late', note: `YouTube: not uploaded, ${lateText}` }));
+      alerts.push(`⏰ YouTube: ${p.post_id} was NOT uploaded. ${lateText}, probably because n8n was off.\nSend /retry ${p.post_id} to post it now, or /reject ${p.post_id} to drop it.`);
+    } else if (!yt) {
+      rows.push(postRow(p.post_id, { yt_status: 'uploading' }));
+      // never less than 15 minutes ahead, so YouTube always gets a publish time in the future
+      yt = { post_id: p.post_id, video_url: p.video_url, title: p.yt_title, description: p.yt_description, ai: p.ai === 'yes' ? 'yes' : 'no',
+             publish_at: DateTime.fromMillis(Math.max(ms(p.post_at), now + 15 * 60e3)).toUTC().toISO() };
+    }
+  } else if (p.yt_status === 'uploading' && now - ms(p.yt_since) > stuckAfter) {
+    rows.push(postRow(p.post_id, { yt_status: 'stuck', note: 'YouTube: the upload did not finish' }));
+    alerts.push(`❓ YouTube: the upload of ${p.post_id} did not finish (n8n may have restarted).\nOpen YouTube Studio → Content. If the video is not there, send /retry ${p.post_id}.`);
+  }
+
+  // Instagram: publish when the slot time has come, but not if it is more than max_late_hours late.
+  if (p.ig_status === 'queued' && late >= 0) {
+    if (late > maxLate) {
+      rows.push(postRow(p.post_id, { ig_status: 'late', note: `Instagram: not posted, ${lateText}` }));
+      alerts.push(`⏰ Instagram: ${p.post_id} was NOT posted. ${lateText}, probably because n8n was off.\nSend /retry ${p.post_id} to post it now, or /reject ${p.post_id} to drop it.`);
+    } else if (!/^\d+$/.test(igUser)) {
+      rows.push(postRow(p.post_id, { ig_status: 'failed', note: 'Instagram: ig_user_id is missing in the Settings of workflow 08' }));
+      alerts.push(`❌ Instagram: ${p.post_id} was not posted. The Instagram account ID is missing: open workflow 08 → ⚙️ Settings → ig_user_id (SOCIAL-SETUP.md, part 3). Then send /retry ${p.post_id}.`);
+    } else if (!ig) {
+      rows.push(postRow(p.post_id, { ig_status: 'publishing' }));
+      const ai = p.ai === 'yes';
+      ig = { post_id: p.post_id, ai: ai ? 'yes' : 'no', graph,
+             create_url: `${graph}/${igUser}/media`, publish_url: `${graph}/${igUser}/media_publish`,
+             // is_ai_generated puts Instagram's AI label on the Reel; it is only sent when the video has AI in it
+             query: { media_type: 'REELS', video_url: p.video_url, caption: p.caption_instagram, share_to_feed: 'true',
+                      ...(ai ? { is_ai_generated: 'true' } : {}) } };
+    }
+  } else if (p.ig_status === 'publishing' && now - ms(p.ig_since) > stuckAfter) {
+    rows.push(postRow(p.post_id, { ig_status: 'stuck', note: 'Instagram: posting did not finish' }));
+    alerts.push(`❓ Instagram: posting ${p.post_id} did not finish (n8n may have restarted).\nOpen Instagram. If the Reel is not there, send /retry ${p.post_id}.`);
+  }
+}
+if (!rows.length) return [];   // nothing to do in this run
+return [{ json: { rows, alerts: alerts.map(esc), yt, ig } }];
+"""
+
+YT_UPLOADED_JS = JS_RULES + JS_POSTS + r"""
+// Did the upload work? If the video has AI in it, prepare the "altered or synthetic content" declaration.
+// videos.update replaces the whole "status" part: whatever is not sent again falls back to YouTube's default
+// (a missing privacyStatus would make the video public). So everything set at upload is sent again.
+const job = $('YouTube job').first().json;
+const up = $input.first().json || {};
+const video_id = String(up.uploadId || up.id || '');
+if (!video_id) {
+  // none: the file never reached YouTube (the download failed, so the upload never started). Any other failure is
+  // not proof that nothing arrived: n8n sends the file in chunks and the call can fail after the last chunk.
+  const dl = apiError($('Download video').first().json);
+  return [{ json: { ok: false, declare: false, none: !!dl, reason: dl ? `the video file could not be downloaded (${dl})` : (apiError(up) || 'YouTube did not return a video id') } }];
+}
+return [{ json: { ok: true, declare: job.ai === 'yes', video_id, update: { id: video_id, status: {
+  privacyStatus: 'private', publishAt: job.publish_at, selfDeclaredMadeForKids: false,
+  embeddable: true, license: 'youtube', publicStatsViewable: true, containsSyntheticMedia: true } } } }];
+"""
+
+YT_RESULT_JS = JS_RULES + JS_POSTS + r"""
+// One row for the table and one message for the owner.
+const zone = zoneOf($('⚙️ Settings').first().json);
+const job = $('YouTube job').first().json;
+const up = $('YouTube uploaded?').first().json;
+if (!up.ok) {
+  // "failed" does not prove that nothing is on YouTube, so the owner is asked to look before a retry makes a second copy
+  const text = up.none
+    ? `❌ YouTube: ${job.post_id} was not uploaded: ${up.reason}\n\nNothing is on YouTube. Instagram and TikTok are not affected.\nFix it, then send /retry ${job.post_id}`
+    : `❌ YouTube: the upload of ${job.post_id} failed: ${up.reason}\n\nThe upload failed. Check YouTube Studio before you retry: the video may still be there.\nInstagram and TikTok are not affected.\nNot there? Fix the problem, then send /retry ${job.post_id}`;
+  return [{ json: { row: postRow(job.post_id, { yt_status: 'failed', note: `YouTube: ${up.reason}`.slice(0, 300) }), text: esc(text) } }];
+}
+const lines = [`📺 YouTube: ${job.post_id} is uploaded. It is private now and goes public ${when(job.publish_at, zone)} (${zone}).`,
+               `Check it: https://studio.youtube.com/video/${up.video_id}/edit`];
+let note = '';
+if (up.declare) {
+  // the answer to the declaration call comes in as this node's input
+  const st = ($input.first().json || {}).status || {};
+  if (st.containsSyntheticMedia === true) lines.push('AI label: set (Altered content = Yes).');
+  else {
+    note = 'YouTube: AI label not confirmed';
+    lines.push(`⚠️ AI label: YouTube did not confirm it${apiError($input.first().json) ? ' (' + apiError($input.first().json) + ')' : ''}. Open the link → Show more → Altered content → Yes.`);
+  }
+  if (st.privacyStatus && st.privacyStatus !== 'private') lines.push(`⚠️ YouTube shows it as "${st.privacyStatus}", not as a private scheduled video. Check it now.`);
+}
+return [{ json: { row: postRow(job.post_id, { yt_status: 'scheduled', yt_video_id: up.video_id, note }), text: esc(lines.join('\n')) } }];
+"""
+
+CONTAINER_STATUS_JS = r"""
+// Instagram fetches and converts the video first. Ask every 30 seconds, for at most 10 minutes.
+const r = $input.first().json || {};
+const code = String(r.status_code || '');
+if (code === 'FINISHED') return [{ json: { state: 'done' } }];
+if (code === 'PUBLISHED') return [{ json: { state: 'error', sure: false, reason: 'Instagram says this video is already published' } }];
+if (code === 'ERROR' || code === 'EXPIRED')
+  return [{ json: { state: 'error', sure: true, reason: `Instagram could not use the video (${code}${r.status ? ': ' + r.status : ''}). Check that the link opens without logging in and that it is a vertical MP4.` } }];
+if ($runIndex + 1 >= 20) return [{ json: { state: 'error', sure: true, reason: 'Instagram was still working on the video after 10 minutes' } }];
+return [{ json: { state: 'wait' } }];
+"""
+
+IG_RECHECK_JS = JS_RULES + JS_POSTS + r"""
+// The last look before the Reel is published. From "Plan this run" to here can lie many minutes (Instagram converts
+// the video first, and the wait loop allows 10 minutes). In that time the owner may have tapped Reject, or a later
+// run may have reported this post as stuck. So the post is read from the table again, and the Reel is only
+// published while the post is still approved and still marked "publishing" by this very run.
+const job = $('Instagram job').first().json;
+const p = foldPosts(rowsOf('Reload post (Instagram)')).find(x => x.post_id === job.post_id);
+if (p && p.status === 'approved' && p.ig_status === 'publishing') return [{ json: { ok: true } }];
+if (!p) return [{ json: { ok: false, rejected: false, reason: 'the post could not be read again before it was published' } }];
+if (p.status !== 'approved') {
+  const rejected = p.status === 'rejected';
+  return [{ json: { ok: false, rejected, reason: rejected ? 'you rejected it before it went out' : `its status changed to "${p.status}" before it went out` } }];
+}
+return [{ json: { ok: false, rejected: false, reason: `its Instagram status changed to "${p.ig_status || 'empty'}" while the video was being prepared` } }];
+"""
+
+IG_RESULT_JS = JS_RULES + JS_POSTS + r"""
+// One row for the table and one message for the owner. A post only counts as published when Instagram
+// returned a media id. If the publish call itself got no clear answer, nobody knows whether the Reel went
+// out: the post is marked "stuck" and the owner looks, so it can never go out twice by itself.
+const job = $('Instagram job').first().json;
+const made = $('Instagram: create container').first().json || {};
+const ready = $('Container status').isExecuted ? $('Container status').first().json : null;
+const recheck = $('Check post again (Instagram)').isExecuted ? $('Check post again (Instagram)').first().json : null;
+const pub = $('Instagram: publish').isExecuted ? ($('Instagram: publish').first().json || {}) : null;
+if (recheck && recheck.ok === false) {
+  // Not published on purpose (see "Check post again (Instagram)"). A rejected post is closed here. In every other case
+  // the status stays as whoever changed it set it, and only a note is added to the log.
+  return [{ json: {
+    row: postRow(job.post_id, { ...(recheck.rejected ? { ig_status: 'cancelled' } : {}), note: `Instagram: not posted, ${recheck.reason}`.slice(0, 300) }),
+    text: esc(`🚫 Instagram: ${job.post_id} was not posted: ${recheck.reason}.\n\nNothing is on Instagram.`) } }];
+}
+const failed = (status, reason, next) => [{ json: {
+  row: postRow(job.post_id, { ig_status: status, note: `Instagram: ${reason}`.slice(0, 300) }),
+  text: esc(`${status === 'stuck' ? '❓' : '❌'} Instagram: ${job.post_id} ${status === 'stuck' ? 'may not have been posted' : 'was not posted'}: ${reason}\n\n${next}`) } }];
+const retry = `Nothing is on Instagram. Fix it, then send /retry ${job.post_id}`;
+if (!made.id) return failed('failed', apiError(made) || 'Instagram did not accept the video', retry);
+if (!pub) {
+  const why = (ready && ready.reason) || 'the video was not ready';
+  return ready && ready.sure === false
+    ? failed('stuck', why, `Open Instagram and look. If the Reel is not there, send /retry ${job.post_id}`)
+    : failed('failed', why, retry);
+}
+if (!pub.id) return failed('stuck', apiError(pub) || 'the publish call got no answer',
+  `Open Instagram and look. If the Reel is not there, send /retry ${job.post_id}`);
+const link = $('Instagram: get link').isExecuted ? ($('Instagram: get link').first().json || {}).permalink : '';
+const lines = [`📸 Instagram: ${job.post_id} is live.`];
+if (link) lines.push(link);
+if (job.ai === 'yes') lines.push('It was sent with the AI label. Please open the Reel once and check that it shows "AI info".');
+return [{ json: { row: postRow(job.post_id, { ig_status: 'published', ig_media_id: String(pub.id) }), text: esc(lines.join('\n')) } }];
+"""
+
+PLAN_DAILY_JS = JS_RULES + JS_POSTS + r"""
+// Evening run, before the Coach: which posts are older than 48 hours and still have no numbers?
+const s = $('⚙️ Settings').first().json;
+const now = $now.toMillis();
+const after = (isNaN(num(s.stats_after_hours)) ? 48 : num(s.stats_after_hours)) * 3600e3;
+const posts = foldPosts(rowsOf('Load posts')).filter(p => p.status === 'approved' && !isNaN(ms(p.post_at)));
+const due = posts.filter(p => p.stats_done !== 'yes' && now - ms(p.post_at) >= after)
+  .sort((a, b) => ms(a.post_at) - ms(b.post_at)).slice(0, 10);
+const got = p => String(p.stats_done || '').split(',');
+
+// A login is only checked every day while the bot really posts on that platform (a post in the last 30 days)
+const BOT = ['queued', 'uploading', 'scheduled', 'publishing', 'published', 'failed', 'stuck', 'late'];
+const fresh = posts.filter(p => now - ms(p.post_at) < 30 * 86400e3);
+const use_yt = fresh.some(p => BOT.includes(p.yt_status)), use_ig = fresh.some(p => BOT.includes(p.ig_status));
+
+// The Instagram token from SOCIAL-SETUP.md never runs out. If a token with an end date is used instead,
+// its date is in Settings (ig_token_expires) and the owner is warned every evening from 14 days before.
+let warn = '';
+const end = DateTime.fromISO(String(s.ig_token_expires || '').trim(), { zone: 'utc', locale: 'en' });
+if (end.isValid) {
+  const days = Math.floor((end.toMillis() - now) / 86400e3);
+  if (days < 0) warn = `🔑 The Instagram token ran out on ${end.toFormat('d LLL yyyy')}. Instagram posts will fail until you make a new one (SOCIAL-SETUP.md, part 2), paste it into n8n → Credentials → "Instagram (Pivendo)" and change ig_token_expires in workflow 08.`;
+  else if (days <= 14) warn = `🔑 The Instagram token runs out in ${days} day(s), on ${end.toFormat('d LLL yyyy')}. Make a new one now (SOCIAL-SETUP.md, part 2), paste it into n8n → Credentials → "Instagram (Pivendo)" and change ig_token_expires in workflow 08.`;
+}
+// One YouTube request: the numbers of all due videos at once. With no video due, one small request for
+// the owner's own channel, which only proves that the YouTube login still works.
+const yt_ids = due.filter(p => p.yt_video_id && !got(p).includes('yt')).map(p => p.yt_video_id).join(',');
+const youtube = 'https://www.googleapis.com/youtube/v3';
+return [{ json: { due, use_yt, use_ig, warn, yt_call: yt_ids
+  ? { url: `${youtube}/videos`, query: { part: 'statistics,status', id: yt_ids } }
+  : { url: `${youtube}/channels`, query: { part: 'id', mine: 'true' } } } }];
+"""
+
+IG_CALLS_JS = JS_RULES + JS_POSTS + r"""
+// One Instagram request per Reel that needs numbers. With no Reel due, one small request that only proves
+// the token and the account ID still work. While ig_user_id is not filled in yet, that request asks Meta
+// which Instagram account the token belongs to, so the owner can be told the ID to paste.
+const s = $('⚙️ Settings').first().json;
+const plan = $('Plan daily run').first().json;
+const graph = String(s.graph_api || 'https://graph.facebook.com/v25.0').trim().replace(/\/+$/, '');
+const igUser = String(s.ig_user_id || '').trim();
+const calls = plan.due.filter(p => p.ig_media_id && !String(p.stats_done || '').split(',').includes('ig'))
+  .map(p => ({ json: { post_id: p.post_id, url: `${graph}/${p.ig_media_id}/insights`, query: { metric: 'views,reach,likes,comments,shares,saved' } } }));
+if (calls.length) return calls;
+return [{ json: /^\d+$/.test(igUser)
+  ? { post_id: '', url: `${graph}/${igUser}`, query: { fields: 'username' } }
+  : { post_id: '', url: `${graph}/me/accounts`, query: { fields: 'name,instagram_business_account{id,username}' } } }];
+"""
+
+STATS_JS = JS_RULES + JS_POSTS + r"""
+// Turn the answers into rows: feedback rows in the same shape /video writes (the Coach reads them at 21:30
+// without any change), one content row per video so the Coach can join them, and "stats_done" on the post.
+const s = $('⚙️ Settings').first().json;
+const zone = zoneOf(s);
+const plan = $('Plan daily run').first().json;
+const day = $now.toFormat('yyyy-MM-dd');
+const now = $now.toMillis();
+const yt = $('YouTube: read stats').first().json || {};
+const calls = $('Instagram calls').all().map(i => i.json);
+const answers = $input.all().map(i => i.json || {});
+const ytOk = Array.isArray(yt.items) || /^youtube#/.test(String(yt.kind || ''));
+const ytById = Object.fromEntries((yt.items || []).map(v => [v.id, v]));
+const igByPost = {};
+calls.forEach((c, i) => { if (c.post_id) igByPost[c.post_id] = answers[i] || {}; });
+const igOk = answers.some(r => r.username || Array.isArray(r.data));
+const metric = (r, name) => {
+  const m = (Array.isArray(r.data) ? r.data : []).find(x => x.name === name);
+  const v = m ? (m.values?.[0]?.value ?? m.total_value?.value) : null;
+  return v === null || v === undefined || isNaN(Number(v)) ? null : Number(v);
+};
+const n = v => Number(v) || 0;
+const giveUp = (isNaN(num(s.stats_after_hours)) ? 48 : num(s.stats_after_hours)) * 3600e3 + 7 * 86400e3;
+
+const sent = new Set(rowsOf('Load feedback').filter(f => f.kind === 'video').map(f => String(f.ref)));
+const feedback = [], videos = [], rows = [], lines = [];
+for (const p of plan.due) {
+  const got = new Set(String(p.stats_done || '').split(',').filter(t => t === 'yt' || t === 'ig'));
+  const first = !p.stats_done;
+  const parts = [];
+  const save = (tag, name, views, detail) => {
+    feedback.push({ day, kind: 'video', ref: `${p.post_id}-${tag}`, views, clicks: 0, sales: 0, status: '',
+                    note: `${name} after 48 h, slot ${p.slot || 'unknown'}: ${detail} (read by the bot; link clicks and sales are not known)` });
+    videos.push(contentRow(p, tag, zone, true));
+    got.add(tag);
+    parts.push(`${name} ${views} views`);
+  };
+  if (p.yt_video_id && !got.has('yt')) {
+    const v = ytById[p.yt_video_id];
+    if (v && v.statistics) {
+      save('yt', 'YouTube', n(v.statistics.viewCount), `${n(v.statistics.likeCount)} likes, ${n(v.statistics.commentCount)} comments`);
+      if (v.status && v.status.privacyStatus !== 'public') parts.push(`⚠️ YouTube still shows it as "${v.status.privacyStatus}", not public: check it in YouTube Studio`);
+    } else if (ytOk) { got.add('yt'); parts.push('YouTube: video not found (deleted?)'); }
+    else parts.push('YouTube: numbers not readable today');
+  }
+  if (p.ig_media_id && !got.has('ig')) {
+    const r = igByPost[p.post_id] || {};
+    const views = metric(r, 'views');
+    if (views !== null) save('ig', 'Instagram', views, `${n(metric(r, 'likes'))} likes, ${n(metric(r, 'comments'))} comments, ${n(metric(r, 'shares'))} shares, ${n(metric(r, 'saved'))} saves, reach ${n(metric(r, 'reach'))}`);
+    else parts.push(`Instagram: numbers not readable today${apiError(r) ? ' (' + apiError(r) + ')' : ''}`);
+  }
+  const need = [p.yt_video_id && 'yt', p.ig_media_id && 'ig'].filter(Boolean);
+  const value = need.every(t => got.has(t)) || now - ms(p.post_at) > giveUp ? 'yes' : ([...got].join(',') || 'tried');
+  if (value !== p.stats_done) rows.push(postRow(p.post_id, { stats_done: value }));
+  // What only the owner can report (asked once per post; after that the Coach's own reminder takes over)
+  const mine = [];
+  if (first) for (const [field, tag, name, command] of [['tiktok_status', 'tt', 'TikTok', 'tiktok'], ['yt_status', 'yt', 'YouTube', 'youtube'], ['ig_status', 'ig', 'Instagram', 'instagram']]) {
+    if (p[field] === 'done' && sent.has(`${p.post_id}-${tag}`)) continue;   // the owner already sent these numbers
+    if (p[field] === 'done') mine.push(`${name}: send /video ${p.post_id}-${tag} <views> <link clicks> <sales>`);
+    else if (p[field] === 'todo') mine.push(`${name}: not marked as posted. Posted it? Send /${command} ${p.post_id} done`);
+  }
+  if (parts.length || mine.length) lines.push(`• ${p.post_id} ${p.product || p.sku || ''}: ${parts.join(', ') || 'no numbers from the bot'}` + mine.map(t => '\n  ' + t).join(''));
+}
+
+// "Gets better with time": the best and the weakest video by views among the numbers of the last 7 days
+// (the bot's own and the ones the owner sent with /video), with platform and slot. The bot never changes
+// the posting times by itself: a better time is a rule the Coach proposes and the owner approves.
+const NAME = { yt: 'YouTube', ig: 'Instagram', tt: 'TikTok' };
+const weekAgo = $now.minus({ days: 6 }).toFormat('yyyy-MM-dd');
+const postById = Object.fromEntries(foldPosts(rowsOf('Load posts')).map(p => [p.post_id, p]));
+const latest = {};
+for (const f of [...rowsOf('Load feedback'), ...feedback]) {
+  const m = String(f.ref || '').match(/^(.+)-(yt|ig|tt)$/);
+  if (f.kind === 'video' && m && postById[m[1]] && String(f.day) >= weekAgo) latest[f.ref] = { p: postById[m[1]], tag: m[2], views: Number(f.views) || 0 };
+}
+const ranked = Object.values(latest).sort((a, b) => b.views - a.views);
+const medal = x => {
+  const at = DateTime.fromISO(String(x.p.post_at || ''), { zone });
+  return `${x.p.post_id} on ${NAME[x.tag]}, ${x.views} views, slot ${x.p.slot || 'unknown'}${at.isValid ? ` (${at.toFormat('HH:mm')} in ${zone})` : ''}`;
+};
+if (lines.length && ranked.length >= 2) lines.push(`🏆 Last 7 days: best ${medal(ranked[0])}. Weakest ${medal(ranked[ranked.length - 1])}.`);
+
+const problems = [];
+// Setup help, like the chat ID in workflow 02: while ig_user_id is empty, tell the owner which ID to paste
+if (!/^\d+$/.test(String(s.ig_user_id || '').trim())) {
+  const pages = answers.flatMap(r => (Array.isArray(r.data) ? r.data : [])).filter(a => a && a.name !== undefined && !a.values);
+  const accounts = pages.map(a => a.instagram_business_account).filter(a => a && a.id);
+  if (accounts.length) problems.push(`🆔 Your Instagram account ID is ${accounts.map(a => a.id + (a.username ? ` (@${a.username})` : '')).join(' or ')}\nPaste it into workflow 08 → ⚙️ Settings → ig_user_id, then save.`);
+  else if (pages.length) problems.push(`🆔 The Instagram token works, but the Facebook Page "${pages[0].name}" has no Instagram account linked to it. Link them (SOCIAL-SETUP.md, part 2, step 2), then run workflow 08 again.`);
+}
+if (plan.use_yt && !ytOk) problems.push(`🔑 YouTube did not answer the daily check: ${apiError(yt) || 'no answer'}\nIf this comes again tomorrow: n8n → Credentials → "YouTube (Pivendo)" → Sign in with Google again.`);
+if (plan.use_ig && !igOk) problems.push(`🔑 Instagram did not answer the daily check: ${apiError(answers[0]) || 'no answer'}\nIf it says the token is invalid or expired: make a new one (SOCIAL-SETUP.md, part 2) and paste it into n8n → Credentials → "Instagram (Pivendo)".`);
+if (plan.warn) problems.push(plan.warn);
+const text = [lines.length ? '📈 Video numbers after 48 hours (the coach reads them tonight)\n' + lines.join('\n') : '', ...problems]
+  .filter(Boolean).join('\n\n');
+return [{ json: { feedback, videos, rows, text: esc(text.slice(0, 3900)) } }];
+"""
+
+
+def api(wf, name, method, url, cred, pos, query=None, json_query=None, json_body=None, **extra):
+    """One call to the YouTube or Instagram API with the credential the owner made in n8n.
+    An API error does not stop the workflow: the answer (or the error) goes on to the next Code node,
+    which writes the reason into the table and tells the owner."""
+    params = {"method": method, "url": url, "authentication": "predefinedCredentialType", "nodeCredentialType": cred}
+    if query:
+        params.update(sendQuery=True, queryParameters={"parameters": [{"name": k, "value": v} for k, v in query]})
+    if json_query:
+        params.update(sendQuery=True, specifyQuery="json", jsonQuery=json_query)
+    if json_body:
+        params.update(sendBody=True, specifyBody="json", jsonBody=json_body)
+    params["options"] = {"response": {"response": {"neverError": True}}}
+    return wf.add(name, "n8n-nodes-base.httpRequest", 4.2, params, pos, onError="continueRegularOutput", **extra)
+
+
+YOUTUBE = "youTubeOAuth2Api"    # n8n credential "YouTube (Pivendo)"
+INSTAGRAM = "facebookGraphApi"  # n8n credential "Instagram (Pivendo)": a Meta system-user token that never expires
+
+
+def build_social():
+    wf = Workflow("08 · Social publisher")
+    wf.add("Every 10 minutes", "n8n-nodes-base.scheduleTrigger", 1.2,
+           {"rule": {"interval": [{"field": "cronExpression", "expression": "*/10 * * * *"}]}}, [0, 0])
+    wf.add("Every evening 21:00", "n8n-nodes-base.scheduleTrigger", 1.2,
+           {"rule": {"interval": [{"field": "cronExpression", "expression": "0 21 * * *"}]}}, [0, 200])
+    settings(wf, [
+        ("telegram_chat_id", "PASTE_YOUR_TELEGRAM_CHAT_ID"),
+        ("ig_user_id", "PASTE_YOUR_INSTAGRAM_ACCOUNT_ID"),
+        ("ig_token_expires", "never"),
+        ("graph_api", "https://graph.facebook.com/v25.0"),
+        ("max_late_hours", 12),
+        ("stuck_minutes", 30),
+        ("stats_after_hours", 48),
+        ("time_zone", "Europe/Berlin"),
+    ], [220, 100])
+    table_get(wf, "Load posts", "social_posts", [440, 100])
+    if_true(wf, "Daily run?", "={{ $('Every evening 21:00').isExecuted }}", [660, 100])
+    wf.chain("Every 10 minutes", "⚙️ Settings", "Load posts", "Daily run?")
+    wf.connect("Every evening 21:00", "⚙️ Settings")
+
+    # ---- every 10 minutes: mark first, then call the platforms
+    code(wf, "Plan this run", PLAN_RUN_JS, [880, 300])
+    code(wf, "Mark rows", "return $input.first().json.rows.map(r => ({ json: r }));", [1100, 300])
+    table_insert(wf, "Save marks", "social_posts", [1320, 300])
+    code(wf, "Alerts", "return $('Plan this run').first().json.alerts.map(text => ({ json: { text } }));", [1540, 160])
+    # A Telegram message that cannot be sent must never stop the posting branches that come after it, so every
+    # Telegram node in this workflow continues on error. "Save marks" is the opposite on purpose: no error setting,
+    # so if the marks cannot be saved the run stops and nothing is sent to YouTube or Instagram.
+    telegram(wf, "Send alerts", "={{ $json.text }}", [1760, 160], html=True, onError="continueRegularOutput")
+    wf.connect("Daily run?", "Plan this run", out=1)
+    wf.chain("Plan this run", "Mark rows", "Save marks", "Alerts", "Send alerts")
+
+    # YouTube: the built-in node uploads the file as a private video with a publish time ("not made for kids").
+    # It cannot set the AI declaration, so that is one more API call with the same credential.
+    code(wf, "YouTube job", "const j = $('Plan this run').first().json.yt;\nreturn j ? [{ json: j }] : [];", [1540, 400])
+    wf.add("Download video", "n8n-nodes-base.httpRequest", 4.2, {
+        "url": "={{ $json.video_url }}",
+        "options": {"response": {"response": {"responseFormat": "file"}}, "timeout": 300000},
+    }, [1760, 400], onError="continueRegularOutput")
+    wf.add("YouTube: upload", "n8n-nodes-base.youTube", 1, {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('YouTube job').first().json.title }}",
+        "regionCode": "US",
+        "categoryId": "22",
+        "binaryProperty": "data",
+        "options": {
+            "description": "={{ $('YouTube job').first().json.description }}",
+            "privacyStatus": "private",
+            "publishAt": "={{ $('YouTube job').first().json.publish_at }}",
+            "selfDeclaredMadeForKids": False,
+            "notifySubscribers": True,
+        },
+    }, [1980, 400], onError="continueRegularOutput")
+    code(wf, "YouTube uploaded?", YT_UPLOADED_JS, [2200, 400])
+    if_true(wf, "Declare AI content?", "={{ $json.declare }}", [2420, 400])
+    api(wf, "YouTube: declare AI content", "PUT", "https://www.googleapis.com/youtube/v3/videos", YOUTUBE, [2640, 340],
+        query=[("part", "status")], json_body="={{ JSON.stringify($('YouTube uploaded?').first().json.update) }}")
+    code(wf, "YouTube result", YT_RESULT_JS, [2860, 400])
+    code(wf, "YouTube row", "return [{ json: $input.first().json.row }];", [3080, 400])
+    table_insert(wf, "Save YouTube result", "social_posts", [3300, 400])
+    telegram(wf, "Tell owner (YouTube)", "={{ $('YouTube result').first().json.text }}", [3520, 400], html=True,
+             onError="continueRegularOutput")
+    wf.connect("Save marks", "YouTube job")
+    wf.chain("YouTube job", "Download video", "YouTube: upload", "YouTube uploaded?", "Declare AI content?",
+             "YouTube: declare AI content", "YouTube result", "YouTube row", "Save YouTube result", "Tell owner (YouTube)")
+    wf.connect("Declare AI content?", "YouTube result", out=1)
+
+    # Instagram: container (Meta fetches the video from its public link) -> wait until it is ready -> publish
+    job = "$('Instagram job').first().json"
+    code(wf, "Instagram job", "const j = $('Plan this run').first().json.ig;\nreturn j ? [{ json: j }] : [];", [1540, 700])
+    api(wf, "Instagram: create container", "POST", "={{ $json.create_url }}", INSTAGRAM, [1760, 700],
+        json_query="={{ JSON.stringify($json.query) }}")
+    if_true(wf, "Container created?", "={{ !!$json.id }}", [1980, 700])
+    wait(wf, "Wait 30s", 30, [2200, 640])
+    api(wf, "Instagram: check container", "GET",
+        "={{ %s.graph }}/{{ $('Instagram: create container').first().json.id }}" % job, INSTAGRAM, [2420, 640],
+        query=[("fields", "status_code,status")])
+    code(wf, "Container status", CONTAINER_STATUS_JS, [2640, 640])
+    switch(wf, "Container ready?", "state", ["done", "wait", "error"], [2860, 640])
+    # The last look before the Reel goes out: the post is read from the table again, because the owner may have
+    # tapped Reject while Instagram was converting the video (this loop can take up to 10 minutes).
+    table_get(wf, "Reload post (Instagram)", "social_posts", [3080, 580])
+    code(wf, "Check post again (Instagram)", IG_RECHECK_JS, [3300, 580])
+    if_true(wf, "Still approved? (Instagram)", "={{ $json.ok }}", [3520, 580])
+    api(wf, "Instagram: publish", "POST", "={{ %s.publish_url }}" % job, INSTAGRAM, [3740, 520],
+        query=[("creation_id", "={{ $('Instagram: create container').first().json.id }}")])
+    api(wf, "Instagram: get link", "GET", "={{ %s.graph }}/{{ $json.id }}" % job, INSTAGRAM, [3960, 520],
+        query=[("fields", "permalink")])
+    code(wf, "Instagram result", IG_RESULT_JS, [4180, 700])
+    code(wf, "Instagram row", "return [{ json: $input.first().json.row }];", [4400, 700])
+    table_insert(wf, "Save Instagram result", "social_posts", [4620, 700])
+    telegram(wf, "Tell owner (Instagram)", "={{ $('Instagram result').first().json.text }}", [4840, 700], html=True,
+             onError="continueRegularOutput")
+    wf.connect("Save marks", "Instagram job")
+    wf.chain("Instagram job", "Instagram: create container", "Container created?", "Wait 30s",
+             "Instagram: check container", "Container status", "Container ready?",
+             "Reload post (Instagram)", "Check post again (Instagram)", "Still approved? (Instagram)",
+             "Instagram: publish", "Instagram: get link", "Instagram result", "Instagram row",
+             "Save Instagram result", "Tell owner (Instagram)")
+    wf.connect("Still approved? (Instagram)", "Instagram result", out=1)
+    wf.connect("Container created?", "Instagram result", out=1)
+    wf.connect("Container ready?", "Wait 30s", out=1)
+    wf.connect("Container ready?", "Instagram result", out=2)
+
+    # ---- every evening at 21:00, half an hour before the Coach: numbers after 48 hours + login check
+    table_get(wf, "Load feedback", "feedback", [880, -300])
+    code(wf, "Plan daily run", PLAN_DAILY_JS, [1100, -300])
+    api(wf, "YouTube: read stats", "GET", "={{ $json.yt_call.url }}", YOUTUBE, [1320, -300],
+        json_query="={{ JSON.stringify($json.yt_call.query) }}")
+    code(wf, "Instagram calls", IG_CALLS_JS, [1540, -300])
+    api(wf, "Instagram: read stats", "GET", "={{ $json.url }}", INSTAGRAM, [1760, -300],
+        json_query="={{ JSON.stringify($json.query) }}")
+    code(wf, "Build stats", STATS_JS, [1980, -300])
+    code(wf, "Feedback rows", "return $input.first().json.feedback.map(r => ({ json: r }));", [2200, -480])
+    table_insert(wf, "Save stats as feedback", "feedback", [2420, -480])
+    code(wf, "Video rows", "return $input.first().json.videos.map(r => ({ json: r }));", [2200, -360])
+    table_insert(wf, "Save posts as videos", "content", [2420, -360])
+    code(wf, "Stats done rows", "return $input.first().json.rows.map(r => ({ json: r }));", [2200, -240])
+    table_insert(wf, "Mark stats done", "social_posts", [2420, -240])
+    code(wf, "Daily summary", "const t = $input.first().json.text;\nreturn t ? [{ json: { text: t } }] : [];", [2200, -120])
+    telegram(wf, "Send daily summary", "={{ $json.text }}", [2420, -120], html=True, onError="continueRegularOutput")
+    wf.connect("Daily run?", "Load feedback", out=0)
+    wf.chain("Load feedback", "Plan daily run", "YouTube: read stats", "Instagram calls", "Instagram: read stats", "Build stats")
+    for rows_node, save_node in [("Feedback rows", "Save stats as feedback"), ("Video rows", "Save posts as videos"),
+                                 ("Stats done rows", "Mark stats done"), ("Daily summary", "Send daily summary")]:
+        wf.connect("Build stats", rows_node)
+        wf.connect(rows_node, save_node)
+    wf.save("08-social-publisher.json")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     build_error_alerts()
@@ -1784,3 +2754,4 @@ if __name__ == "__main__":
     build_coach()
     build_support()
     build_autopay()
+    build_social()

@@ -9,8 +9,9 @@
     - creates your n8n owner account (or logs in)
     - checks and saves your keys as n8n credentials (typed here, never written to disk)
     - finds your Telegram chat ID
-    - creates the 9 Data Tables and loads the starting playbook rules
-    - imports the 8 workflows, fills their Settings, attaches the credentials, switches them on
+    - creates the 10 Data Tables and loads the starting playbook rules
+    - imports the 9 workflows, fills their Settings, attaches the credentials, switches them on
+      (08 - Social publisher - is only imported once you made its two logins, see SOCIAL-SETUP.md)
   At the end it prints the few things left to click by hand.
 
   Safe to run again: anything already done is skipped. Run it again after restarting the PC,
@@ -18,6 +19,10 @@
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\dropshipping\setup.ps1
+
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File .\dropshipping\setup.ps1 -SkipInstall -ReplaceWorkflows -OnlyWorkflows 02,08
+  (loads the new versions of workflows 02 and 08; every other workflow and its Settings stay as they are)
 #>
 [CmdletBinding()]
 param(
@@ -26,6 +31,7 @@ param(
     [switch]$SkipInstall,             # don't install / start Docker, cloudflared or n8n
     [switch]$SkipKeyChecks,           # don't test the keys against Claude, Telegram and CJ
     [switch]$ReplaceWorkflows,        # re-import workflows that already exist (your edits are lost)
+    [string[]]$OnlyWorkflows = @(),   # with -ReplaceWorkflows: only these workflow numbers, e.g. 02 or 02,08 (all others keep their Settings)
     [string]$OwnerEmail = '', [string]$OwnerPassword = '',
     [string]$ClaudeKey = '', [string]$TelegramToken = '', [string]$TelegramChatId = '',
     [string]$CjKey = '', [string]$Json2VideoKey = '',     # 'skip' = leave out for now
@@ -396,7 +402,15 @@ function Ensure-Credentials($state) {
         Ok "$($d.name): saved"
     }
     if ($keys.email) { Set-Prop $state 'support_email' $keys.email }
-    return @{ ids = $ids; telegram = $keys.telegram; empty = $empty }
+
+    # The two social logins are never typed here: you make them by hand in n8n (SOCIAL-SETUP.md), because
+    # YouTube needs a "Sign in with Google" in the browser. If they exist, they are attached to workflow 08.
+    $missingSocial = @()
+    foreach ($d in @(@{ name = 'YouTube (Pivendo)'; type = 'youTubeOAuth2Api' }, @{ name = 'Instagram (Pivendo)'; type = 'facebookGraphApi' })) {
+        if ($have.ContainsKey($d.name)) { $ids[$d.type] = @{ id = $have[$d.name].id; name = $d.name }; Ok "$($d.name): found" }
+        else { $missingSocial += $d.name }
+    }
+    return @{ ids = $ids; telegram = $keys.telegram; empty = $empty; missingSocial = $missingSocial }
 }
 
 function Find-ChatId($state, $telegramToken) {
@@ -426,11 +440,11 @@ $Tables = [ordered]@{
     playbook = @('version'); products = @('cj_cost', 'ship_cost', 'sell_price', 'profit_per_order', 'score'); content = @()
     feedback = @('views', 'clicks', 'sales'); orders = @('revenue'); clips = @(); support = @('confidence')
     reports = @('orders_today', 'revenue_today', 'orders_7d', 'revenue_7d', 'cj_cost_7d', 'est_profit_7d')
-    payments = @('amount', 'revenue', 'profit')
+    payments = @('amount', 'revenue', 'profit'); social_posts = @()
 }
 
 function Ensure-Tables {
-    Step 'Agent memory (9 Data Tables)'
+    Step 'Agent memory (10 Data Tables)'
     $projectId = (N8n 'GET' '/rest/projects/personal').id
     $existing = @{}
     foreach ($t in (AsList (N8n 'GET' "/rest/projects/$projectId/data-tables"))) { $existing[$t.name] = $t.id }
@@ -461,6 +475,7 @@ $CredentialFor = @{
     '@n8n/n8n-nodes-langchain.lmChatAnthropic' = 'anthropicApi'
     'n8n-nodes-base.telegram' = 'telegramApi'; 'n8n-nodes-base.telegramTrigger' = 'telegramApi'
     'n8n-nodes-base.emailReadImap' = 'imap'; 'n8n-nodes-base.emailSend' = 'smtp'
+    'n8n-nodes-base.youTube' = 'youTubeOAuth2Api'
 }
 
 function Prepare-Workflow($wf, $answers, $chatId, $credIds, $errorWorkflowId, $state) {
@@ -478,7 +493,11 @@ function Prepare-Workflow($wf, $answers, $chatId, $credIds, $errorWorkflowId, $s
             }
         }
         $credType = $CredentialFor[$node.type]
-        if ($node.type -eq 'n8n-nodes-base.httpRequest') { $credType = Get-Prop $node.parameters 'genericAuthType' $null }
+        if ($node.type -eq 'n8n-nodes-base.httpRequest') {
+            # generic credentials (CJ, JSON2Video) or one of n8n's own credential types (YouTube, Instagram in 08)
+            $credType = Get-Prop $node.parameters 'genericAuthType' $null
+            if (-not $credType) { $credType = Get-Prop $node.parameters 'nodeCredentialType' $null }
+        }
         if ($credType -and $credIds.ContainsKey($credType)) {
             Set-Prop $node 'credentials' ([pscustomobject]@{ $credType = [pscustomobject]$credIds[$credType] })
         }
@@ -495,8 +514,112 @@ function Prepare-Workflow($wf, $answers, $chatId, $credIds, $errorWorkflowId, $s
     return [ordered]@{ name = $wf.name; nodes = $wf.nodes; connections = $wf.connections; settings = $wf.settings }
 }
 
-function Ensure-Workflows($answers, $chatId, $credIds, $state) {
-    Step 'Importing the 8 workflows'
+# PowerShell 5.1 turns an unquoted  -OnlyWorkflows 02,08  into the numbers 2 and 8 (the leading zero is lost), and
+# powershell -File hands it over as the one text "02,08" (from cmd.exe even with its quote marks). All of these work:
+# quote marks are dropped, every element is split on commas, semicolons and spaces, and each number is padded to
+# two digits (2 = 02) to match the file names 02-..., 08-...
+# A number that matches no workflow file stops the script before anything is touched.
+function Get-OnlyWorkflows {
+    $numbers = @()
+    foreach ($item in @($OnlyWorkflows)) {
+        foreach ($token in @(("$item" -replace '[''"]', '') -split '[,;\s]+' | Where-Object { $_ })) {
+            if ($token -notmatch '^\d+$') { Fail "-OnlyWorkflows takes workflow numbers like 02 or 02,08, but '$token' is not a number." }
+            $numbers += ('{0:D2}' -f [int]$token)
+        }
+    }
+    $numbers = @($numbers | Select-Object -Unique)
+    if ($numbers.Count -gt 0) {
+        $names = @(Get-ChildItem (Join-Path $Root 'n8n-workflows') -Filter '*.json' | ForEach-Object { $_.Name })
+        foreach ($n in $numbers) {
+            if (@($names | Where-Object { $_ -like "$n-*" }).Count -eq 0) {
+                Fail ("-OnlyWorkflows $n matches no workflow: no file in n8n-workflows starts with '$n-'. " +
+                      "The workflow numbers are: $(@($names | ForEach-Object { $_.Substring(0, 2) }) -join ', ').")
+            }
+        }
+    }
+    return $numbers
+}
+
+# Archive is n8n's own "put away": nothing is deleted, and it can be restored from the workflow list.
+# Only ever used on a copy that is already switched off. It does NOT switch anything off first, on purpose: the old and
+# the new copy of workflow 02 share one Telegram webhook address, and switching a copy off makes n8n remove that webhook
+# at Telegram, which would cut the bot off from the copy that is on.
+# Returns $true when it worked; otherwise it says so and returns $false.
+function Archive-Workflow($id, $what) {
+    try { N8n 'POST' "/rest/workflows/$id/archive" @{} | Out-Null; return $true }
+    catch {
+        Warn "${what} could not be archived ($($_.Exception.Message)). Archive it by hand in n8n (the workflow's menu -> Archive) so only one copy is left."
+        return $false
+    }
+}
+
+# The new copy is in place; now the old copy is put away. If that fails, the new copy still works, but two copies are listed.
+function Retire-OldWorkflow($old) {
+    if (Archive-Workflow $old.id "$($old.name): the old copy") { Ok "$($old.name): replaced (the old copy is archived)" }
+    else {
+        Ok "$($old.name): replaced"
+        $script:ReplaceProblems += "$($old.name): replaced and working, but the old copy is still in the list, switched off. Archive it by hand in n8n so only one copy is left."
+    }
+}
+
+# The new copy failed, so it is put away (it never got switched on, so it is off). If that fails, say so: the old copy
+# still works, but two copies are listed.
+function Discard-NewWorkflow($created, $name) {
+    if (-not (Archive-Workflow $created.id "${name}: the new copy")) {
+        $script:ReplaceProblems += "${name}: the failed new copy is still in the list, switched off. Archive it by hand in n8n so only one copy is left."
+    }
+}
+
+# Replaces a workflow that already exists, so that you are never left with nothing that works. Two copies must never
+# be on together (two Telegram triggers fight over the bot's single webhook, two schedules would run twice), so:
+#   import the new copy (it starts off) -> switch the old copy off -> switch the new copy on -> only then archive the old one.
+# If anything fails on the way, the old copy is switched back on and kept, and the new copy is put away.
+# Returns the id of the workflow that is now in place.
+function Replace-Workflow($old, $body) {
+    $name = $old.name
+    try { $created = N8n 'POST' '/rest/workflows' $body }
+    catch {
+        $why = $_.Exception.Message
+        Warn "${name}: the new copy could not be imported ($why). Nothing was changed: the old copy was not touched."
+        $script:ReplaceProblems += "${name}: NOT replaced (the import failed). The old copy was not touched."
+        return $old.id
+    }
+    if (-not $old.active) {
+        # The old copy is off, so nothing is running that could be lost. Activate-Workflows switches the new copy on.
+        Retire-OldWorkflow $old
+        return $created.id
+    }
+    try { N8n 'POST' "/rest/workflows/$($old.id)/deactivate" @{} | Out-Null }
+    catch {
+        $why = $_.Exception.Message
+        Warn "${name}: the old copy could not be switched off ($why), so the new copy stays off. The old copy is unchanged and keeps working."
+        $script:ReplaceProblems += "${name}: NOT replaced (the old copy could not be switched off). The old copy is unchanged and still on."
+        Discard-NewWorkflow $created $name
+        return $old.id
+    }
+    try {
+        $fresh = N8n 'GET' "/rest/workflows/$($created.id)"
+        N8n 'POST' "/rest/workflows/$($created.id)/activate" @{ versionId = $fresh.versionId } | Out-Null
+    } catch {
+        $why = $_.Exception.Message
+        try {
+            $again = N8n 'GET' "/rest/workflows/$($old.id)"
+            N8n 'POST' "/rest/workflows/$($old.id)/activate" @{ versionId = $again.versionId } | Out-Null
+            Warn "${name}: the new copy could not be switched on ($why). The OLD copy is on again and keeps working."
+            $script:ReplaceProblems += "${name}: NOT replaced (the new copy would not switch on: $why). The old copy is on again and keeps working."
+        } catch {
+            Warn "${name}: the new copy could not be switched on ($why), and the old copy could not be switched back on ($($_.Exception.Message)). In n8n, open the workflow '${name}' (the one that is not archived) and switch it on by hand."
+            $script:ReplaceProblems += "${name}: NOT replaced, and it is OFF right now: the new copy would not switch on ($why) and the old copy would not switch back on. Switch it on by hand in n8n."
+        }
+        Discard-NewWorkflow $created $name
+        return $old.id
+    }
+    Retire-OldWorkflow $old
+    return $created.id
+}
+
+function Ensure-Workflows($answers, $chatId, $credIds, $state, $missingSocial) {
+    Step 'Importing the 9 workflows'
     $existing = @{}
     foreach ($w in (AsList (N8n 'GET' '/rest/workflows'))) { $existing[$w.name] = $w }
     $files = Get-ChildItem (Join-Path $Root 'n8n-workflows') -Filter '*.json' | Sort-Object Name
@@ -505,18 +628,25 @@ function Ensure-Workflows($answers, $chatId, $credIds, $state) {
     foreach ($f in $files) {
         $wf = Get-Content $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
         $old = $existing[$wf.name]
-        if ($old -and -not $ReplaceWorkflows) {
+        # -OnlyWorkflows 02,08 limits -ReplaceWorkflows to those files, so the Settings of all others stay as they are
+        $replace = [bool]$ReplaceWorkflows
+        if ($replace -and $OnlyList.Count -gt 0) { $replace = ($OnlyList -contains $f.Name.Substring(0, 2)) }
+        if ($f.Name -like '08-*' -and -not $old -and $missingSocial -and @($missingSocial).Count -gt 0) {
+            # Imported later, together with its logins, so its nodes never sit there without a credential
+            Warn "$($wf.name): not imported yet. First make these logins in n8n (SOCIAL-SETUP.md): $(@($missingSocial) -join ', '). Then run this script again."
+            continue
+        }
+        if ($old -and -not $replace) {
             Ok "$($wf.name): already imported"
             $result[$wf.name] = $old.id
         } else {
-            if ($old) {
-                if ($old.active) { N8n 'POST' "/rest/workflows/$($old.id)/deactivate" @{} | Out-Null }
-                N8n 'POST' "/rest/workflows/$($old.id)/archive" @{} | Out-Null
-            }
             $body = Prepare-Workflow $wf $answers $chatId $credIds $errorId $state
-            $created = N8n 'POST' '/rest/workflows' $body
-            $result[$wf.name] = $created.id
-            Ok "$($wf.name): imported"
+            if ($old) { $result[$wf.name] = Replace-Workflow $old $body }
+            else {
+                $created = N8n 'POST' '/rest/workflows' $body
+                $result[$wf.name] = $created.id
+                Ok "$($wf.name): imported"
+            }
         }
         if ($f.Name -like '00-*') { $errorId = $result[$wf.name] }
     }
@@ -549,6 +679,14 @@ function Activate-Workflows($workflowIds, $emptyTypes) {
 Write-Host ''
 Write-Host '  Dropshipping agents - setup' -ForegroundColor Cyan
 Write-Host '  Your keys are typed here and stored encrypted inside n8n on this PC. Nothing is sent to Claude chat.'
+
+# Checked first, before anything is installed, asked or changed: a wrong workflow number stops the script right here.
+$OnlyList = @(Get-OnlyWorkflows)
+if ($OnlyList.Count -gt 0 -and -not $ReplaceWorkflows) {
+    Fail ('-OnlyWorkflows limits what -ReplaceWorkflows re-imports, so it needs -ReplaceWorkflows too. Without it nothing would be loaded. ' +
+          "Run it like this: setup.ps1 -SkipInstall -ReplaceWorkflows -OnlyWorkflows $($OnlyList -join ',')")
+}
+$script:ReplaceProblems = @()
 
 $state = Load-State
 $answers = Collect-Answers $state
@@ -584,7 +722,7 @@ $chatId = Find-ChatId $state $creds.telegram
 Set-Prop $state 'telegram_chat_id' $chatId
 Save-State $state
 Ensure-Tables
-$workflowIds = Ensure-Workflows $answers $chatId $creds.ids $state
+$workflowIds = Ensure-Workflows $answers $chatId $creds.ids $state $creds.missingSocial
 Save-State $state
 $failed = Activate-Workflows $workflowIds $creds.empty
 if ($creds.telegram -and -not $SkipKeyChecks) {
@@ -616,6 +754,13 @@ Write-Host '  2. Finish Shopify Payments verification and set your store contact
 Write-Host '  3. Auto-pay stays OFF. When your CJ wallet has money (Payoneer), open workflow'
 Write-Host '     "07 - CJ auto-pay" in n8n -> Settings node -> set auto_pay to yes.'
 Write-Host '  4. Send /help to your bot to see the commands. Research arrives every morning at 07:00.'
+Write-Host '  5. Videos: /queue sends a finished video to your approval. To let the bot post on YouTube and'
+Write-Host '     Instagram by itself, follow SOCIAL-SETUP.md (until then you get a to-do list for each post).'
+if ($script:ReplaceProblems.Count -gt 0) {
+    Write-Host ''
+    Write-Host '  Not replaced (see the [!] lines above for the reason):' -ForegroundColor Yellow
+    foreach ($problem in $script:ReplaceProblems) { Write-Host "  - $problem" -ForegroundColor Yellow }
+}
 if ($failed.Count -gt 0) {
     Write-Host ''
     Write-Host "  Not switched on yet: $($failed -join ', ')" -ForegroundColor Yellow

@@ -40,7 +40,7 @@
    - support Gmail address + App password
 4. **Sets up n8n through its REST API:**
    - creates the owner account (or logs in)
-   - creates the 9 Data Tables from `templates/*.csv` and seeds `playbook`
+   - creates the 10 Data Tables from `templates/*.csv` and seeds `playbook`
    - creates the credentials
    - imports `n8n-workflows/*.json` and attaches the credentials to each node
    - sets the error workflow on every workflow

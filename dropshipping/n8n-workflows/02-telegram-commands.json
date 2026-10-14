@@ -4,7 +4,8 @@
     {
       "parameters": {
         "updates": [
-          "message"
+          "message",
+          "callback_query"
         ],
         "additionalFields": {}
       },
@@ -51,6 +52,48 @@
               "name": "email_signature",
               "value": "Best regards,\nThe support team",
               "type": "string"
+            },
+            {
+              "id": "ef7b18fc-8b1f-5dbd-9a3c-e09aed7a867d",
+              "name": "post_times",
+              "value": "12:30,20:30",
+              "type": "string"
+            },
+            {
+              "id": "d2d7e591-06c1-5e4d-a5d5-0a0356afa617",
+              "name": "post_timezone",
+              "value": "America/New_York",
+              "type": "string"
+            },
+            {
+              "id": "1717c3e9-db7f-56df-b143-66fd02971efb",
+              "name": "time_zone",
+              "value": "Europe/Berlin",
+              "type": "string"
+            },
+            {
+              "id": "70f4d79e-cb3b-5faf-b7df-1651850374b2",
+              "name": "min_lead_hours",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "7a0ebf1e-9f64-5c7f-a246-3a19ff53fc5b",
+              "name": "youtube_auto",
+              "value": "no",
+              "type": "string"
+            },
+            {
+              "id": "034ff6c7-4557-5119-b5fb-ee135f2a97d1",
+              "name": "instagram_auto",
+              "value": "no",
+              "type": "string"
+            },
+            {
+              "id": "49c79342-c910-5379-aa6d-3b8c70f5d193",
+              "name": "shop_url",
+              "value": "pivendo.com",
+              "type": "string"
             }
           ]
         },
@@ -67,7 +110,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const s = $('⚙️ Settings').first().json;\nconst msg = $('Telegram message in').first().json.message || {};\nconst chatId = String(msg.chat?.id ?? '');\nconst text = String(msg.text || '').trim();\nconst [first, ...args] = text.split(/\\s+/);\nconst cmd = String(first || '').toLowerCase().replace(/^\\//, '').replace(/@.*$/, '');\n\nif (String(s.telegram_chat_id).startsWith('PASTE')) return [{ json: { route: 'setup', chatId, args, text } }];\nif (chatId !== String(s.telegram_chat_id)) return [];  // ignore everyone except the owner\n\nconst known = ['content', 'video', 'product', 'rules', 'clips', 'render', 'send', 'reply', 'skip'];\nreturn [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text } }];\n"
+        "jsCode": "const s = $('⚙️ Settings').first().json;\nconst update = $('Telegram message in').first().json;\n// A tap on an inline button arrives as a \"callback query\" instead of a message. Its data, for example\n// \"approve:P1013025812\", is handled exactly like the typed command \"/approve P1013025812\".\nconst tap = update.callback_query;\nconst msg = (tap ? tap.message : update.message) || {};\nconst chatId = String(msg.chat?.id ?? tap?.from?.id ?? '');\nconst text = tap ? '/' + String(tap.data || '').replace(':', ' ') : String(msg.text || '').trim();\nconst [first, ...args] = text.split(/\\s+/);\nconst cmd = String(first || '').toLowerCase().replace(/^\\//, '').replace(/@.*$/, '');\n\nif (String(s.telegram_chat_id).startsWith('PASTE')) return [{ json: { route: 'setup', chatId, args, text } }];\nif (chatId !== String(s.telegram_chat_id)) return [];  // ignore everyone except the owner\n\nconst known = ['content', 'video', 'product', 'rules', 'clips', 'render', 'send', 'reply', 'skip',\n               'queue', 'approve', 'reject', 'posts', 'tiktok', 'youtube', 'instagram', 'retry'];\nreturn [{ json: { route: known.includes(cmd) ? cmd : 'help', chatId, args, text, tapId: tap ? String(tap.id || '') : '' } }];\n"
       },
       "id": "a9e73da6-ae29-5fa5-8b0e-780ae08b2f27",
       "name": "Parse command",
@@ -345,6 +388,198 @@
               },
               "renameOutput": true,
               "outputKey": "skip"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4326be7a-aabf-5f57-808b-d218b1e1ceb7",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "queue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "queue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f35a5055-7f3f-5427-b088-4ed98f6b5de4",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "approve"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c045d97b-b3f0-5f97-80c4-e256d7af62e6",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "091fbb50-57b5-5c2a-8f42-88de23ff8eb1",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "posts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "posts"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "28df784c-af25-59c8-bcd2-83e6b058c50e",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "tiktok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tiktok"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c90379dd-8a8b-5fb2-aae6-ab68b33b828f",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "youtube",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "youtube"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d491b3c9-09c2-5efd-92f5-eeb292119964",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "instagram"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4a7033c1-06f0-5990-a3ec-f7d7d608ce16",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "retry",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "retry"
             }
           ]
         },
@@ -499,7 +734,7 @@
         "promptType": "define",
         "text": "={{ $json.prompt }}",
         "options": {
-          "systemMessage": "You are the Content agent of a one-person dropshipping store. You write (1) the product page copy and (2) short vertical video scripts (15-30 seconds) for TikTok, Instagram Reels and YouTube Shorts.\n\nThe owner films every video with their own phone and a real product sample, hands-only (no face needed). So every shot must be something a person can film at home in a few minutes.\n\nWhat works:\n- The first 1-2 seconds show the problem or the finished result, never a logo or \"hey guys\".\n- One idea per video. Short on-screen text. The voiceover sounds like a real person, not an ad.\n- Different formats: problem -> fix, before/after, \"3 ways to use it\", durability test, reply to a comment, \"things I wish I bought sooner\".\n\nHonesty rules you must never break:\n- No invented reviews, testimonials, ratings, \"sold out\" claims, fake discounts or countdowns.\n- Never promise delivery faster than the shipping time you are given.\n- No health, medical or safety claims, no competitor brand names.\n- Never pretend to be a customer; the videos come from the store.\n\nFollow the PLAYBOOK rules exactly; they were learned from this store's own results. Copy the patterns of the videos that WORKED and avoid the ones that FLOPPED. Reply with only the JSON the user asks for.",
+          "systemMessage": "You are the Content agent of a one-person dropshipping store. You write (1) the product page copy and (2) short vertical video scripts (15-30 seconds) for TikTok, Instagram Reels and YouTube Shorts.\n\nThe owner films every video with their own phone and a real product sample, hands-only (no face needed). So every shot must be something a person can film at home in a few minutes.\n\nWhat works:\n- The first 1-2 seconds show the problem or the finished result, never a logo or \"hey guys\".\n- One idea per video. Short on-screen text. The voiceover sounds like a real person, not an ad.\n- Different formats: problem -> fix, before/after, \"3 ways to use it\", durability test, reply to a comment, \"things I wish I bought sooner\".\n\nHonesty rules you must never break:\n- No invented reviews, testimonials, ratings, \"sold out\" claims, fake discounts or countdowns.\n- Never promise delivery faster than the shipping time you are given.\n- No health, medical or safety claims, no competitor brand names.\n- Never pretend to be a customer; the videos come from the store.\n\nMusic: the owner chooses the music of every video himself. Never name, suggest or pick a song, a sound, an artist or \"a trending sound\" - not in a script, a caption or a voiceover.\n\nFollow the PLAYBOOK rules exactly; they were learned from this store's own results. Copy the patterns of the videos that WORKED and avoid the ones that FLOPPED. Reply with only the JSON the user asks for.",
           "maxIterations": 3
         }
       },
@@ -810,7 +1045,7 @@
     {
       "parameters": {
         "chatId": "={{ $('Parse command').first().json.chatId }}",
-        "text": "🤖 Commands\n/content SKU - product page copy + 5 video scripts\n/clips SKU link1 link2 link3 - save your own phone clips (Google Drive/Dropbox links)\n/render ID - turn a script + your clips into a finished MP4\n/video ID views clicks sales - report how a video did\n/product SKU testing|winner|killed note - report how a product did\n/rules - show what the agents have learned\n/send T123 - send the support agent's draft reply\n/reply T123 your text - send your own reply instead (the agent learns from it)\n/skip T123 - close a support email without replying\n\nResearch arrives every morning, the report every evening.",
+        "text": "🤖 Commands\n/content SKU - product page copy + 5 video scripts\n/clips SKU link1 link2 link3 - save your own phone clips (Google Drive/Dropbox links)\n/render ID - turn a script + your clips into a finished MP4\n/video ID views clicks sales - report how a video did\n/product SKU testing|winner|killed note - report how a product did\n/rules - show what the agents have learned\n/send T123 - send the support agent's draft reply\n/reply T123 your text - send your own reply instead (the agent learns from it)\n/skip T123 - close a support email without replying\n/queue LINK SKU ai - queue a finished video for TikTok, Instagram and YouTube (leave out \"ai\" if no AI is in it)\n/posts - show waiting, coming and last posts\n/tiktok P123 done - tell the bot you scheduled a post on TikTok yourself\n/retry P123 - try again after the bot said a post failed\n\nResearch arrives every morning, the report every evening.",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -1625,6 +1860,629 @@
         1540,
         2020
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ccea2543-17e9-539e-a582-06f4e8a39967",
+              "leftValue": "={{ !!$json.tapId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "544fc958-7003-5e2e-9300-d2b1f3d4f8d3",
+      "name": "Button tap?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.tapId }}",
+        "additionalFields": {
+          "text": "OK, one moment…"
+        }
+      },
+      "id": "909a4a84-1f28-5194-9c3d-3169a5eda5d4",
+      "name": "Answer button tap",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "products"
+        },
+        "returnAll": true
+      },
+      "id": "cec37fa4-c2a0-5425-a3a6-ea866f683588",
+      "name": "Load products (post)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        2200
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "playbook"
+        },
+        "returnAll": true
+      },
+      "id": "5b4efa69-f645-5bb8-a4df-7f290f29794c",
+      "name": "Load playbook (post)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        2200
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "content"
+        },
+        "returnAll": true
+      },
+      "id": "4fe5278e-b4e8-56cf-b1e2-3d943c1ada5e",
+      "name": "Load videos (post)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        2200
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "feedback"
+        },
+        "returnAll": true
+      },
+      "id": "686bc12b-4c79-5a08-badf-1481f69ab9d5",
+      "name": "Load stats (post)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        2200
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "social_posts"
+        },
+        "returnAll": true
+      },
+      "id": "527a1e89-8e1e-5735-8473-869bd1a230fc",
+      "name": "Load posts (queue)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        2200
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst POST_COLS = ['day', 'at', 'post_id', 'sku', 'product', 'video', 'video_url', 'ai', 'status', 'post_at', 'slot',\n  'caption_tiktok', 'caption_instagram', 'yt_title', 'yt_description', 'yt_status', 'yt_video_id',\n  'ig_status', 'ig_media_id', 'tiktok_status', 'stats_done', 'note', 'rules_version'];\nfunction postRow(post_id, changes) {\n  const row = Object.fromEntries(POST_COLS.map(c => [c, '']));\n  return { ...row, day: $now.toFormat('yyyy-MM-dd'), at: $now.toUTC().toISO(), post_id, ...changes };\n}\nfunction foldPosts(rows) {\n  const posts = {};\n  for (const r of [...rows].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))) {\n    if (!r || !r.post_id) continue;\n    const p = posts[r.post_id] = posts[r.post_id] || {};\n    for (const c of POST_COLS) if (r[c] !== undefined && r[c] !== null && r[c] !== '') p[c] = r[c];\n    if (r.yt_status) p.yt_since = r.at;   // when each platform last changed, to spot a post that got stuck half-way\n    if (r.ig_status) p.ig_since = r.at;\n  }\n  return Object.values(posts);\n}\nconst esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');   // Telegram HTML mode\nconst ms = iso => DateTime.fromISO(String(iso || '')).toMillis();                                       // NaN when empty\nconst zoneOf = s => { const z = String(s.time_zone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'Europe/Berlin'; };\nconst when = (iso, zone) => DateTime.fromISO(String(iso || ''), { zone, locale: 'en' }).toFormat(\"ccc d LLL 'at' HH:mm\");\nconst shopOf = s => String(s.shop_url || 'pivendo.com').trim().replace(/^https?:\\/\\//i, '').replace(/\\/+$/, '');\n// The owner chooses the music for every video himself, before it is posted, and is reminded every time. The agents\n// never pick or name a song. The bot cannot add a sound to a YouTube or Instagram post (their APIs have no call for\n// it), so for the platforms the bot posts, the music must already be inside the video file.\nfunction musicLine(s) {\n  const bot = [['youtube_auto', 'YouTube'], ['instagram_auto', 'Instagram']].filter(([k]) => String(s[k] || '').trim().toLowerCase() === 'yes').map(x => x[1]);\n  return '🎵 Choose the music first. TikTok: in TikTok Studio tap Sounds, pick one, then Save.'\n    + (bot.length ? ` ${bot.join(' and ')}: the bot posts ${bot.length > 1 ? 'them' : 'it'} and cannot add a sound, so the music must already be inside the video file.` : '');\n}\n// Why an API call failed, in one line. Reads Meta and Google error answers and n8n's own error items.\nconst apiError = j => {\n  const e = j && j.error;\n  if (!e) return '';\n  if (typeof e === 'string') return e.slice(0, 300);\n  return String(e.error_user_msg || e.message || e.description || JSON.stringify(e)).slice(0, 300);\n};\n// Posting slots: post_times are wall-clock times in post_timezone (where the buyers are). The owner is shown\n// every time in his own zone (time_zone). post_at is stored in UTC, so it is one exact moment everywhere.\nconst postZoneOf = s => { const z = String(s.post_timezone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'America/New_York'; };\nfunction postTimes(s) {\n  const list = String(s.post_times || '').split(/[\\s,;]+/).map(t => {\n    const m = t.match(/^(\\d{1,2}):(\\d{2})$/);\n    return m && +m[1] < 24 && +m[2] < 60 ? m[1].padStart(2, '0') + ':' + m[2] : null;\n  }).filter(Boolean);\n  return list.length ? [...new Set(list)].sort() : ['12:30', '20:30'];\n}\n// The next free slot: at most one post per slot, and at least min_lead_hours from now. `taken` holds the\n// moments (in milliseconds) that already have an approved post. Luxon keeps the wall-clock time when the\n// clocks change (the gap to the owner's zone then moves by an hour for a week or two, because the US and\n// Europe change on different days), and moves a time that does not exist that night to the next valid one.\nfunction nextSlot(now, taken, s) {\n  const lead = isNaN(num(s.min_lead_hours)) ? 2 : Math.max(0, num(s.min_lead_hours));\n  const earliest = now.toMillis() + lead * 3600e3;\n  let day = now.setZone(postZoneOf(s)).startOf('day');\n  for (let i = 0; i < 400; i++, day = day.plus({ days: 1 })) {\n    const free = postTimes(s).map(slot => ({ slot, at: day.set({ hour: +slot.slice(0, 2), minute: +slot.slice(3) }) }))\n      .filter(c => c.at.toMillis() >= earliest && !taken.has(c.at.toMillis()))\n      .sort((a, b) => a.at.toMillis() - b.at.toMillis())[0];\n    if (free) return { slot: free.slot, post_at: free.at.toUTC().toISO() };\n  }\n  throw new Error('No free posting slot found in the next 400 days');\n}\n// A posted video also gets a row in the content table. The Coach and the Content agent join video stats\n// (feedback ref \"P...-yt\", \"P...-ig\", \"P...-tt\") with that table, exactly like the stats of a /content script.\n// The format is what both agents see next to the numbers, so it also carries two facts they need:\n// - \"views only\": numbers the bot read itself have no link clicks or sales, a 0 there is not \"no sales\";\n// - \"slot 12:30\": the posting slot, so the Coach can compare lunch against evening and propose a better time.\nconst PLATFORM = { yt: ['youtube-short', 'yt_title'], ig: ['instagram-reel', 'caption_instagram'], tt: ['tiktok', 'caption_tiktok'] };\nfunction contentRow(p, tag, zone, viewsOnly = false) {\n  const [name, field] = PLATFORM[tag];\n  const format = name + (viewsOnly ? ', views only' : '') + (p.slot ? `, slot ${p.slot}` : '');\n  const text = String(p[field] || '');\n  const posted = DateTime.fromISO(String(p.post_at || ''), { zone });\n  return { day: (posted.isValid ? posted : $now).toFormat('yyyy-MM-dd'), content_id: `${p.post_id}-${tag}`,\n    sku: p.sku || '', product: p.product || '', format, hook: text.split('\\n')[0].slice(0, 200), shots: p.video_url || '',\n    on_screen_text: '', voiceover: '', caption: tag === 'yt' ? String(p.yt_description || '') : text, rules_version: p.rules_version || '' };\n}\n\n// /queue, step 1: check the command and build the brief for the Post agent (which product, which rules).\nconst s = $('⚙️ Settings').first().json;\nconst cmd = $('Parse command').first().json;\nconst fail = text => [{ json: { ok: false, reply: esc(text) } }];\nconst [url = '', skuArg = '', ...rest] = cmd.args || [];\n// Instagram and YouTube fetch the file themselves, so it must be a direct, public https link to an .mp4\nconst okUrl = /^https:\\/\\/[^\\s?#]+\\.mp4(\\?\\S*)?$/i.test(url) && /^[\\x21-\\x7e]+$/.test(url) && !/[<>\"']/.test(url);\nif (!okUrl || !skuArg) return fail('Usage: /queue <video link> <SKU> [ai] [what the video shows]\\n'\n  + 'Example: /queue https://cdn.shopify.com/videos/star-lamp-1.mp4 CJ1234567 ai presenter holds the lamp, stars on the wall\\n\\n'\n  + 'The link must start with https:// and end with .mp4, and it must open without logging in.\\n'\n  + 'Add \"ai\" when the video has an AI presenter or an AI voice.');\nconst ai = String(rest[0] || '').toLowerCase() === 'ai';\nconst shows = (ai ? rest.slice(1) : rest).join(' ').slice(0, 300);\nconst key = skuArg.toLowerCase();\nconst product = [...rowsOf('Load products (post)')].reverse().find(p =>\n  String(p.sku).toLowerCase() === key || String(p.pid).toLowerCase() === key);\nif (!product) return fail(`I can't find SKU \"${skuArg}\" in the products table. Use the SKU you used for /content.`);\n// The same video is never queued twice\nconst twin = foldPosts(rowsOf('Load posts (queue)')).find(p => p.video_url === url && p.status !== 'rejected');\nif (twin) return fail(`This video is already in your list as ${twin.post_id}. Send /posts to see it.`);\n\n// Learn from past videos, like the Content agent: scripts and posts joined with their latest stats\nconst stats = {};\nfor (const f of rowsOf('Load stats (post)')) if (f.kind === 'video') stats[f.ref] = f;\nconst measured = rowsOf('Load videos (post)')\n  .filter(c => stats[c.content_id])\n  .map(c => ({ ...c, views: +stats[c.content_id].views || 0, clicks: +stats[c.content_id].clicks || 0, sales: +stats[c.content_id].sales || 0 }))\n  .sort((a, b) => b.views - a.views);\nconst fmt = v => `- \"${v.hook}\" (${v.format}) -> ${v.views} views, ${v.clicks} link clicks, ${v.sales} sales`;\nconst worked = measured.slice(0, 5).map(fmt).join('\\n') || '- no measured videos yet';\nconst flopped = measured.length > 5 ? measured.slice(-3).map(fmt).join('\\n') : '- not enough data yet';\n\nconst rules = activeRules(rowsOf('Load playbook (post)'), ['content']);\nconst prompt = `Write the texts for ONE finished short vertical video. You cannot see it.\n\nVIDEO\nWhat it shows (told by the owner): ${shows || 'not described - keep it general and claim nothing about what happens on screen'}\nPresenter: ${ai ? 'an AI presenter or AI voice made by the store. Never a customer, a buyer or a real person.' : 'no AI. The video comes from the store, not from a customer.'}\n\nPRODUCT\nName: ${product.name}\nWho buys it: ${product.target_buyer}\nVideo idea from research: ${product.angle}\nKnown risks: ${product.risks}\nShop address: ${shopOf(s)}\n\nPLAYBOOK (rules learned from this store's results - follow them):\n${rulesText(rules)}\n\nVIDEOS THAT WORKED (copy these patterns):\n${worked}\n\nVIDEOS THAT FLOPPED (avoid these patterns):\n${flopped}\n\nReply with only this JSON (put hashtags only in the hashtag lists, never inside the texts):\n{\"caption_tiktok\":\"<max 150 characters>\",\"hashtags_tiktok\":[\"<3-5 tags>\"],\n \"caption_instagram\":\"<max 300 characters>\",\"hashtags_instagram\":[\"<3-5 tags>\"],\n \"yt_title\":\"<max 70 characters>\",\"yt_description\":\"<2-4 short sentences>\",\"hashtags_youtube\":[\"<2-3 tags>\"]}`;\n\nreturn [{ json: { ok: true, prompt, url, ai: ai ? 'yes' : 'no', shows, sku: product.sku, product: product.name,\n                  rules_version: rules.map(r => r.rule_id + 'v' + r.version).join(',') } }];\n"
+      },
+      "id": "884f4d26-36a5-59de-8c88-f99a6d145d54",
+      "name": "Build post brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        2200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d9fad4e3-8107-5278-a40d-499018f718f7",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5fd7cd1d-898a-56c4-9661-64a6121e5b7a",
+      "name": "Post brief ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        2200
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "You are the Social Post agent of a one-person online store. You write the texts that go with ONE finished short vertical video: a TikTok caption, an Instagram Reels caption, a YouTube Shorts title and a YouTube description.\n\nYou cannot see the video. You only know the product facts and what the owner says the video shows. Describe only that.\n\nWhat works:\n- The first words name the problem or the result. No \"hey guys\", no brand intro.\n- Short, plain words, like a real person. One idea. End with a soft pointer to the shop.\n- TikTok: one or two short lines. Instagram: two or three short lines. YouTube title: clear and searchable, what the product is and does.\n- Hashtags: a few specific ones per platform (product type, use, room or hobby). No spam tags like #fyp, #viral or #foryou.\n\nHonesty rules you must never break:\n- No reviews, testimonials, ratings, star counts or \"customers say\".\n- No discounts, sales, countdowns, \"limited\", \"last chance\", \"selling fast\" or \"sold out\".\n- No prices and no delivery promises (\"fast shipping\", \"free shipping\", \"arrives in X days\").\n- No health, medical or safety claims, no competitor brand names, no \"best seller\", no \"number one\", no guarantees.\n- The video comes from the store. Never write as a buyer (\"I bought\", \"my order\", \"my review\"). An AI presenter is never a \"customer\", a \"buyer\" or a real person.\n- Do not overclaim what the product does. Say what the footage shows. For lamps and projectors never say \"the whole ceiling\" or \"the whole room\": say \"on the ceiling\" or \"on the wall\", and add \"best in a dark room\".\n\nMusic: the owner chooses the music of every video himself. Never name, suggest or pick a song, a sound, an artist or \"a trending sound\", and never credit music in a text.\n\nFollow the PLAYBOOK rules exactly; they were learned from this store's own results. Copy the patterns of the videos that WORKED and avoid the ones that FLOPPED. Reply with only the JSON the user asks for.",
+          "maxIterations": 3
+        }
+      },
+      "id": "b2b371db-6151-5ab5-8031-ab481940c58a",
+      "name": "Post agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        2420,
+        2100
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-sonnet-5-5"
+        },
+        "options": {
+          "maxTokensToSample": 16000
+        }
+      },
+      "id": "d5e0fc11-eaec-50f1-99a5-4374122399b6",
+      "name": "Claude (Post agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        2420,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nfunction parseAgentJson(nodeName) {\n  const raw = $(nodeName).first().json.output ?? '';\n  const text = typeof raw === 'string' ? raw : JSON.stringify(raw);\n  const m = text.match(/\\{[\\s\\S]*\\}/);\n  if (!m) throw new Error(`${nodeName} did not return JSON: ` + text.slice(0, 300));\n  return JSON.parse(m[0]);\n}\n\nconst POST_COLS = ['day', 'at', 'post_id', 'sku', 'product', 'video', 'video_url', 'ai', 'status', 'post_at', 'slot',\n  'caption_tiktok', 'caption_instagram', 'yt_title', 'yt_description', 'yt_status', 'yt_video_id',\n  'ig_status', 'ig_media_id', 'tiktok_status', 'stats_done', 'note', 'rules_version'];\nfunction postRow(post_id, changes) {\n  const row = Object.fromEntries(POST_COLS.map(c => [c, '']));\n  return { ...row, day: $now.toFormat('yyyy-MM-dd'), at: $now.toUTC().toISO(), post_id, ...changes };\n}\nfunction foldPosts(rows) {\n  const posts = {};\n  for (const r of [...rows].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))) {\n    if (!r || !r.post_id) continue;\n    const p = posts[r.post_id] = posts[r.post_id] || {};\n    for (const c of POST_COLS) if (r[c] !== undefined && r[c] !== null && r[c] !== '') p[c] = r[c];\n    if (r.yt_status) p.yt_since = r.at;   // when each platform last changed, to spot a post that got stuck half-way\n    if (r.ig_status) p.ig_since = r.at;\n  }\n  return Object.values(posts);\n}\nconst esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');   // Telegram HTML mode\nconst ms = iso => DateTime.fromISO(String(iso || '')).toMillis();                                       // NaN when empty\nconst zoneOf = s => { const z = String(s.time_zone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'Europe/Berlin'; };\nconst when = (iso, zone) => DateTime.fromISO(String(iso || ''), { zone, locale: 'en' }).toFormat(\"ccc d LLL 'at' HH:mm\");\nconst shopOf = s => String(s.shop_url || 'pivendo.com').trim().replace(/^https?:\\/\\//i, '').replace(/\\/+$/, '');\n// The owner chooses the music for every video himself, before it is posted, and is reminded every time. The agents\n// never pick or name a song. The bot cannot add a sound to a YouTube or Instagram post (their APIs have no call for\n// it), so for the platforms the bot posts, the music must already be inside the video file.\nfunction musicLine(s) {\n  const bot = [['youtube_auto', 'YouTube'], ['instagram_auto', 'Instagram']].filter(([k]) => String(s[k] || '').trim().toLowerCase() === 'yes').map(x => x[1]);\n  return '🎵 Choose the music first. TikTok: in TikTok Studio tap Sounds, pick one, then Save.'\n    + (bot.length ? ` ${bot.join(' and ')}: the bot posts ${bot.length > 1 ? 'them' : 'it'} and cannot add a sound, so the music must already be inside the video file.` : '');\n}\n// Why an API call failed, in one line. Reads Meta and Google error answers and n8n's own error items.\nconst apiError = j => {\n  const e = j && j.error;\n  if (!e) return '';\n  if (typeof e === 'string') return e.slice(0, 300);\n  return String(e.error_user_msg || e.message || e.description || JSON.stringify(e)).slice(0, 300);\n};\n// Posting slots: post_times are wall-clock times in post_timezone (where the buyers are). The owner is shown\n// every time in his own zone (time_zone). post_at is stored in UTC, so it is one exact moment everywhere.\nconst postZoneOf = s => { const z = String(s.post_timezone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'America/New_York'; };\nfunction postTimes(s) {\n  const list = String(s.post_times || '').split(/[\\s,;]+/).map(t => {\n    const m = t.match(/^(\\d{1,2}):(\\d{2})$/);\n    return m && +m[1] < 24 && +m[2] < 60 ? m[1].padStart(2, '0') + ':' + m[2] : null;\n  }).filter(Boolean);\n  return list.length ? [...new Set(list)].sort() : ['12:30', '20:30'];\n}\n// The next free slot: at most one post per slot, and at least min_lead_hours from now. `taken` holds the\n// moments (in milliseconds) that already have an approved post. Luxon keeps the wall-clock time when the\n// clocks change (the gap to the owner's zone then moves by an hour for a week or two, because the US and\n// Europe change on different days), and moves a time that does not exist that night to the next valid one.\nfunction nextSlot(now, taken, s) {\n  const lead = isNaN(num(s.min_lead_hours)) ? 2 : Math.max(0, num(s.min_lead_hours));\n  const earliest = now.toMillis() + lead * 3600e3;\n  let day = now.setZone(postZoneOf(s)).startOf('day');\n  for (let i = 0; i < 400; i++, day = day.plus({ days: 1 })) {\n    const free = postTimes(s).map(slot => ({ slot, at: day.set({ hour: +slot.slice(0, 2), minute: +slot.slice(3) }) }))\n      .filter(c => c.at.toMillis() >= earliest && !taken.has(c.at.toMillis()))\n      .sort((a, b) => a.at.toMillis() - b.at.toMillis())[0];\n    if (free) return { slot: free.slot, post_at: free.at.toUTC().toISO() };\n  }\n  throw new Error('No free posting slot found in the next 400 days');\n}\n// A posted video also gets a row in the content table. The Coach and the Content agent join video stats\n// (feedback ref \"P...-yt\", \"P...-ig\", \"P...-tt\") with that table, exactly like the stats of a /content script.\n// The format is what both agents see next to the numbers, so it also carries two facts they need:\n// - \"views only\": numbers the bot read itself have no link clicks or sales, a 0 there is not \"no sales\";\n// - \"slot 12:30\": the posting slot, so the Coach can compare lunch against evening and propose a better time.\nconst PLATFORM = { yt: ['youtube-short', 'yt_title'], ig: ['instagram-reel', 'caption_instagram'], tt: ['tiktok', 'caption_tiktok'] };\nfunction contentRow(p, tag, zone, viewsOnly = false) {\n  const [name, field] = PLATFORM[tag];\n  const format = name + (viewsOnly ? ', views only' : '') + (p.slot ? `, slot ${p.slot}` : '');\n  const text = String(p[field] || '');\n  const posted = DateTime.fromISO(String(p.post_at || ''), { zone });\n  return { day: (posted.isValid ? posted : $now).toFormat('yyyy-MM-dd'), content_id: `${p.post_id}-${tag}`,\n    sku: p.sku || '', product: p.product || '', format, hook: text.split('\\n')[0].slice(0, 200), shots: p.video_url || '',\n    on_screen_text: '', voiceover: '', caption: tag === 'yt' ? String(p.yt_description || '') : text, rules_version: p.rules_version || '' };\n}\n\n// /queue, step 2. Deterministic checks: the AI writes the texts, but only code decides what is stored and\n// shown. Texts that break an honesty rule are not queued at all. Everything stays short enough that the\n// owner sees the full text before approving, which is also far inside every platform's own limit\n// (YouTube title 100 characters, description 5,000 bytes; Instagram and TikTok captions 2,200 characters).\nconst s = $('⚙️ Settings').first().json;\nconst brief = $('Build post brief').first().json;\nconst fail = text => [{ json: { ok: false, reply: esc(text) } }];\nlet a;\ntry { a = parseAgentJson('Post agent'); }\ncatch (e) { return fail('The Post agent did not return usable texts. Send the same /queue command again.'); }\n\nconst shop = shopOf(s);\nconst SPAM = /^#(fyp|foryou|foryoupage|viral|trending|explore|explorepage|follow|followme|like4like)$/i;\nconst clean = t => String(t ?? '').replace(/<\\/?[a-z][^>]*>/gi, '').replace(/[<>]/g, '').replace(/#[\\p{L}\\p{N}_]+/gu, '').replace(/[ \\t]+/g, ' ')\n  .replace(/ *\\n */g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();\nconst tags = (list, max) => [...new Set((Array.isArray(list) ? list : String(list || '').split(/[\\s,]+/))\n  .map(h => '#' + String(h).replace(/[^\\p{L}\\p{N}_]/gu, '')).filter(h => h.length > 2 && !SPAM.test(h)))].slice(0, max);\nconst cut = (t, max) => {\n  if (t.length <= max) return t;\n  const c = t.slice(0, max - 1).replace(/[\\uD800-\\uDBFF]$/, ''), sp = c.lastIndexOf(' ');   // never half an emoji\n  return (sp > max * 0.6 ? c.slice(0, sp) : c).trimEnd() + '…';\n};\n// text + the shop address (if the text does not name it) + hashtags, never longer than max\nconst build = (text, hashtags, max, link) => {\n  const tail = (text.toLowerCase().includes(shop.toLowerCase()) ? '' : `\\n\\n${link}`) + (hashtags.length ? `\\n\\n${hashtags.join(' ')}` : '');\n  return cut(text, max - tail.length) + tail;\n};\nconst raw = { tiktok: clean(a.caption_tiktok), instagram: clean(a.caption_instagram),\n              title: clean(a.yt_title).replace(/\\n+/g, ' '), description: clean(a.yt_description) };\nif (Object.values(raw).some(t => !t)) return fail('The Post agent left a text empty. Send the same /queue command again.');\nconst caption_tiktok = build(raw.tiktok, tags(a.hashtags_tiktok, 5), 600, `Shop: ${shop}`);\nconst caption_instagram = build(raw.instagram, tags(a.hashtags_instagram, 5), 900, `Shop: ${shop}`);   // Instagram counts at most 5 hashtags\nconst yt_title = cut(raw.title, 100);\nconst yt_description = build(raw.description, tags(a.hashtags_youtube, 5), 1200, `Shop: https://${shop}`);\n\nconst HONESTY = [\n  [/\\b\\d{1,3} ?% ?off\\b|\\b(discounts?|coupons?|promo ?codes?|vouchers?|sale|deals?|half price|clearance|black friday|save \\d|save up to)\\b/i, 'a discount or sale'],\n  [/\\b(limited (time|stock|offer|edition)|last chance|hurry|only \\d+ left|almost gone|selling (out|fast)|sold out|ends? (today|tonight|soon|at midnight)|while (stocks?|supplies) last|today only|don'?t miss out)\\b/i, 'a countdown or \"running out\" claim'],\n  [/\\b(free (shipping|delivery)|fast (shipping|delivery)|quick (shipping|delivery)|ships? (in|within|today|tomorrow|fast|free)|arrives? (in|within|by|tomorrow|before)|deliver(y|ed|s)? (in|within|by|before)|next[- ]day|same[- ]day|\\d+[- ](day|hour)s? (delivery|shipping)|in time for (christmas|halloween|easter|valentine))/i, 'a delivery promise'],\n  [/[★⭐]|\\b(\\d([.,]\\d)? ?(stars?|out of 5)|reviews?|testimonials?|rated|ratings?|customers?|buyers?|i (bought|ordered|purchased)|my (order|review|purchase))\\b/i, 'a review or customer claim'],\n  [/\\b((whole|entire|full) (ceiling|room|house|wall|bedroom)|fills? (the|your|a|any) (whole |entire )?(room|ceiling|bedroom)|guarantee[ds]?|best[- ]sell(er|ing)|number one|world'?s best|life[- ]changing|miracle|cures?|heals?)\\b|\\b100 ?%|#1\\b/i, 'an overclaim'],\n  [/[$€£] ?\\d|\\b\\d+([.,]\\d{1,2})? ?(usd|dollars?|eur|euros?|bucks)\\b/i, 'a price'],\n  // the owner chooses the music himself: the texts never name or credit a song (a plain \"music\" or \"sound\" is fine)\n  [/[♪♫]|\\bmusic by\\b|\\b(original|trending|viral|popular) (sound|song|audio|track)\\b|\\b(song|sound|audio|track)\\s*:|\\bfeat\\./i, 'a song or sound credit (you choose the music yourself)'],\n];\nconst all = [caption_tiktok, caption_instagram, yt_title, yt_description].join('\\n');\nconst broken = HONESTY.map(([re, label]) => { const m = all.match(re); return m ? `${label}: \"${m[0].trim()}\"` : null; }).filter(Boolean);\nif (broken.length) return fail(`Not queued. The texts broke an honesty rule:\\n- ${broken.join('\\n- ')}\\n\\nSend the same /queue command again to get new texts.`);\n\nconst post_id = 'P' + $now.toFormat('MMddHHmmss');\nconst row = postRow(post_id, { sku: brief.sku, product: brief.product,\n  video: brief.url.split('?')[0].split('/').pop().replace(/\\.mp4$/i, '').slice(0, 80), video_url: brief.url, ai: brief.ai,\n  status: 'awaiting_ok', caption_tiktok, caption_instagram, yt_title, yt_description, note: brief.shows, rules_version: brief.rules_version });\nconst text = `🎬 New post ${post_id} is waiting for your OK\nVideo: ${brief.url}\nProduct: ${brief.product} (${brief.sku})\nAI presenter or AI voice: ${brief.ai}\n\nTIKTOK CAPTION\n${caption_tiktok}\n\nINSTAGRAM CAPTION\n${caption_instagram}\n\nYOUTUBE TITLE\n${yt_title}\n\nYOUTUBE DESCRIPTION\n${yt_description}\n\n${musicLine(s)}\n\n✅ Approve = it gets the next free slot (${postTimes(s).join(' or ')} in ${postZoneOf(s)}; I tell you the time in ${zoneOf(s)}).\n❌ Reject = it is dropped.\nButtons not working? Send /approve ${post_id} or /reject ${post_id}`;\nreturn [{ json: { ok: true, row, text: esc(text.slice(0, 3900)) } }];\n"
+      },
+      "id": "8ac1d2e3-e077-5ea7-ac8d-a018aadd03df",
+      "name": "Check post texts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        2100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "441c378f-d817-591e-9e38-36c0a53a80f8",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e0aa49da-48d8-5beb-b06d-f80c06c3d9a8",
+      "name": "Post texts ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        2100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: $input.first().json.row }];\n"
+      },
+      "id": "ecd8c828-2daa-5ba4-8847-233ffe9096c5",
+      "name": "Post row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        2040
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "social_posts"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "411938a3-4c59-5210-bf06-35f5b6b14125",
+      "name": "Save post",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3300,
+        2040
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse command').first().json.chatId }}",
+        "text": "={{ $('Check post texts').first().json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Approve",
+                    "additionalFields": {
+                      "callback_data": "={{ 'approve:' + $('Check post texts').first().json.row.post_id }}"
+                    }
+                  },
+                  {
+                    "text": "❌ Reject",
+                    "additionalFields": {
+                      "callback_data": "={{ 'reject:' + $('Check post texts').first().json.row.post_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "f2d64310-4a9f-5e35-a0b9-6f10e469bee0",
+      "name": "Ask to approve post",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        2040
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse command').first().json.chatId }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "a56705f9-9334-5dc5-a05b-328ba52e2fc2",
+      "name": "Queue problem",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3080,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "social_posts"
+        },
+        "returnAll": true
+      },
+      "id": "a24fb493-ad32-5dd9-b3ba-07b57cc12182",
+      "name": "Load posts",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        2560
+      ],
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "function latestRules(rows) {\n  const latest = {};\n  for (const r of rows) {\n    if (!r || !r.rule_id) continue;\n    const v = Number(r.version) || 0;\n    if (!latest[r.rule_id] || v >= (Number(latest[r.rule_id].version) || 0)) latest[r.rule_id] = r;\n  }\n  return Object.values(latest);\n}\nfunction activeRules(rows, agents) {\n  return latestRules(rows).filter(r => r.status === 'active' && (agents.includes(r.agent) || r.agent === 'all'));\n}\nfunction rulesText(rules) {\n  return rules.length ? rules.map(r => `- [${r.rule_id}] ${r.rule}`).join('\\n') : '- (no rules yet)';\n}\nfunction rowsOf(nodeName) {\n  return $(nodeName).all().map(i => i.json).filter(r => r && Object.keys(r).length);\n}\nconst num = v => { const m = String(v ?? '').match(/-?\\d+(\\.\\d+)?/); return m ? parseFloat(m[0]) : NaN; };\nconst round2 = v => Math.round(v * 100) / 100;\n\nconst POST_COLS = ['day', 'at', 'post_id', 'sku', 'product', 'video', 'video_url', 'ai', 'status', 'post_at', 'slot',\n  'caption_tiktok', 'caption_instagram', 'yt_title', 'yt_description', 'yt_status', 'yt_video_id',\n  'ig_status', 'ig_media_id', 'tiktok_status', 'stats_done', 'note', 'rules_version'];\nfunction postRow(post_id, changes) {\n  const row = Object.fromEntries(POST_COLS.map(c => [c, '']));\n  return { ...row, day: $now.toFormat('yyyy-MM-dd'), at: $now.toUTC().toISO(), post_id, ...changes };\n}\nfunction foldPosts(rows) {\n  const posts = {};\n  for (const r of [...rows].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))) {\n    if (!r || !r.post_id) continue;\n    const p = posts[r.post_id] = posts[r.post_id] || {};\n    for (const c of POST_COLS) if (r[c] !== undefined && r[c] !== null && r[c] !== '') p[c] = r[c];\n    if (r.yt_status) p.yt_since = r.at;   // when each platform last changed, to spot a post that got stuck half-way\n    if (r.ig_status) p.ig_since = r.at;\n  }\n  return Object.values(posts);\n}\nconst esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');   // Telegram HTML mode\nconst ms = iso => DateTime.fromISO(String(iso || '')).toMillis();                                       // NaN when empty\nconst zoneOf = s => { const z = String(s.time_zone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'Europe/Berlin'; };\nconst when = (iso, zone) => DateTime.fromISO(String(iso || ''), { zone, locale: 'en' }).toFormat(\"ccc d LLL 'at' HH:mm\");\nconst shopOf = s => String(s.shop_url || 'pivendo.com').trim().replace(/^https?:\\/\\//i, '').replace(/\\/+$/, '');\n// The owner chooses the music for every video himself, before it is posted, and is reminded every time. The agents\n// never pick or name a song. The bot cannot add a sound to a YouTube or Instagram post (their APIs have no call for\n// it), so for the platforms the bot posts, the music must already be inside the video file.\nfunction musicLine(s) {\n  const bot = [['youtube_auto', 'YouTube'], ['instagram_auto', 'Instagram']].filter(([k]) => String(s[k] || '').trim().toLowerCase() === 'yes').map(x => x[1]);\n  return '🎵 Choose the music first. TikTok: in TikTok Studio tap Sounds, pick one, then Save.'\n    + (bot.length ? ` ${bot.join(' and ')}: the bot posts ${bot.length > 1 ? 'them' : 'it'} and cannot add a sound, so the music must already be inside the video file.` : '');\n}\n// Why an API call failed, in one line. Reads Meta and Google error answers and n8n's own error items.\nconst apiError = j => {\n  const e = j && j.error;\n  if (!e) return '';\n  if (typeof e === 'string') return e.slice(0, 300);\n  return String(e.error_user_msg || e.message || e.description || JSON.stringify(e)).slice(0, 300);\n};\n// Posting slots: post_times are wall-clock times in post_timezone (where the buyers are). The owner is shown\n// every time in his own zone (time_zone). post_at is stored in UTC, so it is one exact moment everywhere.\nconst postZoneOf = s => { const z = String(s.post_timezone || '').trim(); return z && DateTime.now().setZone(z).isValid ? z : 'America/New_York'; };\nfunction postTimes(s) {\n  const list = String(s.post_times || '').split(/[\\s,;]+/).map(t => {\n    const m = t.match(/^(\\d{1,2}):(\\d{2})$/);\n    return m && +m[1] < 24 && +m[2] < 60 ? m[1].padStart(2, '0') + ':' + m[2] : null;\n  }).filter(Boolean);\n  return list.length ? [...new Set(list)].sort() : ['12:30', '20:30'];\n}\n// The next free slot: at most one post per slot, and at least min_lead_hours from now. `taken` holds the\n// moments (in milliseconds) that already have an approved post. Luxon keeps the wall-clock time when the\n// clocks change (the gap to the owner's zone then moves by an hour for a week or two, because the US and\n// Europe change on different days), and moves a time that does not exist that night to the next valid one.\nfunction nextSlot(now, taken, s) {\n  const lead = isNaN(num(s.min_lead_hours)) ? 2 : Math.max(0, num(s.min_lead_hours));\n  const earliest = now.toMillis() + lead * 3600e3;\n  let day = now.setZone(postZoneOf(s)).startOf('day');\n  for (let i = 0; i < 400; i++, day = day.plus({ days: 1 })) {\n    const free = postTimes(s).map(slot => ({ slot, at: day.set({ hour: +slot.slice(0, 2), minute: +slot.slice(3) }) }))\n      .filter(c => c.at.toMillis() >= earliest && !taken.has(c.at.toMillis()))\n      .sort((a, b) => a.at.toMillis() - b.at.toMillis())[0];\n    if (free) return { slot: free.slot, post_at: free.at.toUTC().toISO() };\n  }\n  throw new Error('No free posting slot found in the next 400 days');\n}\n// A posted video also gets a row in the content table. The Coach and the Content agent join video stats\n// (feedback ref \"P...-yt\", \"P...-ig\", \"P...-tt\") with that table, exactly like the stats of a /content script.\n// The format is what both agents see next to the numbers, so it also carries two facts they need:\n// - \"views only\": numbers the bot read itself have no link clicks or sales, a 0 there is not \"no sales\";\n// - \"slot 12:30\": the posting slot, so the Coach can compare lunch against evening and propose a better time.\nconst PLATFORM = { yt: ['youtube-short', 'yt_title'], ig: ['instagram-reel', 'caption_instagram'], tt: ['tiktok', 'caption_tiktok'] };\nfunction contentRow(p, tag, zone, viewsOnly = false) {\n  const [name, field] = PLATFORM[tag];\n  const format = name + (viewsOnly ? ', views only' : '') + (p.slot ? `, slot ${p.slot}` : '');\n  const text = String(p[field] || '');\n  const posted = DateTime.fromISO(String(p.post_at || ''), { zone });\n  return { day: (posted.isValid ? posted : $now).toFormat('yyyy-MM-dd'), content_id: `${p.post_id}-${tag}`,\n    sku: p.sku || '', product: p.product || '', format, hook: text.split('\\n')[0].slice(0, 200), shots: p.video_url || '',\n    on_screen_text: '', voiceover: '', caption: tag === 'yt' ? String(p.yt_description || '') : text, rules_version: p.rules_version || '' };\n}\n\n// The owner's decisions on queued posts: Approve / Reject (button or typed), /posts,\n// /tiktok | /youtube | /instagram <id> done (posted by hand) and /retry.\nconst s = $('⚙️ Settings').first().json;\nconst cmd = $('Parse command').first().json;\nconst zone = zoneOf(s);\nconst shop = shopOf(s);\nconst now = $now.toMillis();\nconst posts = foldPosts(rowsOf('Load posts'));\nconst fail = text => [{ json: { ok: false, reply: esc(text) } }];\nconst done = (msgs, rows = [], videos = []) => [{ json: { ok: true, save: rows.length > 0, rows, videos, msgs } }];\nconst LABEL = { queued: '⏳ waiting', uploading: '⏳ uploading', scheduled: '✅ scheduled', publishing: '⏳ posting',\n  published: '✅ posted', todo: '☐ you post it', done: '✅ done', failed: '❌ failed', stuck: '❓ check by hand',\n  late: '⏰ too late, not posted', cancelled: '🚫 cancelled' };\n\nif (cmd.route === 'posts') {\n  const live = posts.filter(p => p.status === 'approved' && !isNaN(ms(p.post_at))).sort((a, b) => ms(a.post_at) - ms(b.post_at));\n  const waiting = posts.filter(p => p.status === 'awaiting_ok');\n  const line = p => `• ${p.post_id} · ${when(p.post_at, zone)} · ${p.product || p.sku}\\n  YouTube ${LABEL[p.yt_status] || '-'} · Instagram ${LABEL[p.ig_status] || '-'} · TikTok ${LABEL[p.tiktok_status] || '-'}`;\n  const parts = [];\n  if (waiting.length) parts.push('WAITING FOR YOUR OK\\n' + waiting.map(p => `• ${p.post_id} · ${p.product || p.sku}\\n  /approve ${p.post_id} or /reject ${p.post_id}`).join('\\n'));\n  const upcoming = live.filter(p => ms(p.post_at) > now);\n  if (upcoming.length) parts.push('COMING UP\\n' + upcoming.map(line).join('\\n'));\n  const recent = live.filter(p => ms(p.post_at) <= now).slice(-5).reverse();\n  if (recent.length) parts.push('LAST POSTS\\n' + recent.map(line).join('\\n'));\n  const text = parts.length ? `📅 Your posts (times in ${zone})\\n\\n${parts.join('\\n\\n')}` : 'No posts yet. Queue a finished video with\\n/queue <video link> <SKU>';\n  return done([esc(text.slice(0, 3900))]);\n}\n\nconst id = String((cmd.args || [])[0] || '').toUpperCase();\nconst p = posts.find(x => String(x.post_id).toUpperCase() === id);\nif (!p) return fail(`I can't find post ${id || '(missing id)'}. Send /posts to see your posts.`);\n\nif (cmd.route === 'approve') {\n  if (p.status === 'approved') return fail(`${p.post_id} is already approved for ${when(p.post_at, zone)}.`);\n  if (p.status !== 'awaiting_ok') return fail(`${p.post_id} was rejected. Send the video again with /queue if you changed your mind.`);\n  // one post per slot: slots that already have an approved post are taken\n  const taken = new Set(posts.filter(x => x.status === 'approved' && !isNaN(ms(x.post_at))).map(x => ms(x.post_at)));\n  const { post_at, slot } = nextSlot($now, taken, s);\n  const at = `${when(post_at, zone)} (${zone})`;   // the owner always reads his own time zone\n  const auto = k => String(s[k] || '').trim().toLowerCase() === 'yes';\n  const yt = auto('youtube_auto'), ig = auto('instagram_auto'), isAi = p.ai === 'yes';\n  const row = postRow(p.post_id, { status: 'approved', post_at, slot, yt_status: yt ? 'queued' : 'todo',\n                                   ig_status: ig ? 'queued' : 'todo', tiktok_status: 'todo' });\n  const msgs = [esc(`✅ ${p.post_id} approved. Slot: ${at}. That is the ${slot} slot in ${postZoneOf(s)}.\n\nYouTube: ${yt ? 'the bot uploads it within 10 minutes. It stays private and YouTube makes it public at the slot time.' : 'you post it yourself (to-do below).'}\nInstagram: ${ig ? 'the bot posts it at the slot time.' : 'you post it yourself (to-do below).'}\nTikTok: you schedule it yourself (to-do below).\n\n${musicLine(s)}\n\nChanged your mind? /reject ${p.post_id}`)];\n  // A to-do for every platform the owner posts by hand. The texts come in <code> blocks: tap to copy.\n  const todo = (name, command, steps, copy) => msgs.push(\n    esc(`📋 ${name} to-do for ${p.post_id}\\n` + steps.map((t, i) => `${i + 1}. ${t}`).join('\\n') + `\\n\\nDone? Send: /${command} ${p.post_id} done`)\n    + copy.map(([label, text]) => `\\n\\n${esc(label)} (tap to copy):\\n<code>${esc(text)}</code>`).join(''));\n  todo('TikTok', 'tiktok', [\n    `Download the video: ${p.video_url}`,\n    'Open tiktok.com/tiktokstudio → Upload, and choose the video.',\n    'Choose the music first. In TikTok Studio tap Sounds, pick one, then Save.',\n    'Paste the caption from below.',\n    `Schedule it for ${at}.`,\n    'Content disclosure: switch \"Your brand\" ON.',\n    ...(isAi ? ['Switch \"AI-generated content\" ON.'] : []),\n    `When it is live: write the comment \"Shop: ${shop}\" and pin it.`,\n  ], [['Caption', p.caption_tiktok]]);\n  if (!yt) todo('YouTube', 'youtube', [\n    `Download the video: ${p.video_url}`,\n    'Open studio.youtube.com → Create → Upload videos, and choose the video.',\n    'Choose the music first. It must already be inside the video file, or add the sound in the YouTube app instead of Studio.',\n    'Paste the title and the description from below.',\n    'Audience: choose \"No, it\\'s not made for kids\".',\n    ...(isAi ? ['Show more → Altered content: choose \"Yes\".'] : []),\n    `Visibility → Schedule: ${at}.`,\n  ], [['Title', p.yt_title], ['Description', p.yt_description]]);\n  if (!ig) todo('Instagram', 'instagram', [\n    `Download the video: ${p.video_url}`,\n    'Open the Instagram app → + → Reel, and choose the video.',\n    'Choose the music first. In the Reel editor tap the music icon (Audio), pick one, then Done.',\n    'Paste the caption from below.',\n    ...(isAi ? ['More options → switch \"AI label\" ON.'] : []),\n    `More options → Schedule: ${at}.`,\n  ], [['Caption', p.caption_instagram]]);\n  return done(msgs, [row]);\n}\n\nif (cmd.route === 'reject') {\n  if (p.status === 'rejected') return fail(`${p.post_id} is already rejected.`);\n  // Reject stops everything that has not happened yet. What is already out, only the owner can delete: the bot has no\n  // call that deletes a video or a Reel, on purpose. A YouTube video is uploaded within 10 minutes of the approval and\n  // then waits there for its slot time, so Reject cannot take it back. The owner gets its link and the exact clicks.\n  const out = [];\n  const deleteSteps = '1. Open YouTube Studio → Content (left menu).\\n2. Move the mouse over the video and click the three dots ⋮ (Options) → Delete forever.\\n3. Tick the box and click Delete forever.';\n  if (p.yt_video_id) {\n    const wasPublic = ms(p.post_at) <= now;\n    out.push(`YouTube already has this video: ${wasPublic ? 'its slot time has passed, so it may be public already' : `it is scheduled, private until ${when(p.post_at, zone)} (${zone}), and then it goes public by itself`}. `\n      + `Rejecting does not remove it, and the bot cannot delete videos. To delete it yourself:\\nVideo: https://studio.youtube.com/video/${p.yt_video_id}/edit\\n${deleteSteps}`);\n  } else if (p.yt_status === 'uploading') out.push(`YouTube is uploading it right now and rejecting does not stop an upload that has started. In a few minutes you get a message with the video link. To delete the video yourself:\\n${deleteSteps}`);\n  else if (['failed', 'stuck'].includes(p.yt_status)) out.push(`A YouTube upload that failed or got stuck may still have left a video. Look in YouTube Studio → Content. If it is there, delete it:\\n${deleteSteps}`);\n  if (p.ig_status === 'publishing') out.push('Instagram is busy with it right now. Wait for the bot\\'s next message: \"not posted\" means it is stopped. \"is live\" means you delete the Reel in the Instagram app.');\n  else if (p.ig_status === 'published') out.push('It is already on Instagram: delete the Reel in the app.');\n  else if (p.ig_status === 'stuck') out.push('Instagram may have posted it: look in the app and delete the Reel if it is there.');\n  if ([p.tiktok_status, p.yt_status, p.ig_status].includes('done')) out.push('You marked a platform as done by hand: delete it there too.');\n  return done([esc(`❌ ${p.post_id} rejected. ${p.status === 'approved' ? 'The bot will not post anything more for it.' : 'Nothing will be posted.'}`\n    + (out.length ? '\\n\\n' + out.map(t => '⚠️ ' + t).join('\\n\\n') : ''))], [postRow(p.post_id, { status: 'rejected' })]);\n}\n\nconst BY_HAND = { tiktok: ['tiktok_status', 'tt', 'TikTok'], youtube: ['yt_status', 'yt', 'YouTube'], instagram: ['ig_status', 'ig', 'Instagram'] };\nif (BY_HAND[cmd.route]) {\n  const [field, tag, name] = BY_HAND[cmd.route];\n  if (String(cmd.args[1] || '').toLowerCase() !== 'done') return fail(`Usage: /${cmd.route} <post id> done\\nExample: /${cmd.route} ${p.post_id} done`);\n  if (p.status !== 'approved') return fail(`${p.post_id} is not approved, so there is nothing to mark.`);\n  if (p[field] === 'done') return fail(`${name} is already marked as done for ${p.post_id}.`);\n  if (p[field] !== 'todo') return fail(`${name} for ${p.post_id} is handled by the bot (${LABEL[p[field]] || p[field] || 'not started'}). Nothing to mark.`);\n  return done([esc(`✅ ${name} marked as done for ${p.post_id}.\n\n48 hours after it goes live, send its numbers so the agents can learn:\n/video ${p.post_id}-${tag} <views> <link clicks> <sales>`)], [postRow(p.post_id, { [field]: 'done' })], [contentRow(p, tag, zone)]);\n}\n\n// /retry: only after the bot reported a failure. It is the owner who decides to try again, never the bot.\nconst again = [['yt_status', 'YouTube'], ['ig_status', 'Instagram']].filter(([k]) => ['failed', 'stuck', 'late'].includes(p[k]));\nif (p.status !== 'approved' || !again.length) return fail(`Nothing to retry for ${p.post_id}. /retry only works after the bot told you that YouTube or Instagram failed.`);\nconst changes = Object.fromEntries(again.map(([k]) => [k, 'queued']));\nconst passed = ms(p.post_at) <= now;\nif (passed) {\n  // A slot in the past would be skipped again as \"too late\", so the post goes out now. Its slot becomes the\n  // real local time, so a late post is never counted as a normal lunch or evening post when slots are compared.\n  changes.post_at = $now.toUTC().toISO();\n  changes.slot = $now.setZone(postZoneOf(s)).toFormat('HH:mm');\n}\n// \"stuck\" = nobody knows if it went out. A failed YouTube upload is just as unsure: n8n sends the file in chunks and\n// the call can fail after the last one, so the video may be on YouTube although the upload was reported as failed.\nconst unsure = again.some(([k]) => p[k] === 'stuck' || (k === 'yt_status' && p[k] === 'failed'));\nreturn done([esc(`🔁 ${p.post_id}: ${again.map(x => x[1]).join(' and ')} will be tried again within 10 minutes`\n  + (passed ? ', and it goes public right away because the slot time has passed.' : '.')\n  + (unsure ? `\\n\\n⚠️ If it is already there, it will be posted twice. Already there? Send /reject ${p.post_id} now (it drops the whole post).` : ''))],\n  [postRow(p.post_id, changes)]);\n"
+      },
+      "id": "0bff4fdc-7092-5f77-988d-22a4593201fb",
+      "name": "Build post action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0003d027-7aae-551a-ac7a-2fa63289dc5c",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2f663e77-110f-5b78-8ccd-9ada923dc3b5",
+      "name": "Post action ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8c43da0b-9b75-5b52-b924-b4f0dc1adaed",
+              "leftValue": "={{ $json.save }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e8476583-3332-5980-a56c-51afe0d65158",
+      "name": "Save a row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Build post action').first().json.rows.map(r => ({ json: r }));\n"
+      },
+      "id": "d0d48fa2-5e97-5d9f-8f0d-56b4a31f3b07",
+      "name": "Post action rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        2440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "social_posts"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "c3008022-05b6-5e91-b4af-34bc3678a990",
+      "name": "Save post action",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        2440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Build post action').first().json.videos.map(r => ({ json: r }));\n"
+      },
+      "id": "0164303b-451e-57df-b2c7-8b2070e3902b",
+      "name": "Post video rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        2340
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "content"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "d4cc6070-ef1c-5559-ae29-238133d91eb9",
+      "name": "Save post as video",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        2340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Build post action').first().json.msgs.map(text => ({ json: { text } }));\n"
+      },
+      "id": "790e1573-4d81-54b1-ad69-260b59b18367",
+      "name": "Post action messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse command').first().json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "48c344f3-2f53-5e55-a838-ab9597e76e8b",
+      "name": "Send post action",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse command').first().json.chatId }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "785fc04f-c35b-5e8e-99a8-8060ff673f32",
+      "name": "Post action problem",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        2700
+      ]
     }
   ],
   "connections": {
@@ -2118,6 +2976,11 @@
             "node": "Route",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Button tap?",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2197,6 +3060,62 @@
         [
           {
             "node": "Load tickets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load products (post)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load posts",
             "type": "main",
             "index": 0
           }
@@ -2288,6 +3207,281 @@
         [
           {
             "node": "Confirm ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Button tap?": {
+      "main": [
+        [
+          {
+            "node": "Answer button tap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude (Post agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Post agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load products (post)": {
+      "main": [
+        [
+          {
+            "node": "Load playbook (post)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load playbook (post)": {
+      "main": [
+        [
+          {
+            "node": "Load videos (post)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load videos (post)": {
+      "main": [
+        [
+          {
+            "node": "Load stats (post)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load stats (post)": {
+      "main": [
+        [
+          {
+            "node": "Load posts (queue)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load posts (queue)": {
+      "main": [
+        [
+          {
+            "node": "Build post brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build post brief": {
+      "main": [
+        [
+          {
+            "node": "Post brief ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post brief ok?": {
+      "main": [
+        [
+          {
+            "node": "Post agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue problem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post agent": {
+      "main": [
+        [
+          {
+            "node": "Check post texts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check post texts": {
+      "main": [
+        [
+          {
+            "node": "Post texts ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post texts ok?": {
+      "main": [
+        [
+          {
+            "node": "Post row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue problem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post row": {
+      "main": [
+        [
+          {
+            "node": "Save post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save post": {
+      "main": [
+        [
+          {
+            "node": "Ask to approve post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load posts": {
+      "main": [
+        [
+          {
+            "node": "Build post action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build post action": {
+      "main": [
+        [
+          {
+            "node": "Post action ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post action ok?": {
+      "main": [
+        [
+          {
+            "node": "Save a row?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post action problem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save a row?": {
+      "main": [
+        [
+          {
+            "node": "Post action rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post action messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post action rows": {
+      "main": [
+        [
+          {
+            "node": "Save post action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save post action": {
+      "main": [
+        [
+          {
+            "node": "Post action messages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post video rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post action messages": {
+      "main": [
+        [
+          {
+            "node": "Send post action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post video rows": {
+      "main": [
+        [
+          {
+            "node": "Save post as video",
             "type": "main",
             "index": 0
           }

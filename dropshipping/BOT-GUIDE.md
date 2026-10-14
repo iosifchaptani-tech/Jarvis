@@ -42,6 +42,31 @@ The support agent reads the email, looks up the customer's order and tracking, a
 - `/reply T123 your text`: send your own text instead. The agent **learns from your version**.
 - `/skip T123`: close it without replying
 
+### 📺 📸 When one of your approved videos goes out
+- *"📺 YouTube: P… is uploaded"*: the video is on YouTube, still private. YouTube makes it public by itself at the slot time, also when your PC is off.
+- *"📸 Instagram: P… is live"*: the Reel is posted, with its link.
+
+**👉 What you do:** nothing. If the video has an AI presenter, open it once and check that the AI label shows.
+
+These only come when the bot posts on that platform itself (see `SOCIAL-SETUP.md`). Until then you get a to-do list instead. **TikTok is always a to-do list:** you schedule it yourself.
+
+### ⏰ ❓ ❌ When a video did NOT go out
+| Message | Meaning | 👉 What you do |
+|---|---|---|
+| **⏰ was NOT posted** | the slot passed more than 12 hours ago, for example because the PC was off | `/retry P…` posts it now, `/reject P…` drops it |
+| **❌ was not posted / the upload failed** | YouTube or Instagram said no. The reason is in the message | fix it (or send the message to Claude), then `/retry P…`. For YouTube, **look in YouTube Studio first**: a failed upload can still have left the video there |
+| **❓ may not have been posted** | the bot is not sure | look on Instagram or YouTube. Not there? `/retry P…` |
+| **🚫 was not posted: you rejected it** | you tapped ❌ while Instagram was still preparing the video, so the bot stopped before posting | nothing. Nothing is on Instagram |
+
+The bot never tries again by itself, so nothing is ever posted twice.
+
+### 📈 Every evening at 21:00: video numbers
+For every video that has been out for 48 hours, the bot reads the views on YouTube and Instagram and saves them. The coach uses them half an hour later. The last line (🏆) shows your **best and weakest video of the last 7 days**, with the platform and the time slot.
+
+**👉 What you do:** send the TikTok numbers yourself, the message shows the exact command: `/video P…-tt views clicks sales`.
+
+**🔑** in this message means a login stopped working. The message says which one and how to fix it.
+
 ### 📊 Every evening at 21:30: the coach report
 Today's numbers, 3 things to do tomorrow, and sometimes a **rule idea**, like *"Start videos with the result: those got 3× more views"*, with **✅ / ❌ buttons**.
 **👉 What you do:** tap ✅ if the idea makes sense, ❌ if not. Approved rules become part of every agent's instructions. **That's how the agents get better every day.**
@@ -84,6 +109,51 @@ The agents use this to learn **which hooks and styles work**, and write better s
 - `… winner good sales from video 2`: it's working
 - `… killed 30 videos no sales`: you stopped it, and the research avoids similar products
 
+### `/queue LINK SKU ai`: send a finished video to TikTok, Instagram and YouTube ⭐
+Example: `/queue https://cdn.shopify.com/videos/star-lamp-1.mp4 CJYS315715002BY ai presenter holds the lamp, stars on the wall`
+
+- **LINK:** a public link to the video that ends with `.mp4`. Easiest way: Shopify admin → **Content → Files → Upload files**, then click the link icon to copy the link. **Choose the music first:** if the bot posts the video on YouTube or Instagram, the music must already be inside the file (see 🎵 below).
+- **SKU:** the product in the video.
+- **ai:** write `ai` if the video has an AI presenter or an AI voice. Leave it out if not.
+- **After that:** a few words about what the video shows. The agent cannot watch the video, so this keeps the text honest.
+
+The agent writes a TikTok caption, an Instagram caption, and a YouTube title and description. You get one message with all texts and two buttons:
+
+- **✅ Approve:** the video gets the next free slot. There are two slots a day: **12:30 and 20:30 New York time** (lunch and evening for US buyers). The bot always tells you the time in **German time**.
+- **❌ Reject:** the video is dropped.
+
+**Nothing is ever posted without your ✅.** If the buttons don't react, send `/approve P…` or `/reject P…`.
+
+If the agent's text breaks an honesty rule (a discount, a countdown, a delivery promise, a fake review, a "whole ceiling" claim, a price), the bot says *"Not queued"*. Send the same `/queue` again to get new texts.
+
+### After ✅: your to-do list
+You get a **TikTok to-do** every time: the download link, the music reminder, the caption (tap it to copy), the time to schedule, and what to switch on (**"Your brand"**, and **"AI-generated content"** for AI videos). When you've scheduled it in TikTok Studio, send `/tiktok P… done`.
+
+If the bot doesn't post on YouTube or Instagram itself yet, you get the same kind of list for them. Then send `/youtube P… done` or `/instagram P… done`.
+
+### 🎵 The music: you choose it, every time
+You pick the music for every video yourself, **before it is posted**. The bot reminds you each time with **"Choose the music first."**: in the message with the texts, in the ✅ message, and in every to-do list.
+
+- **TikTok:** in TikTok Studio tap **Sounds**, pick one, then **Save**.
+- **YouTube and Instagram, when the bot posts them:** the bot **cannot add a sound**. The music must already be **inside the video file**. So put the music in first, then send the link with `/queue`.
+- **YouTube and Instagram, when you post by hand:** the to-do list tells you where to pick it.
+
+The agents never choose or name a song for you.
+
+### `/posts`: your posting plan
+Shows the videos waiting for your OK, the ones coming up with their times, and the last 5 that went out.
+
+### `/retry P…`: try a failed post again
+Only works after the bot told you that YouTube or Instagram failed. Check first that the video is not already there. This matters most for YouTube: a failed upload can still have left the video in YouTube Studio, and a retry would make a second copy.
+
+### `/reject P…`: stop a video you already approved
+The bot posts nothing more for it. What is already out or scheduled (YouTube, TikTok), you delete yourself. The message tells you where.
+
+**YouTube is the one to watch:** the bot uploads your video within 10 minutes of your ✅ and YouTube keeps it (private) until the slot time. Rejecting cannot take it back, and the bot never deletes anything for you. If YouTube already has the video, the message gives you its link and these clicks:
+1. Open YouTube Studio → **Content** (left menu).
+2. Move the mouse over the video and click the three dots **⋮** (Options) → **Delete forever**.
+3. Tick the box and click **Delete forever**.
+
 ### `/rules`: what the agents have learned
 Shows the current rule list (the "playbook").
 
@@ -95,10 +165,13 @@ Shows the current rule list (the "playbook").
 
 1. **Morning:** read the 07:00 research (2 minutes).
 2. **Daytime:**
-   - post your videos
+   - choose the music for each finished video, send it with `/queue`, tap ✅, then schedule it on TikTok from the to-do list
    - pay CJ for any new orders
    - answer support tickets with `/send` or `/reply`
-3. **48 hours after each video:** send `/video` with its numbers.
-4. **Evening:** read the 21:30 report and tap ✅/❌.
+3. **48 hours after each video:** send `/video` with its TikTok numbers. The bot reads YouTube and Instagram itself.
+4. **Evening:** read the 21:00 video numbers and the 21:30 report, and tap ✅/❌.
 
 **The more you report (`/video`, `/product`, ✅/❌), the smarter the agents get.**
+
+### Better posting times
+The coach sees the time slot of every video next to its views. When one slot clearly works better, it can propose that as a **rule idea** with ✅/❌. The bot **never changes the posting times by itself**. If you approve such an idea, tell Claude: *"Change the posting times to …"*.

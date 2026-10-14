@@ -7,18 +7,21 @@ const { DateTime } = require('luxon');
 const DIR = path.join(__dirname, '..', 'n8n-workflows');
 const load = f => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
-async function run(file, nodeName, outputs, inputItems) {
+// opts.now sets the clock ($now), opts.runIndex the loop counter of a node that runs again and again.
+// A node name that is missing from `outputs` counts as "not executed" ($('name').isExecuted === false).
+async function run(file, nodeName, outputs, inputItems, opts = {}) {
   const wf = load(file);
   const node = wf.nodes.find(n => n.name === nodeName);
   if (!node) throw new Error(`no node ${nodeName} in ${file}`);
   const $ = name => {
-    if (!(name in outputs)) throw new Error(`test missing output for $('${name}')`);
-    const items = outputs[name].map(json => ({ json }));
-    return { all: () => items, first: () => items[0], item: items[0] };
+    const has = name in outputs;
+    const items = has ? outputs[name].map(json => ({ json })) : [];
+    const need = () => { if (!has) throw new Error(`test missing output for $('${name}')`); return items; };
+    return { isExecuted: has, all: () => need(), first: () => need()[0], get item() { return need()[0]; } };
   };
   const $input = { all: () => inputItems.map(json => ({ json })), first: () => ({ json: inputItems[0] }) };
-  const fn = new Function('$', '$input', '$now', 'return (async () => {' + node.parameters.jsCode + '})()');
-  const result = await fn($, $input, DateTime.now());
+  const fn = new Function('$', '$input', '$now', 'DateTime', '$runIndex', 'return (async () => {' + node.parameters.jsCode + '})()');
+  const result = await fn($, $input, opts.now || DateTime.now(), DateTime, opts.runIndex || 0);
   if (!Array.isArray(result)) throw new Error(`${nodeName} did not return an array`);
   return result.map(r => r.json);
 }
@@ -476,6 +479,783 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const guard = { changes: [{ rule_id: 'R008', status: 'active' }, { rule_id: 'R001', status: 'retired' }] };
     const r = await run(coach, 'Rules to remember as rejected', { 'Check proposals (guardrails)': [guard] }, []);
     assert(r.length === 1 && r[0].status === 'rejected', JSON.stringify(r));
+  });
+
+  // ------------------------------------------------ social posts: 02 (/queue, approve, to-dos) + 08 (publisher)
+  const soc = '08-social-publisher.json';
+  const header = name => fs.readFileSync(path.join(__dirname, '..', 'templates', name + '.csv'), 'utf8').split('\n')[0].trim();
+  const postCols = header('social_posts');
+  const berlin = iso => DateTime.fromISO(iso, { zone: 'Europe/Berlin' });
+  const utc = iso => DateTime.fromISO(iso, { zone: 'Europe/Berlin' }).toUTC().toISO();
+  const utcT = iso => DateTime.fromISO(iso, { zone: 'utc' });
+  const s02p = { telegram_chat_id: '123', post_times: '12:30,20:30', post_timezone: 'America/New_York', time_zone: 'Europe/Berlin', min_lead_hours: 2,
+    youtube_auto: 'yes', instagram_auto: 'yes', shop_url: 'pivendo.com' };
+  const vurl = 'https://cdn.shopify.com/videos/c/o/v/star_lamp-1.mp4';
+
+  await test('02 Parse command: button taps and the post commands', async () => {
+    const s = [{ telegram_chat_id: '123' }];
+    const tap = (data, chat = 123) => [{ callback_query: { id: 'Q77', from: { id: chat }, message: { chat: { id: chat }, text: 'old text' }, data } }];
+    let [r] = await run(cmds, 'Parse command', { '⚙️ Settings': s, 'Telegram message in': tap('approve:P1013025812') }, []);
+    assert(r.route === 'approve' && r.args[0] === 'P1013025812' && r.tapId === 'Q77' && r.chatId === '123', JSON.stringify(r));
+    [r] = await run(cmds, 'Parse command', { '⚙️ Settings': s, 'Telegram message in': tap('reject:P1013025812') }, []);
+    assert(r.route === 'reject' && r.args[0] === 'P1013025812', JSON.stringify(r));
+    const stranger = await run(cmds, 'Parse command', { '⚙️ Settings': s, 'Telegram message in': tap('approve:P1013025812', 999) }, []);
+    assert(stranger.length === 0, 'a tap from another chat must be ignored');
+    [r] = await run(cmds, 'Parse command', { '⚙️ Settings': s, 'Telegram message in': tg(`/queue ${vurl} CJ1 ai stars on the wall`) }, []);
+    assert(r.route === 'queue' && r.args.length === 7 && r.tapId === '', JSON.stringify(r));
+    const wf = load(cmds);
+    const outs = wf.nodes.find(n => n.name === 'Route').parameters.rules.values.map(v => v.outputKey);
+    for (const c of ['queue', 'approve', 'reject', 'posts', 'tiktok', 'youtube', 'instagram', 'retry']) {
+      [r] = await run(cmds, 'Parse command', { '⚙️ Settings': s, 'Telegram message in': tg(`/${c} P1 done`) }, []);
+      assert(r.route === c && outs.includes(c), 'route ' + c);
+    }
+    const wired = wf.connections.Route.main;
+    assert(wired.length === outs.length && wired.every(o => o.length === 1), 'every Route output must lead somewhere');
+    const trigger = wf.nodes.find(n => n.name === 'Telegram message in');
+    assert(trigger.parameters.updates.join() === 'message,callback_query', 'the one trigger must also receive button taps');
+    assert(wf.nodes.filter(n => n.type === 'n8n-nodes-base.telegramTrigger').length === 1, 'one bot = one trigger');
+  });
+
+  const lamp = { pid: 'P9', sku: 'CJYS315', name: 'Star & Moon Lamp', sell_price: 29.99, ship_days: '7-12', ship_method: 'CJPacket',
+    target_buyer: 'renters who want a cozy bedroom', angle: 'dark room, stars appear', risks: 'seasonal' };
+  const postBrief = (args, posts = [{}]) => run(cmds, 'Build post brief', { '⚙️ Settings': [s02p], 'Parse command': [{ route: 'queue', args }],
+    'Load products (post)': [lamp], 'Load playbook (post)': [...playbook, { rule_id: 'R020', agent: 'content', rule: 'Name the room.', status: 'active', version: 1 }],
+    'Load videos (post)': [{ content_id: 'V1', hook: 'Result first', format: 'before-after' }, { content_id: 'V2', hook: 'never measured' }],
+    'Load stats (post)': [{ kind: 'video', ref: 'V1', views: 5000, clicks: 40, sales: 2 }], 'Load posts (queue)': posts }, []);
+  let pbrief;
+  await test('02 Build post brief: /queue parsing, ai flag, product + rules, no price or delivery time', async () => {
+    [pbrief] = await postBrief([vurl, 'cjys315', 'AI', 'presenter', 'holds', 'the', 'lamp']);
+    assert(pbrief.ok && pbrief.ai === 'yes' && pbrief.shows === 'presenter holds the lamp' && pbrief.sku === 'CJYS315', JSON.stringify(pbrief).slice(0, 300));
+    assert(pbrief.prompt.includes('Star & Moon Lamp') && pbrief.prompt.includes('pivendo.com') && pbrief.prompt.includes('an AI presenter'), 'prompt facts');
+    assert(pbrief.prompt.includes('[R020] Name the room.') && !pbrief.prompt.includes('[R001]') && !pbrief.prompt.includes('[R004]'), 'only active content rules');
+    assert(pbrief.prompt.includes('"Result first"') && !pbrief.prompt.includes('never measured'), 'learning from measured videos');
+    assert(!pbrief.prompt.includes('29.99') && !pbrief.prompt.includes('7-12'), 'the agent must not be given a price or a delivery time');
+    assert(pbrief.rules_version === 'R020v1', pbrief.rules_version);
+    let [b] = await postBrief([vurl + '?v=17', 'P9', 'stars', 'on', 'the', 'wall']);
+    assert(b.ok && b.ai === 'no' && b.shows === 'stars on the wall' && b.prompt.includes('no AI.'), 'pid lookup, no ai: ' + JSON.stringify(b).slice(0, 200));
+    [b] = await postBrief([vurl, 'CJYS315']);
+    assert(b.ok && b.prompt.includes('not described'), 'no description');
+  });
+  await test('02 Build post brief: bad link, unknown SKU, same video twice', async () => {
+    for (const bad of [['http://x.y/a.mp4', 'CJYS315'], ['https://x.y/a.mov', 'CJYS315'], ['https://drive.google.com/file/d/abc/view', 'CJYS315'],
+                       ['https://x.y/ä.mp4', 'CJYS315'], [vurl], [], ['CJYS315', vurl]]) {
+      const [b] = await postBrief(bad);
+      assert(b.ok === false && b.reply.startsWith('Usage: /queue &lt;video link&gt;'), 'should be refused: ' + JSON.stringify(bad) + ' -> ' + JSON.stringify(b).slice(0, 120));
+    }
+    let [b] = await postBrief([vurl, 'NOPE']);
+    assert(!b.ok && b.reply.includes('NOPE'), b.reply);
+    [b] = await postBrief([vurl, 'CJYS315'], [{ post_id: 'P7', video_url: vurl, status: 'awaiting_ok' }]);
+    assert(!b.ok && b.reply.includes('P7'), 'the same video must not be queued twice: ' + JSON.stringify(b).slice(0, 200));
+    [b] = await postBrief([vurl, 'CJYS315'], [{ post_id: 'P7', video_url: vurl, status: 'awaiting_ok' }, { post_id: 'P7', status: 'rejected' }]);
+    assert(b.ok, 'a rejected video may be queued again');
+  });
+
+  const T0 = berlin('2026-10-13T20:15:42');
+  const checkTexts = (out, brief = pbrief) => run(cmds, 'Check post texts', { '⚙️ Settings': [s02p], 'Build post brief': [brief],
+    'Post agent': [{ output: typeof out === 'string' ? out : JSON.stringify(out) }] }, [], { now: T0 });
+  const goodTexts = {
+    caption_tiktok: 'Lights off. Stars on. This little lamp puts a night sky on your wall. Best in a dark room.', hashtags_tiktok: ['#starprojector', 'room decor', 'fyp', '#viral'],
+    caption_instagram: 'Lights off, stars on.\nA small USB lamp that puts a night sky on your ceiling. Best in a dark room. #cozy', hashtags_instagram: ['starprojector', 'roomdecor', 'bedroomideas', 'cozyroom', 'nightlight', 'ledlights', 'homedecor', 'giftidea'],
+    yt_title: 'Star projector lamp <b>for a cozy bedroom</b>: a night sky on your wall and ceiling in seconds, shown in a dark room at home',
+    yt_description: 'A small USB lamp that puts stars on the wall. Best in a dark room.', hashtags_youtube: ['Shorts', 'starprojector'] };
+  let queued;
+  await test('02 Check post texts: length limits, hashtags, shop link, row shape', async () => {
+    [queued] = await checkTexts(goodTexts);
+    const r = queued.row;
+    assert(queued.ok && Object.keys(r).join(',') === postCols, 'row columns ' + Object.keys(r).join(','));
+    assert(r.post_id === 'P1013201542' && r.status === 'awaiting_ok' && r.ai === 'yes' && r.video === 'star_lamp-1' && r.video_url === vurl, JSON.stringify(r).slice(0, 300));
+    assert(r.yt_status === '' && r.ig_status === '' && r.post_at === '' && r.slot === '' && r.note === 'presenter holds the lamp' && r.rules_version === 'R020v1', 'nothing is scheduled before the owner approves');
+    assert(queued.text.includes('next free slot (12:30 or 20:30 in America/New_York; I tell you the time in Europe/Berlin)'), queued.text);
+    assert(r.yt_title.length <= 100 && !/[<>]/.test(r.yt_title) && r.yt_title.endsWith('…'), 'title: ' + r.yt_title.length + ' ' + r.yt_title);
+    assert((r.caption_instagram.match(/#/g) || []).length === 5 && !r.caption_instagram.includes('#cozy '), 'Instagram: 5 hashtags at most: ' + r.caption_instagram);
+    assert(r.caption_tiktok.endsWith('#starprojector #roomdecor') && !/#(fyp|viral)/.test(r.caption_tiktok), 'TikTok tags: ' + r.caption_tiktok);
+    for (const k of ['caption_tiktok', 'caption_instagram', 'yt_description']) assert(r[k].includes('pivendo.com'), k + ' has no shop link');
+    assert(r.yt_description.includes('Shop: https://pivendo.com') && r.yt_description.endsWith('#Shorts #starprojector'), r.yt_description);
+    assert(queued.text.includes('Star &amp; Moon Lamp') && !/[<>]/.test(queued.text) && queued.text.includes('/approve P1013201542'), 'approval message must be HTML-safe');
+    assert(queued.text.includes(r.caption_tiktok) && queued.text.includes(r.yt_title), 'the owner must see the exact texts');
+  });
+  await test('02 Check post texts: very long texts stay inside every platform limit', async () => {
+    const long = 'A small lamp that puts stars on the wall in a dark room. '.repeat(120);
+    const manyTags = Array.from({ length: 40 }, (_, i) => 'tag' + i);
+    const [q] = await checkTexts({ caption_tiktok: long, hashtags_tiktok: manyTags, caption_instagram: long, hashtags_instagram: manyTags,
+      yt_title: long, yt_description: '🌙'.repeat(3000), hashtags_youtube: manyTags });
+    const r = q.row;
+    assert(q.ok && r.yt_title.length <= 100, 'YouTube title max 100: ' + r.yt_title.length);
+    assert(Buffer.byteLength(r.yt_description, 'utf8') <= 5000, 'YouTube description max 5000 bytes: ' + Buffer.byteLength(r.yt_description, 'utf8'));
+    assert(r.caption_instagram.length <= 2200 && (r.caption_instagram.match(/#/g) || []).length <= 5, 'Instagram limits');
+    assert(r.caption_tiktok.length <= 2200 && (r.caption_tiktok.match(/#/g) || []).length <= 5, 'TikTok limits');
+    assert(r.caption_tiktok.includes('Shop: pivendo.com') && r.caption_instagram.includes('Shop: pivendo.com'), 'the shop link survives the cut');
+    assert(q.text.length <= 4096 && q.text.includes(r.caption_instagram), 'the whole text fits into one Telegram message: ' + q.text.length);
+  });
+  await test('02 Check post texts: honesty rules block the post', async () => {
+    const broken = { 'a discount': '50% off today', 'a discount or sale': 'Big sale on now', 'a countdown': 'Last chance, only 3 left',
+      'a delivery promise': 'Free shipping, arrives in 3 days', 'a review or customer claim': 'Our customers love it', 'a review': 'Rated 5 stars',
+      'a customer claim': 'I bought this and it is great', 'an overclaim': 'It lights up the whole ceiling', 'an overclaim 2': 'Fills your room with stars', 'a price': 'Now only $19' };
+    for (const [label, bad] of Object.entries(broken)) {
+      for (const field of ['caption_tiktok', 'yt_title']) {
+        const [q] = await checkTexts({ ...goodTexts, [field]: bad });
+        assert(q.ok === false && q.reply.startsWith('Not queued.') && !('row' in q), `"${bad}" in ${field} (${label}) must not be queued: ` + JSON.stringify(q).slice(0, 160));
+      }
+    }
+    let [q] = await checkTexts('Sorry, I cannot do that.');
+    assert(!q.ok && q.reply.includes('did not return usable texts'), q.reply);
+    [q] = await checkTexts({ ...goodTexts, caption_instagram: ' #only #tags ' });
+    assert(!q.ok && q.reply.includes('left a text empty'), q.reply);
+  });
+
+  const basePost = { id: 1, day: '2026-10-13', at: '2026-10-13T18:15:42.000Z', post_id: 'P1', sku: 'CJYS315', product: 'Star & Moon Lamp', video: 'star_lamp-1',
+    video_url: vurl, ai: 'yes', status: 'awaiting_ok', caption_tiktok: 'tt cap\n\nShop: pivendo.com\n\n#a #b', caption_instagram: 'ig cap', yt_title: 'yt title', yt_description: 'yt desc', rules_version: 'R020v1' };
+  let rowId = 100;
+  const ev = (post_id, changes, at = '2026-10-13T19:00:00.000Z') => ({ id: rowId++, at, post_id, ...changes });
+  const action = (text, rows, now, settings = s02p) => run(cmds, 'Build post action', { '⚙️ Settings': [settings], 'Load posts': rows,
+    'Parse command': [{ route: text.split(/\s+/)[0].slice(1), args: text.split(/\s+/).slice(1), text }] }, [], { now });
+  // Approve n new posts one after the other, like the owner tapping Approve n times. Returns for each one
+  // the slot name, the stored moment (UTC) and the time the owner is shown (Berlin).
+  const approveAll = async (now, n, settings = s02p, table = []) => {
+    const out = [];
+    for (let i = 1; i <= n; i++) {
+      const id = 'Q' + i;
+      table.push({ ...basePost, id: rowId++, post_id: id });
+      const [r] = await action('/approve ' + id, table, now, settings);
+      if (!r.ok) throw new Error('approve failed: ' + r.reply);
+      table.push({ ...r.rows[0], id: rowId++ });
+      out.push({ slot: r.rows[0].slot, post_at: r.rows[0].post_at, shown: r.msgs[0].match(/Slot: (.+?) \(/)[1] });
+    }
+    return out;
+  };
+  const slotOf = async (now, settings = s02p, table = []) => { const [x] = await approveAll(now, 1, settings, table); return `${x.slot} ${x.post_at}`; };
+  const approved = (post_id, post_at, slot = '12:30') => [{ ...basePost, id: rowId++, post_id },
+    ev(post_id, { status: 'approved', post_at, slot, yt_status: 'queued', ig_status: 'queued', tiktok_status: 'todo' })];
+  const hoursBetween = list => list.slice(1).map((x, i) => (DateTime.fromISO(x.post_at).toMillis() - DateTime.fromISO(list[i].post_at).toMillis()) / 3600e3).join();
+
+  await test('02 Slot: two slots a day (12:30 and 20:30 New York), one post per slot, at least 2 hours ahead', async () => {
+    // Tue 13 Oct 2026, 10:00 in Berlin = 04:00 in New York: both slots of that day are free, then it rolls over
+    const five = await approveAll(berlin('2026-10-13T10:00'), 5);
+    assert(five.map(x => `${x.slot} ${x.post_at}`).join(' | ') === '12:30 2026-10-13T16:30:00.000Z | 20:30 2026-10-14T00:30:00.000Z | '
+      + '12:30 2026-10-14T16:30:00.000Z | 20:30 2026-10-15T00:30:00.000Z | 12:30 2026-10-15T16:30:00.000Z', JSON.stringify(five));
+    // the owner is always shown Berlin time
+    assert(five.map(x => x.shown).join(' | ') === 'Tue 13 Oct at 18:30 | Wed 14 Oct at 02:30 | Wed 14 Oct at 18:30 | Thu 15 Oct at 02:30 | Thu 15 Oct at 18:30', five.map(x => x.shown).join(' | '));
+    assert(hoursBetween(five) === '8,16,8,16', hoursBetween(five));
+    // at least 2 hours ahead
+    assert(await slotOf(utcT('2026-10-13T14:30:00')) === '12:30 2026-10-13T16:30:00.000Z', 'exactly 2 hours ahead is allowed');
+    assert(await slotOf(utcT('2026-10-13T14:31:00')) === '20:30 2026-10-14T00:30:00.000Z', 'lunch is too close -> the evening slot of the same day');
+    assert(await slotOf(utcT('2026-10-13T23:00:00')) === '12:30 2026-10-14T16:30:00.000Z', 'evening is too close -> lunch the next day');
+    assert(await slotOf(utcT('2026-10-14T00:30:00')) === '12:30 2026-10-14T16:30:00.000Z', 'exactly at slot time -> the next slot');
+    // a rejected post frees its slot; a post at another moment (an old setting, a retry) blocks nothing
+    const table = [...approved('P2', '2026-10-13T16:30:00.000Z'), ev('P2', { status: 'rejected' }),
+                   ...approved('P3', '2026-10-14T00:30:00.000Z', '20:30'), ...approved('P4', '2026-10-13T17:00:00.000Z', '13:00')];
+    const two = await approveAll(berlin('2026-10-13T10:00'), 2, s02p, table);
+    assert(two.map(x => x.post_at).join() === '2026-10-13T16:30:00.000Z,2026-10-14T16:30:00.000Z', 'taken slots are skipped: ' + JSON.stringify(two));
+    // the clock of the n8n server does not matter
+    assert(await slotOf(DateTime.fromISO('2026-10-13T08:00:00Z', { zone: 'Asia/Tokyo' })) === '12:30 2026-10-13T16:30:00.000Z', 'server in another time zone');
+    // settings
+    assert(await slotOf(berlin('2026-10-13T10:00'), { ...s02p, post_times: ' 20:30;9:05 , 9:05, 25:00, soon' }) === '09:05 2026-10-13T13:05:00.000Z', 'times are cleaned, sorted and de-duplicated');
+    assert(await slotOf(berlin('2026-10-13T10:00'), { ...s02p, min_lead_hours: 0, post_times: '04:10' }) === '04:10 2026-10-13T08:10:00.000Z', 'no lead time');
+    assert(await slotOf(berlin('2026-10-13T10:00'), { telegram_chat_id: '123' }) === '12:30 2026-10-13T16:30:00.000Z', 'missing settings -> 12:30 and 20:30 New York');
+    assert(await slotOf(berlin('2026-10-13T10:00'), { ...s02p, post_times: '', post_timezone: 'Mars/Phobos' }) === '12:30 2026-10-13T16:30:00.000Z', 'unusable settings -> the defaults');
+    assert(await slotOf(berlin('2026-10-13T10:00'), { ...s02p, post_times: '19:00', post_timezone: 'Europe/Berlin' }) === '19:00 2026-10-13T17:00:00.000Z', 'slots in another zone');
+  });
+  await test('02 Slot: the weeks around 25 Oct 2026 (Europe changes its clocks) and 1 Nov 2026 (the US changes)', async () => {
+    // New York is 6 hours behind Berlin, but only 5 from 25 Oct to 1 Nov. The slots stay 12:30 and 20:30 in New York.
+    const eu = await approveAll(berlin('2026-10-24T10:00'), 4);
+    assert(eu.map(x => x.post_at).join() === '2026-10-24T16:30:00.000Z,2026-10-25T00:30:00.000Z,2026-10-25T16:30:00.000Z,2026-10-26T00:30:00.000Z', JSON.stringify(eu));
+    assert(eu.map(x => x.shown).join(' | ') === 'Sat 24 Oct at 18:30 | Sun 25 Oct at 02:30 | Sun 25 Oct at 17:30 | Mon 26 Oct at 01:30', eu.map(x => x.shown).join(' | '));
+    assert(eu.map(x => x.slot).join() === '12:30,20:30,12:30,20:30' && hoursBetween(eu) === '8,16,8', 'for the buyers nothing moves: ' + hoursBetween(eu));
+    const us = await approveAll(berlin('2026-10-31T10:00'), 5);
+    assert(us.map(x => x.post_at).join() === '2026-10-31T16:30:00.000Z,2026-11-01T00:30:00.000Z,2026-11-01T17:30:00.000Z,2026-11-02T01:30:00.000Z,2026-11-02T17:30:00.000Z', JSON.stringify(us));
+    assert(us.map(x => x.shown).join(' | ') === 'Sat 31 Oct at 17:30 | Sun 1 Nov at 01:30 | Sun 1 Nov at 18:30 | Mon 2 Nov at 02:30 | Mon 2 Nov at 18:30', us.map(x => x.shown).join(' | '));
+    assert(us.map(x => x.slot).join() === '12:30,20:30,12:30,20:30,12:30' && hoursBetween(us) === '8,17,8,16', 'the New York day of 1 Nov has 25 hours: ' + hoursBetween(us));
+    // approving in the very hours the clocks change
+    assert(await slotOf(utcT('2026-10-25T00:45:00')) === '12:30 2026-10-25T16:30:00.000Z', 'Berlin, first 02:45 of 25 Oct');
+    assert(await slotOf(utcT('2026-10-25T01:45:00')) === '12:30 2026-10-25T16:30:00.000Z', 'Berlin, second 02:45 of 25 Oct');
+    assert(await slotOf(utcT('2026-11-01T05:30:00')) === '12:30 2026-11-01T17:30:00.000Z', 'New York, first 01:30 of 1 Nov');
+    assert(await slotOf(utcT('2026-11-01T06:30:00')) === '12:30 2026-11-01T17:30:00.000Z', 'New York, second 01:30 of 1 Nov');
+    assert(await slotOf(utcT('2026-11-01T15:31:00')) === '20:30 2026-11-02T01:30:00.000Z', 'lead time is counted in real hours');
+  });
+  await test('02 Slot: spring 2027 (US 14 Mar, Europe 28 Mar), and slots set in Berlin time on the nights the clocks change', async () => {
+    const us = await approveAll(berlin('2027-03-13T10:00'), 4);
+    assert(us.map(x => x.post_at).join() === '2027-03-13T17:30:00.000Z,2027-03-14T01:30:00.000Z,2027-03-14T16:30:00.000Z,2027-03-15T00:30:00.000Z', JSON.stringify(us));
+    assert(us.map(x => x.shown).join(' | ') === 'Sat 13 Mar at 18:30 | Sun 14 Mar at 02:30 | Sun 14 Mar at 17:30 | Mon 15 Mar at 01:30', us.map(x => x.shown).join(' | '));
+    const eu = await approveAll(berlin('2027-03-27T10:00'), 4);
+    assert(eu.map(x => x.post_at).join() === '2027-03-27T16:30:00.000Z,2027-03-28T00:30:00.000Z,2027-03-28T16:30:00.000Z,2027-03-29T00:30:00.000Z', JSON.stringify(eu));
+    assert(eu.map(x => x.shown).join(' | ') === 'Sat 27 Mar at 17:30 | Sun 28 Mar at 01:30 | Sun 28 Mar at 18:30 | Mon 29 Mar at 02:30', eu.map(x => x.shown).join(' | '));
+    // One slot at 01:00 Berlin time: 25 Oct 2026 has 25 hours, 28 Mar 2027 has 23
+    const de = { ...s02p, post_times: '01:00', post_timezone: 'Europe/Berlin' };
+    const oct = await approveAll(berlin('2026-10-23T20:00'), 3, de);
+    assert(oct.map(x => x.post_at).join() === '2026-10-23T23:00:00.000Z,2026-10-24T23:00:00.000Z,2026-10-26T00:00:00.000Z' && hoursBetween(oct) === '24,25', JSON.stringify(oct));
+    assert(oct.map(x => x.shown).join(' | ') === 'Sat 24 Oct at 01:00 | Sun 25 Oct at 01:00 | Mon 26 Oct at 01:00', oct.map(x => x.shown).join(' | '));
+    const mar = await approveAll(berlin('2027-03-26T20:00'), 3, de);
+    assert(mar.map(x => x.post_at).join() === '2027-03-27T00:00:00.000Z,2027-03-28T00:00:00.000Z,2027-03-28T23:00:00.000Z' && hoursBetween(mar) === '24,23', JSON.stringify(mar));
+    assert(mar.map(x => x.shown).join(' | ') === 'Sat 27 Mar at 01:00 | Sun 28 Mar at 01:00 | Mon 29 Mar at 01:00', mar.map(x => x.shown).join(' | '));
+    // 02:30 Berlin time does not exist on 28 Mar 2027 and comes twice on 25 Oct 2026: still exactly one slot that day
+    const odd = { ...s02p, post_times: '02:30', post_timezone: 'Europe/Berlin' };
+    const gap = await approveAll(berlin('2027-03-27T12:00'), 2, odd);
+    assert(gap.map(x => x.post_at).join() === '2027-03-28T01:30:00.000Z,2027-03-29T00:30:00.000Z' && gap[0].shown === 'Sun 28 Mar at 03:30' && gap[0].slot === '02:30', JSON.stringify(gap));
+    const twice = await approveAll(berlin('2026-10-24T12:00'), 2, odd);
+    assert(['2026-10-25T00:30:00.000Z', '2026-10-25T01:30:00.000Z'].includes(twice[0].post_at) && twice[1].post_at === '2026-10-26T01:30:00.000Z' && twice[0].shown === 'Sun 25 Oct at 02:30', JSON.stringify(twice));
+  });
+
+  await test('02 Approve: row, TikTok to-do with checklist, auto or by hand', async () => {
+    let [r] = await action('/approve p1', [basePost], berlin('2026-10-13T20:00'));
+    assert(r.ok && r.save && r.rows.length === 1 && Object.keys(r.rows[0]).join(',') === postCols, 'row columns');
+    const row = r.rows[0];
+    assert(row.status === 'approved' && row.yt_status === 'queued' && row.ig_status === 'queued' && row.tiktok_status === 'todo' && row.caption_tiktok === '', JSON.stringify(row));
+    // 20:00 in Berlin is 14:00 in New York: lunch is over, so it gets the evening slot. Stored in UTC, shown in Berlin time.
+    assert(row.post_at === '2026-10-14T00:30:00.000Z' && row.slot === '20:30', 'slot: ' + row.slot + ' ' + row.post_at);
+    assert(r.msgs.length === 2 && r.msgs[0].includes('P1 approved. Slot: Wed 14 Oct at 02:30 (Europe/Berlin). That is the 20:30 slot in America/New_York.'), r.msgs[0]);
+    const todo = r.msgs[1];
+    assert(todo.includes('TikTok to-do for P1') && todo.includes(vurl) && todo.includes('Schedule it for Wed 14 Oct at 02:30 (Europe/Berlin)'), todo);
+    assert(todo.includes('"Your brand" ON') && todo.includes('"AI-generated content" ON') && todo.includes('"Shop: pivendo.com" and pin it') && todo.includes('/tiktok P1 done'), todo);
+    assert(todo.includes('<code>tt cap\n\nShop: pivendo.com\n\n#a #b</code>'), 'caption to copy: ' + todo);
+    assert(todo.replace(/<\/?code>/g, '').match(/[<>]/) === null, 'only <code> tags may be in the message');
+    // no AI in the video, and both platforms by hand
+    [r] = await action('/approve P1', [{ ...basePost, ai: 'no' }], berlin('2026-10-13T20:00'), { ...s02p, youtube_auto: 'no', instagram_auto: '' });
+    assert(r.rows[0].yt_status === 'todo' && r.rows[0].ig_status === 'todo' && r.msgs.length === 4, 'by hand: ' + JSON.stringify(r.rows[0]));
+    assert(!r.msgs.join('\n').includes('AI-generated') && !r.msgs.join('\n').includes('Altered content') && r.msgs[2].includes('/youtube P1 done') && r.msgs[2].includes('not made for kids') && r.msgs[3].includes('/instagram P1 done'), 'to-dos');
+    [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'), { ...s02p, youtube_auto: 'no' });
+    assert(r.msgs[2].includes('Altered content: choose "Yes"') && r.msgs[2].includes('<code>yt title</code>') && r.msgs[2].includes('<code>yt desc</code>'), r.msgs[2]);
+    // second tap, rejected post, unknown post
+    [r] = await action('/approve P1', [basePost, ev('P1', { status: 'approved', post_at: '2026-10-14T00:30:00.000Z', slot: '20:30' })], berlin('2026-10-13T20:05'));
+    assert(!r.ok && r.reply.includes('already approved for Wed 14 Oct at 02:30'), 'a second tap must not move the slot: ' + JSON.stringify(r));
+    [r] = await action('/approve P1', [basePost, ev('P1', { status: 'rejected' })], berlin('2026-10-13T20:05'));
+    assert(!r.ok && r.reply.includes('was rejected'), r.reply);
+    [r] = await action('/approve P404', [basePost], berlin('2026-10-13T20:05'));
+    assert(!r.ok && r.reply.includes('P404'), r.reply);
+    [r] = await action('/approve', [{}], berlin('2026-10-13T20:05'));
+    assert(!r.ok && r.reply.includes('(missing id)'), r.reply);
+  });
+  const live = [basePost, ev('P1', { status: 'approved', post_at: '2026-10-14T00:30:00.000Z', slot: '20:30', yt_status: 'queued', ig_status: 'queued', tiktok_status: 'todo' })];
+  await test('02 Music: the owner chooses it himself and is reminded in the approval request, the approve message and every to-do', async () => {
+    const MUSIC = 'Choose the music first.';
+    const bot = 'the bot posts them and cannot add a sound, so the music must already be inside the video file';
+    const request = async settings => (await run(cmds, 'Check post texts', { '⚙️ Settings': [settings], 'Build post brief': [pbrief], 'Post agent': [{ output: JSON.stringify(goodTexts) }] }, [], { now: T0 }))[0].text;
+    // the request for the OK (the message with the Approve button): before anything is decided
+    let t = await request(s02p);
+    assert(t.includes('🎵 Choose the music first. TikTok: in TikTok Studio tap Sounds, pick one, then Save.') && t.includes(bot), t);
+    assert(t.indexOf(MUSIC) > t.indexOf('YOUTUBE DESCRIPTION') && t.indexOf(MUSIC) < t.indexOf('✅ Approve'), 'the reminder sits right above the buttons\' explanation');
+    assert((t.match(/Choose the music first\./g) || []).length === 1, 'one short line');
+    t = await request({ ...s02p, instagram_auto: 'no' });
+    assert(t.includes('YouTube: the bot posts it and cannot add a sound, so the music must already be inside the video file') && !t.includes('Instagram: the bot'), t);
+    t = await request({ ...s02p, youtube_auto: 'no', instagram_auto: '' });
+    assert(t.includes(MUSIC) && t.includes('TikTok Studio tap Sounds') && !t.includes('cannot add a sound'), 'by hand only: the to-dos say the rest: ' + t);
+    // the approve message
+    let [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'));
+    assert(r.msgs[0].includes('🎵 Choose the music first. TikTok: in TikTok Studio tap Sounds, pick one, then Save.') && r.msgs[0].includes('YouTube and Instagram: ' + bot), r.msgs[0]);
+    assert(r.msgs[0].indexOf(MUSIC) < r.msgs[0].indexOf('Changed your mind?') && (r.msgs[0].match(/Choose the music first\./g) || []).length === 1, r.msgs[0]);
+    // the to-do for every platform the owner posts by hand: TikTok always, YouTube and Instagram when they are not automatic
+    [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'), { ...s02p, youtube_auto: 'no', instagram_auto: 'no' });
+    assert(r.msgs.length === 4 && !r.msgs[0].includes('cannot add a sound'), 'three to-dos, and no "inside the file" sentence when the owner posts by hand');
+    const [tiktok, youtube, instagram] = r.msgs.slice(1);
+    assert(tiktok.includes('Choose the music first. In TikTok Studio tap Sounds, pick one, then Save.') && youtube.includes('Choose the music first. It must already be inside the video file, or add the sound in the YouTube app instead of Studio.')
+      && instagram.includes('Choose the music first. In the Reel editor tap the music icon (Audio), pick one, then Done.'), r.msgs.slice(1).join('\n---\n'));
+    for (const m of r.msgs.slice(1)) assert((m.match(/Choose the music first\./g) || []).length === 1, 'one line per to-do');
+    // the music is chosen before the caption is pasted and before the post is scheduled
+    assert(tiktok.indexOf(MUSIC) < tiktok.indexOf('Paste the caption') && tiktok.indexOf(MUSIC) < tiktok.indexOf('Schedule it for'), tiktok);
+    assert(instagram.indexOf(MUSIC) < instagram.indexOf('Paste the caption') && youtube.indexOf(MUSIC) < youtube.indexOf('Paste the title'), 'order of the steps');
+    assert(tiktok.replace(/<\/?code>/g, '').match(/[<>]/) === null && instagram.replace(/<\/?code>/g, '').match(/[<>]/) === null, 'still HTML-safe');
+    // when the bot posts YouTube and Instagram there is no to-do for them, and so no extra reminder there
+    [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'));
+    assert(r.msgs.length === 2 && (r.msgs.join('\n').match(/Choose the music first\./g) || []).length === 2, 'approve message + TikTok to-do');
+  });
+  await test('02 Music: the agents never pick or name a song (prompts, the brief they get, and a check on their texts)', async () => {
+    const wf = load(cmds);
+    for (const agentName of ['Content agent', 'Post agent']) {
+      const sys = wf.nodes.find(n => n.name === agentName).parameters.options.systemMessage;
+      assert(sys.includes('the owner chooses the music of every video himself') && sys.includes('Never name, suggest or pick a song, a sound, an artist'), agentName + ' must be told that the owner picks the music');
+    }
+    assert(!/music|song|sound|audio/i.test(pbrief.prompt), 'the brief for the Post agent must not invite it to talk about music: ' + pbrief.prompt);
+    for (const [label, bad] of Object.entries({ 'a note sign': 'Cozy nights ♪ with this lamp', 'a credit': 'Music by DJ Dream', 'an original sound': 'Original sound - someone', 'a trending sound': 'Set to a trending sound',
+      'a label': 'Sound: Cozy Nights', 'feat': 'Cozy Nights feat. Someone' })) {
+      for (const field of ['caption_tiktok', 'caption_instagram', 'yt_description']) {
+        const [q] = await checkTexts({ ...goodTexts, [field]: bad });
+        assert(q.ok === false && q.reply.startsWith('Not queued.') && q.reply.includes('a song or sound credit'), `"${bad}" in ${field} (${label}) must not be queued: ` + JSON.stringify(q).slice(0, 160));
+      }
+    }
+    // an ordinary word is fine: a product can really play music, and "sound on" is not a song
+    for (const fine of ['Plays music over Bluetooth in a dark room', 'Turn the sound on for the best effect', 'A sound sleeper\'s night light']) {
+      const [q] = await checkTexts({ ...goodTexts, caption_instagram: fine });
+      assert(q.ok === true, `"${fine}" is fine: ` + JSON.stringify(q).slice(0, 160));
+    }
+  });
+  await test('02 Reject, /posts, /tiktok done, /retry', async () => {
+    let [r] = await action('/reject P1', [basePost], berlin('2026-10-13T20:00'));
+    assert(r.ok && r.rows[0].status === 'rejected' && r.rows[0].post_at === '' && r.msgs[0].includes('Nothing will be posted'), JSON.stringify(r));
+    [r] = await action('/reject P1', [...live, ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' })], berlin('2026-10-13T20:30'));
+    assert(r.ok && r.rows[0].status === 'rejected' && r.msgs[0].includes('will not post anything more'), r.msgs[0]);
+    // a video that is already scheduled on YouTube cannot be taken back by Reject: the owner is told so, with the link and the clicks
+    const m = r.msgs[0];
+    assert(m.includes('YouTube already has this video: it is scheduled, private until Wed 14 Oct at 02:30 (Europe/Berlin), and then it goes public by itself'), m);
+    assert(m.includes('Rejecting does not remove it, and the bot cannot delete videos') && m.includes('https://studio.youtube.com/video/YT1/edit'), m);
+    assert(m.includes('1. Open YouTube Studio → Content (left menu).') && m.includes('three dots ⋮ (Options) → Delete forever') && m.includes('3. Tick the box and click Delete forever.'), m);
+    assert(!m.match(/[<>]/), 'the message is sent as HTML, so only escaped text is allowed');
+    // the slot time has passed: it may be public already
+    [r] = await action('/reject P1', [...live, ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' })], berlin('2026-10-14T03:30'));
+    assert(r.msgs[0].includes('its slot time has passed, so it may be public already') && r.msgs[0].includes('studio.youtube.com/video/YT1/edit'), r.msgs[0]);
+    // being uploaded right now (no id yet), a failed or stuck upload (a video may be there), Instagram on its way or out
+    [r] = await action('/reject P1', [...live, ev('P1', { yt_status: 'uploading' }), ev('P1', { ig_status: 'publishing' })], berlin('2026-10-13T20:30'));
+    assert(r.msgs[0].includes('YouTube is uploading it right now and rejecting does not stop an upload that has started') && r.msgs[0].includes('Delete forever'), r.msgs[0]);
+    assert(r.msgs[0].includes('Instagram is busy with it right now') && r.msgs[0].includes('"not posted" means it is stopped'), r.msgs[0]);
+    for (const st of ['failed', 'stuck']) {
+      [r] = await action('/reject P1', [...live, ev('P1', { yt_status: st })], berlin('2026-10-13T20:30'));
+      assert(r.msgs[0].includes('may still have left a video') && r.msgs[0].includes('Delete forever'), st + ': ' + r.msgs[0]);
+    }
+    [r] = await action('/reject P1', [...live, ev('P1', { ig_status: 'published' })], berlin('2026-10-13T20:30'));
+    assert(r.msgs[0].includes('already on Instagram: delete the Reel') && !r.msgs[0].includes('YouTube'), r.msgs[0]);
+    [r] = await action('/reject P1', [...live, ev('P1', { ig_status: 'stuck' })], berlin('2026-10-13T20:30'));
+    assert(r.msgs[0].includes('Instagram may have posted it'), r.msgs[0]);
+    [r] = await action('/reject P1', live, berlin('2026-10-13T20:30'));
+    assert(!r.msgs[0].includes('⚠️'), 'nothing is out yet, so there is nothing to delete: ' + r.msgs[0]);
+    [r] = await action('/reject P1', [basePost, ev('P1', { status: 'rejected' })], berlin('2026-10-13T20:00'));
+    assert(!r.ok && r.reply.includes('already rejected'), r.reply);
+
+    [r] = await action('/posts', [...live, ...approved('P2', '2026-10-12T16:30:00.000Z'), ev('P2', { yt_status: 'scheduled', ig_status: 'published', tiktok_status: 'done' }),
+      { ...basePost, id: rowId++, post_id: 'P3' }], berlin('2026-10-13T20:00'));
+    assert(r.ok && !r.save && r.msgs.length === 1, 'list only');
+    const list = r.msgs[0];
+    assert(list.indexOf('WAITING FOR YOUR OK') < list.indexOf('COMING UP') && list.indexOf('COMING UP') < list.indexOf('LAST POSTS'), list);
+    assert(list.includes('/approve P3') && list.includes('P1 · Wed 14 Oct at 02:30') && list.includes('YouTube ⏳ waiting · Instagram ⏳ waiting · TikTok ☐ you post it'), list);
+    assert(list.includes('P2 · Mon 12 Oct at 18:30') && list.includes('(times in Europe/Berlin)') && list.includes('YouTube ✅ scheduled · Instagram ✅ posted · TikTok ✅ done'), list);
+    [r] = await action('/posts', [{}], berlin('2026-10-13T20:00'));
+    assert(r.ok && r.msgs[0].includes('No posts yet') && r.msgs[0].includes('&lt;video link&gt;'), r.msgs[0]);
+
+    [r] = await action('/tiktok P1 done', live, berlin('2026-10-13T21:00'));
+    assert(r.ok && r.rows[0].tiktok_status === 'done' && r.rows[0].status === '' && r.msgs[0].includes('/video P1-tt &lt;views&gt;'), JSON.stringify(r).slice(0, 300));
+    assert(r.videos.length === 1 && Object.keys(r.videos[0]).join(',') === header('content'), 'content row columns ' + Object.keys(r.videos[0]));
+    assert(r.videos[0].content_id === 'P1-tt' && r.videos[0].format === 'tiktok, slot 20:30' && r.videos[0].day === '2026-10-14' && r.videos[0].hook === 'tt cap' && r.videos[0].rules_version === 'R020v1', JSON.stringify(r.videos[0]));
+    [r] = await action('/tiktok P1', live, berlin('2026-10-13T21:00'));
+    assert(!r.ok && r.reply.startsWith('Usage: /tiktok'), r.reply);
+    [r] = await action('/tiktok P1 done', [...live, ev('P1', { tiktok_status: 'done' })], berlin('2026-10-13T21:00'));
+    assert(!r.ok && r.reply.includes('already marked'), r.reply);
+    [r] = await action('/youtube P1 done', live, berlin('2026-10-13T21:00'));
+    assert(!r.ok && r.reply.includes('handled by the bot'), 'the bot posts YouTube here: ' + r.reply);
+    [r] = await action('/tiktok P1 done', [basePost], berlin('2026-10-13T21:00'));
+    assert(!r.ok && r.reply.includes('not approved'), r.reply);
+
+    [r] = await action('/retry P1', live, berlin('2026-10-13T21:00'));
+    assert(!r.ok && r.reply.includes('Nothing to retry'), 'nothing failed: ' + r.reply);
+    [r] = await action('/retry P1', [...live, ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' }), ev('P1', { ig_status: 'late' })], berlin('2026-10-14T15:00'));
+    // 15:00 in Berlin is 09:00 in New York: a late retry is not a lunch or evening post, and its slot says so
+    assert(r.ok && r.rows[0].ig_status === 'queued' && r.rows[0].yt_status === '' && r.rows[0].post_at === '2026-10-14T13:00:00.000Z' && r.rows[0].slot === '09:00', 'retry of a late post goes out now: ' + JSON.stringify(r.rows[0]));
+    assert(r.msgs[0].includes('Instagram will be tried again') && !r.msgs[0].includes('YouTube') && r.msgs[0].includes('right away'), r.msgs[0]);
+    [r] = await action('/retry P1', [...live, ev('P1', { yt_status: 'failed' }), ev('P1', { ig_status: 'stuck' })], berlin('2026-10-13T21:00'));
+    assert(r.ok && r.rows[0].yt_status === 'queued' && r.rows[0].ig_status === 'queued' && r.rows[0].post_at === '' && r.rows[0].slot === '' && r.msgs[0].includes('posted twice'), 'before the slot time the slot stays: ' + JSON.stringify(r));
+    // the duplicate warning: for "stuck" (nobody knows) and also for a failed YouTube upload (a video may be there); not for a plain failed Instagram post or a late one
+    const warned = async changes => (await action('/retry P1', [...live, ev('P1', changes)], berlin('2026-10-13T21:00')))[0].msgs[0].includes('If it is already there, it will be posted twice');
+    assert(await warned({ yt_status: 'failed' }), 'a failed YouTube upload may have left a video: the retry must warn about a second copy');
+    assert(await warned({ yt_status: 'stuck' }) && await warned({ ig_status: 'stuck' }), 'stuck warns on both platforms');
+    assert(!(await warned({ ig_status: 'failed' })) && !(await warned({ ig_status: 'late' })) && !(await warned({ yt_status: 'late' })), 'nothing was sent in these cases, so no warning');
+  });
+
+  // ---- 08: the publisher
+  const s08 = { telegram_chat_id: '123', ig_user_id: '17841400000000000', ig_token_expires: 'never', graph_api: 'https://graph.facebook.com/v25.0',
+    max_late_hours: 12, stuck_minutes: 30, stats_after_hours: 48, time_zone: 'Europe/Berlin' };
+  const SLOT = '2026-10-25T01:00:00.000+02:00';
+  const livePost = (changes = {}) => [{ ...basePost }, ev('P1', { status: 'approved', post_at: SLOT, yt_status: 'queued', ig_status: 'queued', tiktok_status: 'todo', ...changes })];
+  const plan = (rows, now, settings = s08) => run(soc, 'Plan this run', { '⚙️ Settings': [settings], 'Load posts': rows }, [], { now });
+  await test('08 Plan this run: nothing without the owner\'s OK', async () => {
+    assert((await plan([{}], berlin('2026-10-25T01:05'))).length === 0, 'empty table');
+    assert((await plan([{ ...basePost, post_at: SLOT, yt_status: 'queued', ig_status: 'queued' }], berlin('2026-10-25T01:05'))).length === 0, 'awaiting_ok is never posted');
+    assert((await plan([...livePost(), ev('P1', { status: 'rejected' })], berlin('2026-10-25T01:05'))).length === 0, 'rejected after approval is never posted');
+    assert((await plan(livePost({ yt_status: 'todo', ig_status: 'todo' }), berlin('2026-10-25T01:05'))).length === 0, 'platforms the owner posts by hand are left alone');
+  });
+  await test('08 Plan this run: YouTube right after approval, Instagram at slot time, marks first', async () => {
+    let [p] = await plan(livePost(), berlin('2026-10-24T20:00'));
+    assert(p.ig === null && p.yt && p.yt.post_id === 'P1' && p.yt.publish_at === '2026-10-24T23:00:00.000Z' && p.yt.ai === 'yes' && p.yt.title === 'yt title', JSON.stringify(p.yt));
+    assert(p.rows.length === 1 && p.rows[0].yt_status === 'uploading' && p.rows[0].ig_status === '' && Object.keys(p.rows[0]).join(',') === postCols, 'mark row: ' + JSON.stringify(p.rows[0]));
+    assert(p.alerts.length === 0, 'no alerts');
+    const afterYt = [...livePost(), ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' }, '2026-10-24T18:02:00.000Z')];
+    assert((await plan(afterYt, berlin('2026-10-25T00:59'))).length === 0, 'Instagram waits for the slot time');
+    [p] = await plan(afterYt, berlin('2026-10-25T01:00'));
+    assert(p.yt === null && p.ig && p.ig.create_url === 'https://graph.facebook.com/v25.0/17841400000000000/media' && p.ig.publish_url.endsWith('/17841400000000000/media_publish'), JSON.stringify(p.ig));
+    assert(JSON.stringify(p.ig.query) === JSON.stringify({ media_type: 'REELS', video_url: vurl, caption: 'ig cap', share_to_feed: 'true', is_ai_generated: 'true' }), JSON.stringify(p.ig.query));
+    assert(p.rows.length === 1 && p.rows[0].ig_status === 'publishing' && p.rows[0].yt_status === '', JSON.stringify(p.rows[0]));
+    [p] = await plan([{ ...basePost, ai: 'no' }, ...afterYt.slice(1)], berlin('2026-10-25T01:00'));
+    assert(!('is_ai_generated' in p.ig.query) && p.ig.ai === 'no', 'no AI label without AI');
+    // n8n was off until after the slot: both at once, and YouTube gets a publish time 15 minutes ahead
+    [p] = await plan(livePost(), berlin('2026-10-25T03:00'));
+    assert(p.yt.publish_at === '2026-10-25T02:15:00.000Z' && p.ig && p.rows.length === 2, 'late but inside the limit: ' + JSON.stringify(p.yt));   // 03:00 winter time = 02:00 UTC
+  });
+  await test('08 Plan this run: the double-post guard', async () => {
+    const tick1 = berlin('2026-10-25T01:00');
+    const rows = [...livePost({ yt_status: 'todo' })];
+    const [p1] = await plan(rows, tick1);
+    assert(p1.ig && p1.rows[0].ig_status === 'publishing', 'first run takes the post');
+    // the mark is in the table before any API call, so no later run takes the post again
+    rows.push({ ...p1.rows[0], id: rowId++ });
+    assert((await plan(rows, tick1)).length === 0, 'same minute');
+    assert((await plan(rows, berlin('2026-10-25T01:10'))).length === 0, 'next run, 10 minutes later');
+    // a crash half-way: reported once as stuck, and still never posted by itself
+    const [stuck] = await plan(rows, berlin('2026-10-25T01:40'));
+    assert(stuck.ig === null && stuck.yt === null && stuck.rows.length === 1 && stuck.rows[0].ig_status === 'stuck' && stuck.alerts[0].includes('/retry P1'), JSON.stringify(stuck));
+    rows.push({ ...stuck.rows[0], id: rowId++ });
+    assert((await plan(rows, berlin('2026-10-25T01:50'))).length === 0, 'stuck is reported once and not posted');
+    for (const st of ['published', 'failed', 'late', 'done']) {
+      assert((await plan([...livePost({ yt_status: 'todo' }), ev('P1', { ig_status: st })], berlin('2026-10-25T02:00'))).length === 0, `"${st}" must never be posted again by itself`);
+    }
+    for (const st of ['uploading', 'scheduled', 'failed', 'late', 'stuck']) {
+      assert((await plan([...livePost({ ig_status: 'todo' }), ev('P1', { yt_status: st }, '2026-10-24T23:55:00.000Z')], berlin('2026-10-25T02:00'))).filter(x => x.yt).length === 0, `YouTube "${st}" must never be uploaded again by itself`);
+    }
+    // only /retry (the owner) puts it back
+    const [again] = await plan([...rows, ev('P1', { ig_status: 'queued' })], berlin('2026-10-25T02:00'));
+    assert(again.ig && again.rows[0].ig_status === 'publishing', 'after /retry');
+    // one post per run and platform
+    const two = [...livePost({ yt_status: 'todo' }), { ...basePost, id: rowId++, post_id: 'P2' }, ev('P2', { status: 'approved', post_at: '2026-10-25T00:30:00.000+02:00', yt_status: 'todo', ig_status: 'queued' })];
+    const [one] = await plan(two, berlin('2026-10-25T01:00'));
+    assert(one.ig.post_id === 'P2' && one.rows.length === 1, 'the oldest due post goes first, the other waits for the next run');
+  });
+  await test('08 Plan this run: more than max_late_hours late -> not posted, the owner is told', async () => {
+    // the slot is 24 Oct 23:00 UTC (01:00 summer time on the night the clocks go back)
+    const z = iso => DateTime.fromISO(iso, { zone: 'utc' });
+    let [p] = await plan(livePost({ yt_status: 'todo' }), z('2026-10-25T10:59:00'));
+    assert(p.ig && p.alerts.length === 0, '11 h 59 min late is still posted');
+    [p] = await plan(livePost({ yt_status: 'todo' }), z('2026-10-25T11:01:00'));
+    assert(p.ig === null && p.rows.length === 1 && p.rows[0].ig_status === 'late' && p.rows[0].note.includes('passed 12 hours ago'), JSON.stringify(p.rows));
+    assert(p.alerts.length === 1 && p.alerts[0].includes('Instagram: P1 was NOT posted') && p.alerts[0].includes('/retry P1'), p.alerts[0]);
+    [p] = await plan(livePost(), berlin('2026-10-26T09:00'));
+    assert(p.yt === null && p.ig === null && p.rows.map(r => r.yt_status + r.ig_status).join() === 'late,late' && p.alerts.length === 2, 'both platforms: ' + JSON.stringify(p.rows));
+    [p] = await plan(livePost({ yt_status: 'todo' }), berlin('2026-10-25T05:00'), { ...s08, max_late_hours: 3 });
+    assert(p.ig === null && p.rows[0].ig_status === 'late', 'the limit comes from Settings');
+    [p] = await plan(livePost({ yt_status: 'todo' }), berlin('2026-10-25T01:00'), { ...s08, ig_user_id: 'PASTE_YOUR_INSTAGRAM_ACCOUNT_ID' });
+    assert(p.ig === null && p.rows[0].ig_status === 'failed' && p.alerts[0].includes('ig_user_id'), 'missing account id: ' + JSON.stringify(p));
+  });
+
+  const ytJob = { post_id: 'P1', video_url: vurl, title: 'yt title', description: 'yt desc', ai: 'yes', publish_at: '2026-10-24T23:00:00.000Z' };
+  await test('08 YouTube: upload check + AI declaration keeps every status field', async () => {
+    let [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [ytJob], 'Download video': [{}] }, [{ uploadId: 'YT1' }]);
+    assert(u.ok && u.declare === true && u.video_id === 'YT1' && u.update.id === 'YT1', JSON.stringify(u));
+    assert(JSON.stringify(u.update.status) === JSON.stringify({ privacyStatus: 'private', publishAt: '2026-10-24T23:00:00.000Z', selfDeclaredMadeForKids: false,
+      embeddable: true, license: 'youtube', publicStatsViewable: true, containsSyntheticMedia: true }), 'the update must resend private + publishAt + not made for kids: ' + JSON.stringify(u.update.status));
+    [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [{ ...ytJob, ai: 'no' }], 'Download video': [{}] }, [{ uploadId: 'YT1' }]);
+    assert(u.ok && u.declare === false, 'no declaration without AI');
+    [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [ytJob], 'Download video': [{}] }, [{ error: 'The request cannot be completed because you have exceeded your quota.' }]);
+    assert(!u.ok && !u.declare && u.reason.includes('exceeded your quota') && u.none === false, JSON.stringify(u));
+    [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [ytJob], 'Download video': [{ error: { message: '404 Not Found' } }] }, [{ error: 'no binary data' }]);
+    assert(!u.ok && u.reason.includes('could not be downloaded (404 Not Found)') && u.none === true, 'only a failed download proves that nothing is on YouTube: ' + JSON.stringify(u));
+    [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [ytJob], 'Download video': [{}] }, [{}]);
+    assert(!u.ok && u.reason.includes('did not return a video id') && u.none === false, 'no id = not uploaded, but maybe on YouTube: ' + JSON.stringify(u));
+    const wf = load(soc);
+    const up = wf.nodes.find(n => n.name === 'YouTube: upload').parameters;
+    assert(up.options.privacyStatus === 'private' && up.options.selfDeclaredMadeForKids === false && up.options.publishAt.includes('publish_at'), 'upload must be private, scheduled, not made for kids');
+  });
+  await test('08 YouTube result: row + message', async () => {
+    const set = { '⚙️ Settings': [s08], 'YouTube job': [ytJob] };
+    const okUp = { ok: true, declare: true, video_id: 'YT1' };
+    let [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [okUp] }, [{ id: 'YT1', status: { privacyStatus: 'private', publishAt: '2026-10-24T23:00:00Z', containsSyntheticMedia: true } }]);
+    assert(Object.keys(r.row).join(',') === postCols && r.row.yt_status === 'scheduled' && r.row.yt_video_id === 'YT1' && r.row.note === '', JSON.stringify(r.row));
+    assert(r.text.includes('goes public Sun 25 Oct at 01:00 (Europe/Berlin)') && r.text.includes('studio.youtube.com/video/YT1/edit') && r.text.includes('AI label: set'), r.text);
+    [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [okUp] }, [{ error: { code: 403, message: 'Forbidden' } }]);
+    assert(r.row.yt_status === 'scheduled' && r.row.note.includes('AI label not confirmed') && r.text.includes('⚠️ AI label') && r.text.includes('Forbidden'), r.text);
+    [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [okUp] }, [{ id: 'YT1', status: { privacyStatus: 'public', containsSyntheticMedia: true } }]);
+    assert(r.text.includes('shows it as "public"'), r.text);
+    [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [{ ok: true, declare: false, video_id: 'YT2' }] }, [{ ok: true, declare: false, video_id: 'YT2' }]);
+    assert(r.row.yt_video_id === 'YT2' && !r.text.includes('AI label'), r.text);
+    [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [{ ok: false, declare: false, none: false, reason: 'quota <exceeded>' }] }, [{}]);
+    assert(r.row.yt_status === 'failed' && r.row.yt_video_id === '' && r.row.note === 'YouTube: quota <exceeded>' && r.text.includes('quota &lt;exceeded&gt;') && r.text.includes('/retry P1'), JSON.stringify(r));
+    // a failed upload is not proof that nothing is on YouTube (the chunked upload can fail after its last chunk)
+    assert(r.text.includes('The upload failed. Check YouTube Studio before you retry: the video may still be there.') && !r.text.includes('Nothing is on YouTube'), r.text);
+    // only when the download failed (the upload never started) is it certain
+    [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [{ ok: false, declare: false, none: true, reason: 'the video file could not be downloaded (404 Not Found)' }] }, [{}]);
+    assert(r.text.includes('Nothing is on YouTube') && !r.text.includes('may still be there') && r.text.includes('/retry P1') && r.row.yt_status === 'failed', r.text);
+  });
+
+  const igJob = { post_id: 'P1', ai: 'yes', graph: 'https://graph.facebook.com/v25.0', create_url: 'x', publish_url: 'y', query: {} };
+  await test('08 Instagram: container status loop', async () => {
+    const st = (json, runIndex = 0) => run(soc, 'Container status', {}, [json], { runIndex }).then(x => x[0]);
+    assert((await st({ status_code: 'FINISHED', id: 'C1' })).state === 'done', 'finished');
+    assert((await st({ status_code: 'IN_PROGRESS' })).state === 'wait', 'in progress');
+    assert((await st({ error: { message: 'temporary' } }, 3)).state === 'wait', 'one failed check is not the end');
+    let r = await st({ status_code: 'IN_PROGRESS' }, 19);
+    assert(r.state === 'error' && r.sure === true && r.reason.includes('10 minutes'), JSON.stringify(r));
+    r = await st({ status_code: 'ERROR', status: 'Error: unsupported video format' });
+    assert(r.state === 'error' && r.sure === true && r.reason.includes('unsupported video format'), JSON.stringify(r));
+    r = await st({ status_code: 'PUBLISHED' });
+    assert(r.state === 'error' && r.sure === false, 'an already published container is never published again: ' + JSON.stringify(r));
+  });
+  await test('08 Instagram result: published only with a media id', async () => {
+    const base = { 'Instagram job': [igJob] };
+    let [r] = await run(soc, 'Instagram result', { ...base, 'Instagram: create container': [{ id: 'C1' }], 'Container status': [{ state: 'done' }],
+      'Instagram: publish': [{ id: '1790000000' }], 'Instagram: get link': [{ permalink: 'https://www.instagram.com/reel/abc/', id: '1790000000' }] }, [{}]);
+    assert(Object.keys(r.row).join(',') === postCols && r.row.ig_status === 'published' && r.row.ig_media_id === '1790000000', JSON.stringify(r.row));
+    assert(r.text.includes('P1 is live') && r.text.includes('instagram.com/reel/abc') && r.text.includes('AI info'), r.text);
+    [r] = await run(soc, 'Instagram result', { ...base, 'Instagram: create container': [{ error: { message: 'Error validating access token', type: 'OAuthException', code: 190 } }] }, [{}]);
+    assert(r.row.ig_status === 'failed' && r.row.ig_media_id === '' && r.row.note.includes('Error validating access token') && r.text.includes('/retry P1'), JSON.stringify(r));
+    [r] = await run(soc, 'Instagram result', { ...base, 'Instagram: create container': [{ post_id: 'P1' }] }, [{}]);
+    assert(r.row.ig_status === 'failed', 'no container id = failed');
+    [r] = await run(soc, 'Instagram result', { ...base, 'Instagram: create container': [{ id: 'C1' }], 'Container status': [{ state: 'error', sure: true, reason: 'Instagram could not use the video (ERROR)' }] }, [{}]);
+    assert(r.row.ig_status === 'failed' && r.text.includes('could not use the video'), r.text);
+    [r] = await run(soc, 'Instagram result', { ...base, 'Instagram: create container': [{ id: 'C1' }], 'Container status': [{ state: 'error', sure: false, reason: 'already published' }] }, [{}]);
+    assert(r.row.ig_status === 'stuck', 'unclear = stuck, the owner looks');
+    [r] = await run(soc, 'Instagram result', { ...base, 'Instagram: create container': [{ id: 'C1' }], 'Container status': [{ state: 'done' }],
+      'Instagram: publish': [{ error: 'socket hang up' }], 'Instagram: get link': [{ error: 'x' }] }, [{}]);
+    assert(r.row.ig_status === 'stuck' && r.row.ig_media_id === '' && r.text.includes('may not have been posted') && r.text.includes('socket hang up'), JSON.stringify(r));
+  });
+  // The last look before the Reel goes out: up to 10 minutes can lie between "Plan this run" and the publish call
+  const marked = [...livePost({ yt_status: 'todo' }), ev('P1', { ig_status: 'publishing' })];
+  const recheck = rows => run(soc, 'Check post again (Instagram)', { 'Instagram job': [igJob], 'Reload post (Instagram)': rows }, [{}]).then(x => x[0]);
+  await test('08 Instagram: the post is read again right before the publish call (Reject, stuck, never marked)', async () => {
+    assert((await recheck(marked)).ok === true, 'approved and marked "publishing" by this run: publish');
+    assert((await recheck([...marked, ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' })])).ok === true, 'another platform changing does not matter');
+    let c = await recheck([...marked, ev('P1', { status: 'rejected' })]);
+    assert(c.ok === false && c.rejected === true && c.reason === 'you rejected it before it went out', 'rejected while Instagram converted the video: ' + JSON.stringify(c));
+    c = await recheck([...marked, ev('P1', { ig_status: 'stuck' })]);
+    assert(c.ok === false && c.rejected === false && c.reason.includes('Instagram status changed to "stuck"'), 'a later run reported it as stuck: ' + JSON.stringify(c));
+    c = await recheck([...marked, ev('P1', { ig_status: 'stuck' }), ev('P1', { ig_status: 'queued' })]);
+    assert(c.ok === false && c.reason.includes('"queued"'), 'after /retry a new run owns the post, this one must not publish: ' + JSON.stringify(c));
+    c = await recheck(livePost({ yt_status: 'todo' }));
+    assert(c.ok === false && c.reason.includes('"queued"'), 'never marked = never published (the mark is the double-post guard): ' + JSON.stringify(c));
+    c = await recheck([{}]);
+    assert(c.ok === false && c.reason.includes('could not be read again'), JSON.stringify(c));
+    c = await recheck([...marked, ev('P1', { status: 'awaiting_ok' })]);
+    assert(c.ok === false && c.rejected === false && c.reason.includes('status changed to "awaiting_ok"'), JSON.stringify(c));
+  });
+  await test('08 Instagram result: a post that was rejected (or changed) while the video was prepared is not published and says so', async () => {
+    const base = { 'Instagram job': [igJob], 'Instagram: create container': [{ id: 'C1' }], 'Container status': [{ state: 'done' }] };
+    let [r] = await run(soc, 'Instagram result', { ...base, 'Check post again (Instagram)': [{ ok: false, rejected: true, reason: 'you rejected it before it went out' }] }, [{}]);
+    assert(Object.keys(r.row).join(',') === postCols && r.row.ig_status === 'cancelled' && r.row.ig_media_id === '' && r.row.note === 'Instagram: not posted, you rejected it before it went out', JSON.stringify(r.row));
+    assert(r.text.includes('Instagram: P1 was not posted: you rejected it before it went out') && r.text.includes('Nothing is on Instagram'), r.text);
+    [r] = await run(soc, 'Instagram result', { ...base, 'Check post again (Instagram)': [{ ok: false, rejected: false, reason: 'its Instagram status changed to "stuck" while the video was being prepared' }] }, [{}]);
+    assert(r.row.ig_status === '' && r.row.note.includes('not posted, its Instagram status changed to "stuck"') && r.text.includes('Nothing is on Instagram'), 'the status someone else set is not overwritten: ' + JSON.stringify(r.row));
+    // when the check passed, the result is built from the publish call as before
+    [r] = await run(soc, 'Instagram result', { ...base, 'Check post again (Instagram)': [{ ok: true }], 'Instagram: publish': [{ id: '1790000000' }], 'Instagram: get link': [{ permalink: 'https://www.instagram.com/reel/abc/', id: '1790000000' }] }, [{}]);
+    assert(r.row.ig_status === 'published' && r.row.ig_media_id === '1790000000', JSON.stringify(r.row));
+    // the new status is shown in /posts like the others
+    const [list] = await action('/posts', [...live, ev('P1', { ig_status: 'cancelled' })], berlin('2026-10-13T20:00'));
+    assert(list.msgs[0].includes('Instagram 🚫 cancelled'), list.msgs[0]);
+  });
+
+  // ---- 08: daily numbers
+  const dayNow = berlin('2026-10-27T21:00');
+  const done = (id, post_at, slot, changes) => [{ ...basePost, id: rowId++, post_id: id }, ev(id, { status: 'approved', post_at, slot, yt_status: 'scheduled', yt_video_id: 'YT' + id, ig_status: 'published', ig_media_id: 'IG' + id, tiktok_status: 'done', ...changes })];
+  const table = [
+    ...done('PA', '2026-10-25T00:30:00.000Z', '20:30'),                                        // 67 h old -> due
+    ...done('PB', '2026-10-26T16:30:00.000Z', '12:30'),                                        // 27 h old -> too early
+    ...done('PC', '2026-10-20T00:30:00.000Z', '20:30', { stats_done: 'yes' }),                 // already done
+    ...done('PD', '2026-10-23T16:30:00.000Z', '12:30', { yt_status: 'todo', yt_video_id: '', ig_status: 'done', ig_media_id: '', tiktok_status: 'todo' }),  // by hand
+    { ...basePost, id: rowId++, post_id: 'PE' },                                               // never approved
+  ];
+  const daily = (rows, now = dayNow, settings = s08) => run(soc, 'Plan daily run', { '⚙️ Settings': [settings], 'Load posts': rows }, [], { now }).then(x => x[0]);
+  const igInsights = v => ({ data: Object.entries(v).map(([name, value]) => ({ name, period: 'lifetime', values: [{ value }] })) });
+  const stats = async (rows, ytAnswer, igAnswers, now = dayNow, settings = s08, numbers = [{}]) => {
+    const planned = await daily(rows, now, settings);
+    const calls = await run(soc, 'Instagram calls', { '⚙️ Settings': [settings], 'Plan daily run': [planned] }, []);
+    const [out] = await run(soc, 'Build stats', { '⚙️ Settings': [settings], 'Load posts': rows, 'Load feedback': numbers, 'Plan daily run': [planned],
+      'YouTube: read stats': [ytAnswer], 'Instagram calls': calls }, igAnswers, { now });
+    return { planned, calls, out };
+  };
+  let statRun;
+  await test('08 Daily numbers: posts older than 48 hours, feedback rows like /video', async () => {
+    statRun = await stats(table, { items: [{ id: 'YTPA', statistics: { viewCount: '1204', likeCount: '33', commentCount: '2' }, status: { privacyStatus: 'public' } }] },
+      [igInsights({ views: 356, reach: 300, likes: 12, comments: 1, shares: 4, saved: 5 })]);
+    const { planned, calls, out } = statRun;
+    assert(planned.due.map(p => p.post_id).join() === 'PD,PA' && planned.yt_call.url.endsWith('/youtube/v3/videos') && planned.yt_call.query.id === 'YTPA' && planned.yt_call.query.part === 'statistics,status' && planned.use_yt && planned.use_ig && planned.warn === '', JSON.stringify({ ...planned, due: planned.due.map(p => p.post_id) }));
+    assert(calls.length === 1 && calls[0].post_id === 'PA' && calls[0].url === 'https://graph.facebook.com/v25.0/IGPA/insights' && calls[0].query.metric === 'views,reach,likes,comments,shares,saved', JSON.stringify(calls));
+    // the same shape /video writes, so workflow 05 needs no change
+    const [byHand] = await run(cmds, 'Build feedback', { 'Parse command': [{ route: 'video', args: ['V1', '1200', '14', '1'] }] }, []);
+    assert(out.feedback.length === 2 && out.feedback.map(f => f.ref).join() === 'PA-yt,PA-ig', JSON.stringify(out.feedback));
+    for (const f of out.feedback) {
+      assert(Object.keys(f).join(',') === Object.keys(byHand.row).join(',') && Object.keys(f).join(',') === header('feedback'), 'feedback columns ' + Object.keys(f));
+      for (const k of Object.keys(f)) assert(typeof f[k] === typeof byHand.row[k], `feedback.${k} must be a ${typeof byHand.row[k]}`);
+      assert(f.kind === 'video' && f.clicks === 0 && f.sales === 0 && f.status === '' && f.day === '2026-10-27', JSON.stringify(f));
+    }
+    assert(out.feedback[0].views === 1204 && out.feedback[0].note.includes('33 likes, 2 comments') && out.feedback[1].views === 356 && out.feedback[1].note.includes('reach 300'), JSON.stringify(out.feedback));
+    assert(out.feedback.every(f => f.note.includes('after 48 h, slot 20:30:')), 'the slot is in the note: ' + out.feedback[0].note);
+    assert(out.videos.map(v => v.content_id).join() === 'PA-yt,PA-ig' && out.videos.every(v => Object.keys(v).join(',') === header('content')), 'content rows ' + JSON.stringify(out.videos.map(v => v.content_id)));
+    assert(out.videos[0].format === 'youtube-short, views only, slot 20:30' && out.videos[0].hook === 'yt title' && out.videos[1].format === 'instagram-reel, views only, slot 20:30' && out.videos[0].day === '2026-10-25', JSON.stringify(out.videos[0]));
+    assert(out.rows.length === 2 && out.rows.every(r => r.stats_done === 'yes' && Object.keys(r).join(',') === postCols), JSON.stringify(out.rows.map(r => [r.post_id, r.stats_done])));
+    assert(out.rows.every(r => r.post_at === '' && r.slot === '' && r.status === ''), 'the stats run never moves a post or changes a time');
+    assert(out.text.includes('PA Star &amp; Moon Lamp: YouTube 1204 views, Instagram 356 views') && out.text.includes('TikTok: send /video PA-tt &lt;views&gt;'), out.text);
+    assert(out.text.includes('PD') && out.text.includes('YouTube: not marked as posted. Posted it? Send /youtube PD done') && out.text.includes('Instagram: send /video PD-ig'), out.text);
+    assert(!out.text.includes('PB') && !out.text.includes('PC') && !out.text.includes('PE') && !out.text.includes('🔑'), out.text);
+  });
+  await test('08 Daily numbers reach the Coach and the Content agent unchanged (workflow 05 is not touched)', async () => {
+    const { out } = statRun;
+    const [n] = await run(coach, 'Compute numbers', { ...coachOutputs, 'Load feedback': [...coachOutputs['Load feedback'], ...out.feedback],
+      'Load content': [...coachOutputs['Load content'], ...out.videos] }, []);
+    // "views only" tells the Coach that the 0 clicks and 0 sales of a bot-read row are "not known", not "none"
+    // and "slot 20:30" lets the Coach compare lunch against evening (the Coach's prompt shows the format, not the note)
+    assert(n.prompt.includes('- PA-yt [youtube-short, views only, slot 20:30] "yt title" (Star & Moon Lamp; rules R020v1): 1204 views, 0 clicks, 0 sales'), n.prompt.slice(0, 900));
+    assert(n.prompt.includes('- PA-ig [instagram-reel, views only, slot 20:30] "ig cap"') && n.unmeasured === 1, 'Instagram row, and no extra reminder for videos the bot measured');
+    const [b] = await run(cmds, 'Build content brief', { 'Parse command': [{ route: 'content', args: ['cj333-bk'] }], 'Load products': priced,
+      'Load feedback': out.feedback, 'Load content history': out.videos, 'Load playbook': playbook }, []);
+    assert(b.prompt.includes('"yt title" (youtube-short, views only, slot 20:30) -> 1204 views'), 'the Content agent learns from posts too');
+  });
+  await test('08 Daily numbers: best and weakest video of the last 7 days, with platform and slot', async () => {
+    const ytA = { items: [{ id: 'YTPA', statistics: { viewCount: '1204', likeCount: '33', commentCount: '2' }, status: { privacyStatus: 'public' } }] };
+    const igA = [igInsights({ views: 356 })];
+    // only today's two numbers: PA on YouTube against PA on Instagram
+    let { out } = await stats(table, ytA, igA);
+    assert(out.text.includes('🏆 Last 7 days: best PA on YouTube, 1204 views, slot 20:30 (02:30 in Europe/Berlin). Weakest PA on Instagram, 356 views, slot 20:30 (02:30 in Europe/Berlin).'), out.text);
+    // with the numbers of the week from the feedback table (the bot's own and the ones sent with /video)
+    const week = [
+      { kind: 'video', ref: 'PD-ig', views: 12000, clicks: 40, sales: 2, day: '2026-10-26' },   // the owner sent these with /video
+      { kind: 'video', ref: 'PC-yt', views: 40, clicks: 0, sales: 0, day: '2026-10-22' },
+      { kind: 'video', ref: 'PC-yt', views: 87, clicks: 0, sales: 0, day: '2026-10-23' },       // newer numbers for the same video win
+      { kind: 'video', ref: 'PC-ig', views: 3, clicks: 0, sales: 0, day: '2026-10-20' },        // older than 7 days
+      { kind: 'video', ref: 'V1', views: 99999, clicks: 1, sales: 0, day: '2026-10-26' },       // a /content script, not a post
+      { kind: 'product', ref: 'PC-yt', views: 0, day: '2026-10-26' },
+    ];
+    ({ out } = await stats(table, ytA, igA, dayNow, s08, week));
+    assert(out.text.includes('🏆 Last 7 days: best PD on Instagram, 12000 views, slot 12:30 (18:30 in Europe/Berlin). Weakest PC on YouTube, 87 views, slot 20:30 (02:30 in Europe/Berlin).'), out.text);
+    assert(out.rows.every(r => r.post_at === '' && r.slot === ''), 'the times are never changed by the bot');
+    assert(!out.text.includes('/video PD-ig') && out.text.includes('/video PA-tt'), 'numbers the owner already sent are not asked for again: ' + out.text);
+    // one number is nothing to compare
+    ({ out } = await stats(table.slice(0, 2), ytA, [{ error: 'x' }]));
+    assert(out.feedback.length === 1 && !out.text.includes('🏆'), out.text);
+  });
+  await test('08 Daily numbers: one platform fails -> asked again tomorrow, nothing written twice', async () => {
+    let { out } = await stats(table.slice(0, 2), { items: [{ id: 'YTPA', statistics: { viewCount: '9' }, status: { privacyStatus: 'private' } }] }, [{ error: { message: 'Please reduce the amount of data', code: 1 } }]);
+    assert(out.feedback.map(f => f.ref).join() === 'PA-yt' && out.videos.length === 1 && out.rows[0].stats_done === 'yt', JSON.stringify(out.rows));
+    assert(out.text.includes('still shows it as "private"') && out.text.includes('Instagram: numbers not readable today (Please reduce'), out.text);
+    assert(out.text.includes('🔑 Instagram did not answer the daily check: Please reduce') && !out.text.includes('🔑 YouTube'), 'the reason is passed on: ' + out.text);
+    const next = [...table.slice(0, 2), ev('PA', { stats_done: 'yt' })];
+    const second = await stats(next, { items: [] }, [igInsights({ views: 80, likes: 2 })], berlin('2026-10-28T21:00'));
+    assert(!('id' in second.planned.yt_call.query) && second.calls[0].post_id === 'PA', 'YouTube is not asked again');
+    assert(second.out.feedback.map(f => f.ref).join() === 'PA-ig' && second.out.videos.map(v => v.content_id).join() === 'PA-ig' && second.out.rows[0].stats_done === 'yes', JSON.stringify(second.out.rows));
+    assert(!second.out.text.includes('/video PA-tt'), 'the TikTok reminder is sent once');
+    // still nothing after a week: stop asking
+    const week = await stats([...table.slice(0, 2), ev('PA', { stats_done: 'tried' })], { error: 'timeout' }, [{ error: 'timeout' }], berlin('2026-11-05T21:00'));
+    assert(week.out.feedback.length === 0 && week.out.rows[0].stats_done === 'yes', 'give up after 7 days: ' + JSON.stringify(week.out.rows));
+    // a deleted YouTube video
+    const gone = await stats(table.slice(0, 2), { items: [] }, [igInsights({ views: 5 })]);
+    assert(gone.out.feedback.map(f => f.ref).join() === 'PA-ig' && gone.out.rows[0].stats_done === 'yes' && gone.out.text.includes('video not found'), gone.out.text);
+  });
+  await test('08 Daily check: logins and the token end date', async () => {
+    // nothing due: one small call per platform proves the logins still work, and the owner hears nothing
+    const quiet = await stats(table.slice(2, 4), { kind: 'youtube#channelListResponse', items: [{ id: 'UC123' }] }, [{ username: 'pivendoteam', id: '17841400000000000' }], berlin('2026-10-21T21:00'));
+    assert(quiet.planned.due.length === 0 && quiet.planned.yt_call.url.endsWith('/youtube/v3/channels') && quiet.planned.yt_call.query.mine === 'true' && quiet.calls[0].url === 'https://graph.facebook.com/v25.0/17841400000000000' && quiet.calls[0].query.fields === 'username', JSON.stringify(quiet.calls));
+    assert(quiet.out.text === '' && quiet.out.feedback.length === 0 && quiet.out.rows.length === 0, 'silent when all is fine: ' + quiet.out.text);
+    assert((await run(soc, 'Daily summary', {}, [quiet.out])).length === 0, 'no empty message');
+    const broken = await stats(table.slice(2, 4), { error: { code: 401, message: 'Invalid Credentials' } }, [{ error: { message: 'Error validating access token: Session has expired', type: 'OAuthException', code: 190 } }], berlin('2026-10-21T21:00'));
+    assert(broken.out.text.includes('🔑 YouTube did not answer the daily check: Invalid Credentials') && broken.out.text.includes('🔑 Instagram did not answer the daily check: Error validating access token'), broken.out.text);
+    assert(broken.out.text.includes('"YouTube (Pivendo)"') && broken.out.text.includes('"Instagram (Pivendo)"'), 'names the credential to fix');
+    // platforms the bot does not post on are not checked
+    const byHand = await stats(table.slice(6, 8), { error: 'no credentials' }, [{ error: 'no credentials' }], berlin('2026-10-24T21:00'));
+    assert(!byHand.planned.use_yt && !byHand.planned.use_ig && !byHand.out.text.includes('🔑'), 'no alarm for unused platforms: ' + byHand.out.text);
+    // a token with an end date: warned from 14 days before, every evening
+    const warn = async date => (await daily(table.slice(2, 4), berlin('2026-10-21T21:00'), { ...s08, ig_token_expires: date })).warn;
+    assert(await warn('never') === '' && await warn('') === '' && await warn('2026-11-30') === '', 'no warning');
+    assert((await warn('2026-11-06')) === '', '15 days before: not yet');
+    assert((await warn('2026-11-05')).includes('runs out in 14 day(s)'), '14 days before: first warning');
+    assert((await warn('2026-11-04')).includes('runs out in 13 day(s), on 4 Nov 2026'), await warn('2026-11-04'));
+    assert((await warn('2026-11-01')).includes('runs out in 10 day(s)'), 'warned at least 10 days before');
+    assert((await warn('2026-10-20')).includes('ran out on 20 Oct 2026'), await warn('2026-10-20'));
+    const withWarn = await stats(table.slice(2, 4), { items: [] }, [{ username: 'pivendoteam' }], berlin('2026-10-21T21:00'), { ...s08, ig_token_expires: '2026-11-01' });
+    assert(withWarn.out.text.includes('runs out in 10 day(s)'), withWarn.out.text);
+    // setup help: while ig_user_id is empty, the check asks Meta for the account and tells the owner its ID
+    const noId = { ...s08, ig_user_id: 'PASTE_YOUR_INSTAGRAM_ACCOUNT_ID' };
+    const first = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }], berlin('2026-10-21T21:00'), noId);
+    assert(first.calls[0].url === 'https://graph.facebook.com/v25.0/me/accounts' && first.calls[0].query.fields.includes('instagram_business_account'), JSON.stringify(first.calls));
+    assert(first.out.text.includes('🆔 Your Instagram account ID is 17841400000000000 (@pivendoteam)') && first.out.text.includes('ig_user_id'), first.out.text);
+    const noLink = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055' }] }], berlin('2026-10-21T21:00'), noId);
+    assert(noLink.out.text.includes('has no Instagram account linked'), noLink.out.text);
+    const noToken = await stats([{}], { error: 'x' }, [{ error: { message: 'An active access token must be used', code: 2500 } }], berlin('2026-10-21T21:00'), noId);
+    assert(noToken.out.text === '', 'before the setup is done the evening run stays silent: ' + noToken.out.text);
+  });
+  await test('08 Workflow shape: nothing reaches a platform before the mark is saved; credentials; schedules', async () => {
+    const wf = load(soc);
+    const next = name => ((wf.connections[name] || {}).main || []).flat().map(c => c.node);
+    const reach = (from, without) => { const seen = new Set(); const todo = [...from];
+      while (todo.length) { const n = todo.pop(); if (seen.has(n) || n === without) continue; seen.add(n); todo.push(...next(n)); } return seen; };
+    const triggers = wf.nodes.filter(n => n.type === 'n8n-nodes-base.scheduleTrigger').map(n => n.name);
+    assert(triggers.join() === 'Every 10 minutes,Every evening 21:00', triggers.join());
+    const cron = Object.fromEntries(wf.nodes.filter(n => triggers.includes(n.name)).map(n => [n.name, n.parameters.rule.interval[0].expression]));
+    assert(cron['Every 10 minutes'] === '*/10 * * * *' && cron['Every evening 21:00'] === '0 21 * * *', JSON.stringify(cron));
+    const coachCron = load(coach).nodes.find(n => n.type === 'n8n-nodes-base.scheduleTrigger').parameters.rule.interval[0].expression;
+    assert(coachCron === '30 21 * * *', 'the numbers must be saved before the Coach runs: ' + coachCron);
+    const all = reach(triggers), unmarked = reach(triggers, 'Save marks');
+    for (const n of ['Download video', 'YouTube: upload', 'YouTube: declare AI content', 'Instagram: create container', 'Instagram: publish']) {
+      assert(all.has(n) && !unmarked.has(n), `"${n}" must only run after "Save marks"`);
+    }
+    const posting = wf.nodes.filter(n => n.type === 'n8n-nodes-base.httpRequest' && n.name !== 'Download video');
+    assert(posting.length === 7 && posting.every(n => n.parameters.authentication === 'predefinedCredentialType' && n.onError === 'continueRegularOutput'), 'API calls: ' + posting.map(n => n.name));
+    assert(posting.filter(n => n.parameters.nodeCredentialType === 'youTubeOAuth2Api').length === 2 && posting.filter(n => n.parameters.nodeCredentialType === 'facebookGraphApi').length === 5, 'credential types');
+    // The marks are the double-post guard, so the node that saves them has no error setting at all: if the marks
+    // cannot be saved, the run stops with an error and nothing is sent to YouTube or Instagram.
+    const marks = wf.nodes.find(n => n.name === 'Save marks');
+    assert(marks.type === 'n8n-nodes-base.dataTable' && marks.parameters.operation === 'insert' && marks.parameters.dataTableId.value === 'social_posts', '"Save marks" is the insert into social_posts');
+    assert(!('onError' in marks) && !('continueOnFail' in marks) && !('alwaysOutputData' in marks), '"Save marks" must not continue on error: ' + JSON.stringify(marks));
+    // every node that WRITES to YouTube or Instagram is reachable only through "Save marks" (the evening run only reads)
+    const writes = wf.nodes.filter(n => n.type === 'n8n-nodes-base.youTube' || (n.type === 'n8n-nodes-base.httpRequest'
+      && ['youTubeOAuth2Api', 'facebookGraphApi'].includes(n.parameters.nodeCredentialType) && n.parameters.method !== 'GET'));
+    assert(writes.map(n => n.name).sort().join() === 'Instagram: create container,Instagram: publish,YouTube: declare AI content,YouTube: upload', 'nodes that write: ' + writes.map(n => n.name));
+    for (const n of writes) assert(all.has(n.name) && !unmarked.has(n.name), `"${n.name}" writes to a platform and must only run after "Save marks"`);
+    // and the Reel is only published through the last look at the post
+    const unlooked = reach(triggers, 'Still approved? (Instagram)');
+    assert(all.has('Instagram: publish') && !unlooked.has('Instagram: publish'), '"Instagram: publish" must only run after "Still approved? (Instagram)"');
+    const verdict = wf.connections['Still approved? (Instagram)'].main;
+    assert(verdict[0].map(c => c.node).join() === 'Instagram: publish' && verdict[1].map(c => c.node).join() === 'Instagram result', 'true = publish, false = report why not');
+    assert(wf.connections['Container ready?'].main[0].map(c => c.node).join() === 'Reload post (Instagram)', 'the wait loop ends with a fresh read of the post');
+    // a Telegram message that cannot be sent must never stop the posting branches that come after it
+    const telegrams = wf.nodes.filter(n => n.type === 'n8n-nodes-base.telegram');
+    assert(telegrams.length === 4 && telegrams.every(n => n.onError === 'continueRegularOutput'), 'every Telegram node in 08 must continue on error: ' + telegrams.map(n => n.name + ':' + n.onError));
+    // the bot has no call that deletes a video or a Reel
+    for (const f of [soc, cmds]) for (const n of load(f).nodes) {
+      assert(String((n.parameters || {}).method || '').toUpperCase() !== 'DELETE' && !(n.type === 'n8n-nodes-base.youTube' && /delete/i.test(String(n.parameters.operation))), `"${n.name}" deletes something`);
+    }
+    assert(!JSON.stringify(wf).match(/access_token|client_secret|Bearer /i), 'no secrets in the workflow file');
+    // community nodes are not allowed; only nodes that ship with n8n
+    for (const f of [soc, cmds]) assert(load(f).nodes.every(n => /^(n8n-nodes-base|@n8n\/n8n-nodes-langchain)\./.test(n.type)), 'built-in nodes only in ' + f);
+    // every Telegram text built by the new nodes is sent as HTML (plain Markdown breaks on "_" in links and hashtags)
+    const html = n => n.parameters.additionalFields && n.parameters.additionalFields.parse_mode === 'HTML';
+    assert(wf.nodes.filter(n => n.type === 'n8n-nodes-base.telegram').every(html), '08 Telegram nodes must use HTML');
+    for (const name of ['Ask to approve post', 'Queue problem', 'Send post action', 'Post action problem']) assert(html(load(cmds).nodes.find(n => n.name === name)), name + ' must use HTML');
+    const ask = load(cmds).nodes.find(n => n.name === 'Ask to approve post').parameters;
+    const buttons = ask.inlineKeyboard.rows[0].row.buttons;
+    assert(ask.replyMarkup === 'inlineKeyboard' && buttons.length === 2 && buttons[0].additionalFields.callback_data.includes("'approve:'") && buttons[1].additionalFields.callback_data.includes("'reject:'"), JSON.stringify(buttons));
+  });
+
+  await test('02 + 08 small pass-on nodes, and the start values in Settings', async () => {
+    const rowA = { post_id: 'P1', status: 'approved' }, rowB = { post_id: 'P1', tiktok_status: 'done' };
+    const act = { 'Build post action': [{ rows: [rowA, rowB], videos: [{ content_id: 'P1-tt' }], msgs: ['one', 'two'] }] };
+    assert(JSON.stringify(await run(cmds, 'Post action rows', act, [{}])) === JSON.stringify([rowA, rowB]), 'Post action rows');
+    assert(JSON.stringify(await run(cmds, 'Post video rows', act, [{}])) === '[{"content_id":"P1-tt"}]', 'Post video rows');
+    assert(JSON.stringify(await run(cmds, 'Post action messages', act, [{}])) === '[{"text":"one"},{"text":"two"}]', 'Post action messages');
+    assert(JSON.stringify(await run(cmds, 'Post row', {}, [{ ok: true, row: rowA, text: 't' }])) === JSON.stringify([rowA]), 'Post row');
+    const planned = { rows: [rowA], alerts: ['late!'], yt: { post_id: 'P1' }, ig: null };
+    assert(JSON.stringify(await run(soc, 'Mark rows', {}, [planned])) === JSON.stringify([rowA]), 'Mark rows');
+    assert(JSON.stringify(await run(soc, 'Alerts', { 'Plan this run': [planned] }, [{}])) === '[{"text":"late!"}]', 'Alerts');
+    assert(JSON.stringify(await run(soc, 'YouTube job', { 'Plan this run': [planned] }, [{}])) === '[{"post_id":"P1"}]', 'YouTube job');
+    assert((await run(soc, 'Instagram job', { 'Plan this run': [planned] }, [{}])).length === 0, 'no Instagram job -> that branch does not run');
+    assert((await run(soc, 'Alerts', { 'Plan this run': [{ ...planned, alerts: [] }] }, [{}])).length === 0, 'no alerts -> no message');
+    for (const n of ['YouTube row', 'Instagram row']) assert(JSON.stringify(await run(soc, n, {}, [{ row: rowA, text: 't' }])) === JSON.stringify([rowA]), n);
+    const built = { feedback: [{ ref: 'P1-yt' }], videos: [{ content_id: 'P1-yt' }], rows: [rowB], text: 'hello' };
+    assert(JSON.stringify(await run(soc, 'Feedback rows', {}, [built])) === '[{"ref":"P1-yt"}]', 'Feedback rows');
+    assert(JSON.stringify(await run(soc, 'Video rows', {}, [built])) === '[{"content_id":"P1-yt"}]', 'Video rows');
+    assert(JSON.stringify(await run(soc, 'Stats done rows', {}, [built])) === JSON.stringify([rowB]), 'Stats done rows');
+    assert(JSON.stringify(await run(soc, 'Daily summary', {}, [built])) === '[{"text":"hello"}]', 'Daily summary');
+    // start values the docs promise: the bot posts nothing by itself until the owner switches a platform to "yes"
+    const settingsOf = f => Object.fromEntries(load(f).nodes.find(n => n.name === '⚙️ Settings').parameters.assignments.assignments.map(a => [a.name, a.value]));
+    const a = settingsOf(cmds), b = settingsOf(soc);
+    assert(a.post_times === '12:30,20:30' && a.post_timezone === 'America/New_York' && a.time_zone === 'Europe/Berlin' && a.min_lead_hours === 2, JSON.stringify(a));
+    assert(a.youtube_auto === 'no' && a.instagram_auto === 'no' && a.shop_url === 'pivendo.com' && !('post_time' in a), JSON.stringify(a));
+    assert(b.max_late_hours === 12 && b.stats_after_hours === 48 && b.ig_token_expires === 'never' && b.time_zone === 'Europe/Berlin' && String(b.ig_user_id).startsWith('PASTE'), JSON.stringify(b));
+    // the money settings of the other workflows are not touched by this change
+    const research01 = settingsOf(research), pay07 = settingsOf(ap);
+    assert(research01.markup === 1.5 && research01.min_profit_usd === 7, 'workflow 01 pricing: ' + JSON.stringify(research01));
+    assert(pay07.auto_pay === 'no' && pay07.max_order_usd === 40 && pay07.daily_limit_usd === 100 && pay07.min_profit_usd === 3, 'workflow 07 money rules: ' + JSON.stringify(pay07));
+  });
+
+  await test('setup.ps1: -OnlyWorkflows takes a list, and a replaced workflow is archived only after the new one is on', async () => {
+    // The script is never run by these tests; they only guard the order of its steps against a careless edit.
+    const ps = fs.readFileSync(path.join(__dirname, '..', 'setup.ps1'), 'utf8');
+    assert(/\[string\[\]\]\$OnlyWorkflows/.test(ps), 'PowerShell 5.1 turns an unquoted -OnlyWorkflows 02,08 into the numbers 2 and 8, so the parameter must be a list');
+    assert(!/\$f\.Name\.StartsWith\(/.test(ps), 'matching must be on the two-digit prefix, not a prefix of the typed text');
+    const swap = ps.slice(ps.indexOf('function Replace-Workflow'), ps.indexOf('function Ensure-Workflows'));
+    const first = s => swap.indexOf(s), last = s => swap.lastIndexOf(s);
+    const create = first("N8n 'POST' '/rest/workflows' $body"), offOld = first('/rest/workflows/$($old.id)/deactivate'),
+      onNew = first('/rest/workflows/$($created.id)/activate'), onOldAgain = first('/rest/workflows/$($old.id)/activate'), retire = last('Retire-OldWorkflow $old');
+    assert([create, offOld, onNew, onOldAgain, retire].every(i => i > 0), 'the five steps of the swap must all be there: ' + [create, offOld, onNew, onOldAgain, retire]);
+    assert(create < offOld && offOld < onNew && onNew < retire, 'order: import new (off) -> switch old off -> switch new on -> archive old');
+    assert(onNew < onOldAgain && onOldAgain < retire, 'a new copy that will not switch on puts the old one back on, before anything is archived');
+    // the old copy is archived in exactly two places: when it was off anyway (before the swap), and after the new copy is on
+    assert(swap.split('Retire-OldWorkflow $old').length - 1 === 2 && first('Retire-OldWorkflow $old') < offOld && !swap.includes('Archive-Workflow $old'), 'the old copy must not be archived anywhere else');
+    const ensure = ps.slice(ps.indexOf('function Ensure-Workflows'), ps.indexOf('function Activate-Workflows'));
+    assert(!ensure.includes('/archive') && !ensure.includes('/deactivate'), 'Ensure-Workflows must not archive or switch off anything itself');
+    // The old and the new workflow 02 share one Telegram webhook address, and switching a copy off makes n8n remove that
+    // webhook at Telegram. So a copy is switched off exactly once, the old one, before the new one is switched on; a copy
+    // that is already off (the failed new one, the old one after the swap) is only archived, never "switched off" again.
+    assert((ps.match(/\/deactivate/g) || []).length === 1 && offOld > 0, 'only the old copy is ever switched off, once, inside the swap');
+    assert(ps.indexOf('$OnlyList = @(Get-OnlyWorkflows)') > ps.indexOf('Dropshipping agents - setup') && ps.indexOf('$OnlyList = @(Get-OnlyWorkflows)') < ps.indexOf('$state = Load-State'), 'a wrong workflow number must stop the script before anything is asked or changed');
   });
 
   console.log(failures ? `\n${failures} FAILED` : '\nALL TESTS PASSED');
