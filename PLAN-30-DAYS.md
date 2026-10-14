@@ -116,6 +116,8 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Gmail (13 Oct):** dship00720@gmail.com is connected to cloud Claude (Gmail connector). Claude reads and drafts; it asks before sending or deleting.
 - ⚠️ **Fake-buyer emails:** since the shop went public, about 9 emails like "can I order to Italy/France?", "are you open?", "I need the manager" came from odd addresses. This is a known scam aimed at new shops. Don't reply, don't click their links, and never take payment outside the Shopify checkout. Real buyers just order on pivendo.com.
 
+- **Owner decision 14 Oct (AI videos):** AI may now show the products in a changed or stylized look (for example Higgsfield Genjutsu styles or object swap), as long as every such post has TikTok's "AI-generated" label on and says "AI-made" in the caption. This replaces the 10 Oct rule "AI never generates the wreath". Claude's note: realistic-looking clips should still match the real product (size, brightness, what it projects), because a label does not make a misleading product claim OK under German/EU law and leads to refunds.
+
 **Shipping rules for paying orders in CJ**
 - US drill: **LuWei Ordinary US** or **YunExpress Ordinary**. Both are DDP.
 - Winter set to the US: the **US warehouse** (CJ picks it by itself).
