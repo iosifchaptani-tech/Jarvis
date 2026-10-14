@@ -122,7 +122,16 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - Wreath: US **LuWei Ordinary US**, CA **CJPacket JYSP Sensitive** (or Ordinary), AU **CJPacket Ordinary** (never Eub, it's DDU).
 - ❌ Never choose a method with the "DDU" box.
 
-**▶️ Tomorrow (start here)** (rewritten 13 Oct, 04:10, for Tue 13 Oct after sleep)
+**▶️ Tomorrow (start here)** (rewritten 14 Oct, 02:40; the owner stopped because his usage limit was close and PowerShell Claude was still working on the Roblox game)
+
+1. **"go 24/7" (the owner wants this next).** Adapt `dropshipping/setup.ps1` so it loads workflows 02 and 08 into n8n ON THE SERVER (it still targets the PC; do not run it on the PC as it is). Secret and server steps go into ONE `.cmd` the owner double-clicks. Then he does `dropshipping/SOCIAL-SETUP.md` (YouTube about 20 min, Instagram about 40 min). Result: Telegram message, his ✅, the server posts to YouTube and Instagram; TikTok stays by hand.
+2. **Check the scheduled posts.** YouTube A (15 Oct 02:30) and B (16 Oct 02:30) are scheduled. TikTok A is scheduled by the owner for 15 Oct 09:30; TikTok B was still open in his tab (16 Oct 03:30): look in TikTok Studio whether it is scheduled. Instagram A waited at the Share button in a tab: if the tab is gone, prepare it again (`.playwright-mcp/upload/then-vs-now/`, music file) and tell him.
+3. **Higgsfield.** The owner wants to buy a plan and try Genjutsu and Katana. Show him the live prices first (`show_plans_and_credits`); buying is his click. Read the Katana preset instructions before any spend. With a paid plan, remake the opening of the "then vs now" video with a model that has its own sound (Kling 3.0 or Seedance), keep the product real footage. Ask before each spend (the "use all 50 credits" OK is used up; about 3 credits left).
+4. **Trading test mode.** Built and fixed on the PC, 982 tests pass, guard and gate untouched, still paper, NOT on the server. Next: one more independent review of the fixes, then copy the code to the server (restart of the service is the owner's double-click), one day paper, then demo. With the saved start balance of 1,000 only GBPUSD rules fit (NAS100 needs about 17,400).
+5. **Roblox.** PowerShell Claude puts `GoblinArena` and `DungeonWallTorch` into Bloodline Dungeon after its current task (the owner has the prompt).
+6. **Daily videos.** When the owner writes "prepare the videos": r02 is waiting; from 18 Oct use `--xmas`.
+
+**Older start notes (13 Oct), kept for reference:**
 
 **TikTok state (13 Oct, 04:10):** three uploads are prepared in Claude's Chrome window with the **no-music** versions, captions and labels, each waiting for the owner: hook4 (post now), hook1 (13 Oct 18:30), character2 (14 Oct 02:30, AI label on). **Owner's rule: he chooses the music himself before every post (Sounds → pick → Save), and Claude reminds him each time.** Still to prepare: hook2 (14 Oct 18:30), hook3 (15 Oct 02:30), character1 (15 Oct 18:30, AI label on). The old "one a day at 01:00" plan is out of date.
 
