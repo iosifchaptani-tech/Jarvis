@@ -106,11 +106,10 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Owner's decision:** new videos say **"Order early for Christmas"** instead of "US: order by Dec 8" (end card and the posting notes are changed). The date comes back only when CJ confirms delivery times. The videos already posted or scheduled still carry the old line.
 - **Daily video task** ("Pivendo: make 2 new videos and prepare the uploads", about 16:40): it makes and checks the videos by itself. It cannot use Chrome while another Claude chat holds it, so the owner writes "prepare the videos" in the main chat and that chat fills TikTok, YouTube and Instagram. Waiting in the queue: r02 (unboxing).
 
-**Social stats (latest)** (13 Oct, 15:00, first automatic check)
-- **No numbers read.** The logged-in Chrome window was in use by another Claude chat, and the public pages show cookie walls or hide the videos. Nothing was clicked or changed.
-- Total views: TikTok not read (last known 83 on hook1 v1, 13 Oct 13:40) · YouTube not read · Instagram not read (no Reels visible).
-- Best video: too early to say (one public video).
-- **Next:** press Schedule on the prepared TikTok uploads (hook4, character2, hook2; pick the music first), and keep the Chrome window free of other chats at 15:00, or press "Run now" on the task later. Details: `Desktop/Pivendo Videos/stats/REPORT.md`.
+**Social stats (latest)** (14 Oct, 15:05, automatic check, all 3 logged in)
+- Total views: TikTok 414 (6 posts, all stop at about 90; most viewers leave at second 1) · YouTube 715 (5 Shorts) · Instagram 251 (3 Reels).
+- Best video: **hook4** (product in the first second): YouTube 270 views, 7 likes, +2 subscribers; Instagram 68. On TikTok it got only 4 views. then-vs-now is the best Reel (182) but has the shortest TikTok watch (1.8 s; it opens on the AI presenter).
+- **Next:** only 1 TikTok post is still scheduled (15 Oct 09:30): schedule more, and open every new video with the real wreath in the first second. Unposted v2 files use other creators' CJ clips (see `VIRAL-PLAYBOOK.md`): posting them is the owner's call. Details: `Desktop/Pivendo Videos/stats/REPORT.md`.
 - **Daily videos (13 Oct, automatic run):** no new videos made: r01 (wait for the ceiling) and r02 (unboxing) were already waiting and passed the picture check. **Not put into the browser:** Claude's Chrome window was in use by another Claude chat, so nothing is prepared on TikTok, YouTube or Instagram yet. Open question for the owner: the end card says "US: order by Dec 8", but this plan says about 25 Nov and CJ has not confirmed delivery times.
 
 - **Gmail (13 Oct):** dship00720@gmail.com is connected to cloud Claude (Gmail connector). Claude reads and drafts; it asks before sending or deleting.
