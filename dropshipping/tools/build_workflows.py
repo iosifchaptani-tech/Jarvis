@@ -1280,6 +1280,7 @@ const again = [['yt_status', 'YouTube'], ['ig_status', 'Instagram'], ['fb_status
 if (p.status !== 'approved' || !again.length) return fail(`Nothing to retry for ${p.post_id}. /retry only works after the bot told you that YouTube, Instagram or Facebook failed.`);
 // a YouTube video that is already uploaded (it has an id) only has to be made public: back to "scheduled", never a second upload
 const changes = Object.fromEntries(again.map(([k]) => [k, k === 'yt_status' && p.yt_video_id ? 'scheduled' : 'queued']));
+changes.warned = 'again';   // a new ⏰ warning with ❌ Stop before it goes out
 const passed = ms(p.post_at) <= now;
 if (passed) {
   // A slot in the past would be skipped again as "too late", so the post goes out now. Its slot becomes the
@@ -2315,11 +2316,13 @@ const posts = foldPosts(rowsOf('Load posts'))
 // The platforms the bot still has to make public for a post (the owner posts the "todo" ones himself)
 const botLeft = p => [['YouTube', ['queued', 'uploading', 'scheduled'].includes(p.yt_status)], ['Instagram', p.ig_status === 'queued'],
   ['Facebook', p.fb_status === 'queued']].filter(x => x[1]).map(x => x[0]);
-// "warned" holds the moment the warning went out. Empty or "failed" (the message did not arrive) = not warned yet.
+// "warned" holds the moment Telegram confirmed the warning. Anything else = not warned yet: empty, "sending" (this run is
+// about to send it; if n8n dies before Telegram answers, the next run sends it again), "failed" (it did not arrive) or
+// "again" (/retry: the owner gets a new chance to stop it).
 const warnedAt = p => ms(p.warned);
 // A platform may make a post public only when its slot time has come AND the warning is at least warn_minutes old
-// (one minute of slack, because the runs do not start on the exact second).
-const ready = p => now >= ms(p.post_at) && !isNaN(warnedAt(p)) && now - warnedAt(p) >= (warnMin - 1) * 60e3;
+// (30 seconds of slack: the time is written a few seconds after the run that sent it started).
+const ready = p => now >= ms(p.post_at) && !isNaN(warnedAt(p)) && now - warnedAt(p) >= warnMin * 60e3 - 30e3;
 
 const rows = [], alerts = [];
 let warn = null, yt = null, ytPub = null, ig = null, fb = null;
@@ -2331,7 +2334,7 @@ for (const p of posts) {
   // warning moves the post: it still waits warn_minutes after the warning, so the owner always has time to stop it.
   const left = botLeft(p);
   if (!warn && left.length && isNaN(warnedAt(p)) && ms(p.post_at) - now <= (warnMin + RUN_MIN) * 60e3 && late <= maxLate) {
-    rows.push(postRow(p.post_id, { warned: $now.toUTC().toISO() }));
+    rows.push(postRow(p.post_id, { warned: 'sending' }));
     const mins = Math.max(warnMin, Math.round((ms(p.post_at) - now) / 60e3));
     const head = `⏰ In about ${mins} minutes ${p.post_id} goes out on ${left.join(', ')}.\n${p.product || p.sku || ''}`
       + `${p.ai === 'yes' ? ' (AI label on)' : ''}\n\nDon't like it? Tap ❌ Stop. No answer = it goes out.`;
@@ -2462,10 +2465,29 @@ if (up.declare) {
 return [{ json: { row: postRow(job.post_id, { yt_status: 'scheduled', yt_video_id: up.video_id, note }), text: esc(lines.join('\n')) } }];
 """
 
+YT_RECHECK_JS = JS_RULES + JS_POSTS + r"""
+// The last look before the YouTube video is made public: in the same run the upload branch may have taken minutes,
+// and the owner may have tapped ❌ Stop meanwhile. Same rule as Instagram and Facebook.
+const job = $('YouTube publish job').first().json;
+const p = foldPosts(rowsOf('Reload post (YouTube)')).find(x => x.post_id === job.post_id);
+if (p && p.status === 'approved' && p.yt_status === 'publishing') return [{ json: { ok: true } }];
+if (!p) return [{ json: { ok: false, rejected: false, reason: 'the post could not be read again before it was made public' } }];
+if (p.status !== 'approved') {
+  const rejected = p.status === 'rejected';
+  return [{ json: { ok: false, rejected, reason: rejected ? 'you stopped it' : `its status changed to "${p.status}"` } }];
+}
+return [{ json: { ok: false, rejected: false, reason: `its YouTube status changed to "${p.yt_status || 'empty'}"` } }];
+"""
+
 YT_PUBLIC_JS = JS_RULES + JS_POSTS + r"""
 // YouTube, step 2: did "make public" work? Only YouTube's own answer "public" counts. A new Google project that YouTube
 // has not checked yet may keep every video it uploads private ("Private (locked)"): the owner is told what to do.
 const job = $('YouTube publish job').first().json;
+const recheck = $('Check post again (YouTube)').first().json;
+if (recheck.ok === false) {
+  return [{ json: { row: postRow(job.post_id, { ...(recheck.rejected ? { yt_status: 'cancelled' } : {}), note: `YouTube: not made public, ${recheck.reason}`.slice(0, 300) }),
+    text: esc(`🚫 YouTube: ${job.post_id} was not made public: ${recheck.reason}. It stays private.`) } }];
+}
 const r = $input.first().json || {};
 const st = r.status || {};
 if (st.privacyStatus === 'public') {
@@ -2524,20 +2546,22 @@ if (job.ai === 'yes') lines.push('Facebook has no AI label the bot can set: the 
 return [{ json: { row: postRow(job.post_id, { fb_status: 'published', fb_video_id: String(start.video_id) }), text: esc(lines.join('\n')) } }];
 """
 
-WARN_SENT_JS = r"""
-// Did the warning with the video arrive? Telegram answers with the message it made. If not (for example the file link
-// does not work for Telegram), the same warning goes out as a plain text message with the video link.
+WARN_SENT_JS = JS_RULES + JS_POSTS + r"""
+// Did the warning with the video arrive? Telegram answers with the message it made. Only then is the moment written
+// into "warned", and the post may go public warn_minutes later. If not (for example Telegram cannot use the file), the
+// same warning goes out as a plain text message with the video link.
 const r = $input.first().json || {};
 const sent = !!((r.result && r.result.message_id) || r.message_id);
-return [{ json: { ...$('Warning job').first().json, sent } }];
+const job = $('Warning job').first().json;
+return [{ json: { ...job, sent, row: postRow(job.post_id, { warned: $now.toUTC().toISO() }) } }];
 """
 
-WARN_FAILED_JS = JS_RULES + JS_POSTS + r"""
-// The plain text warning did not arrive either: mark the warning as failed, so the next run (5 minutes later) sends it
-// again. Without a warning that arrived, the post is not made public (see "Plan this run").
+WARN_TEXT_JS = JS_RULES + JS_POSTS + r"""
+// The plain text warning: arrived = the moment goes into "warned". Not arrived either = "failed", so the next run
+// (5 minutes later) sends it again. Without a warning that arrived, the post is not made public (see "Plan this run").
 const r = $input.first().json || {};
-if ((r.result && r.result.message_id) || r.message_id) return [];
 const job = $('Warning job').first().json;
+if ((r.result && r.result.message_id) || r.message_id) return [{ json: postRow(job.post_id, { warned: $now.toUTC().toISO() }) }];
 return [{ json: postRow(job.post_id, { warned: 'failed', note: `Warning not sent: ${apiError(r) || 'Telegram did not answer'}`.slice(0, 300) }) }];
 """
 
@@ -2740,7 +2764,9 @@ if (lines.length && ranked.length >= 2) lines.push(`🏆 Last 7 days: best ${med
 const problems = [];
 // Setup help, like the chat ID in workflow 02: while ig_user_id or fb_page_id is empty, tell the owner which ID to paste
 const pages = answers.flatMap(r => (Array.isArray(r.data) ? r.data : [])).filter(a => a && a.name !== undefined && !a.values);
-if (!/^\d+$/.test(String(s.fb_page_id || '').trim()) && pages.some(a => a.id)) {
+const usesFb = foldPosts(rowsOf('Load posts')).some(p => p.fb_status);
+const igMissing = !/^\d+$/.test(String(s.ig_user_id || '').trim());
+if (!/^\d+$/.test(String(s.fb_page_id || '').trim()) && (igMissing || usesFb) && pages.some(a => a.id)) {
   problems.push(`🆔 Your Facebook Page ID is ${pages.filter(a => a.id).map(a => `${a.id} (${a.name})`).join(' or ')}\nPaste it into workflow 08 → ⚙️ Settings → fb_page_id, then save.`);
 }
 if (!/^\d+$/.test(String(s.ig_user_id || '').trim())) {
@@ -2903,7 +2929,7 @@ def build_social():
     # The warning: the video again in Telegram with a ❌ Stop button (the same "reject:P…" tap workflow 02 already knows).
     # A video sent through workflow 09 is resent by its Telegram file id (instant); any other one by its link.
     # If that does not arrive, the same warning goes out as text with the link; if that fails too, it is sent again
-    # in the next run, and nothing is made public without it.
+    # in the next run. The moment is written only after Telegram confirmed a message, and nothing is made public without it.
     code(wf, "Warning job", "const j = $('Plan this run').first().json.warn;\nreturn j ? [{ json: j }] : [];", [1540, -60])
     stop_button = {"rows": [{"row": {"buttons": [
         {"text": "❌ Stop", "additionalFields": {"callback_data": "={{ 'reject:' + $('Warning job').first().json.post_id }}"}}]}}]}
@@ -2917,6 +2943,8 @@ def build_social():
     }, [1760, -60], onError="continueRegularOutput")
     code(wf, "Warning sent?", WARN_SENT_JS, [1980, -60])
     if_true(wf, "Video warning arrived?", "={{ $json.sent }}", [2200, -60])
+    code(wf, "Warning time row", "return [{ json: $input.first().json.row }];", [2420, -120])
+    table_insert(wf, "Save warning time", "social_posts", [2640, -120])
     wf.add("Warn with text", "n8n-nodes-base.telegram", 1.2, {
         "chatId": "={{ $('⚙️ Settings').first().json.telegram_chat_id }}",
         "text": "={{ $('Warning job').first().json.fallback }}",
@@ -2924,25 +2952,29 @@ def build_social():
         "inlineKeyboard": stop_button,
         "additionalFields": {"appendAttribution": False, "parse_mode": "HTML"},
     }, [2420, 0], onError="continueRegularOutput")
-    code(wf, "Warning failed?", WARN_FAILED_JS, [2640, 0])
-    table_insert(wf, "Save warning failure", "social_posts", [2860, 0])
+    code(wf, "Text warning result", WARN_TEXT_JS, [2640, 0])
+    table_insert(wf, "Save text warning result", "social_posts", [2860, 0])
     wf.connect("Save marks", "Warning job")
-    wf.chain("Warning job", "Warn with video", "Warning sent?", "Video warning arrived?")
+    wf.chain("Warning job", "Warn with video", "Warning sent?", "Video warning arrived?", "Warning time row", "Save warning time")
     wf.connect("Video warning arrived?", "Warn with text", out=1)
-    wf.chain("Warn with text", "Warning failed?", "Save warning failure")
+    wf.chain("Warn with text", "Text warning result", "Save text warning result")
 
     # YouTube, step 2: at the slot time, after the warning, the private video is made public (one status update)
     code(wf, "YouTube publish job", "const j = $('Plan this run').first().json.yt_pub;\nreturn j ? [{ json: j }] : [];", [1540, 540])
-    api(wf, "YouTube: make public", "PUT", "https://www.googleapis.com/youtube/v3/videos", YOUTUBE, [1760, 540],
-        query=[("part", "status")], json_body="={{ JSON.stringify($json.update) }}")
-    code(wf, "YouTube public result", YT_PUBLIC_JS, [1980, 540])
-    code(wf, "YouTube public row", "return [{ json: $input.first().json.row }];", [2200, 540])
-    table_insert(wf, "Save YouTube public", "social_posts", [2420, 540])
-    telegram(wf, "Tell owner (YouTube public)", "={{ $('YouTube public result').first().json.text }}", [2640, 540], html=True,
+    table_get(wf, "Reload post (YouTube)", "social_posts", [1760, 540])
+    code(wf, "Check post again (YouTube)", YT_RECHECK_JS, [1980, 540])
+    if_true(wf, "Still approved? (YouTube)", "={{ $json.ok }}", [2200, 540])
+    api(wf, "YouTube: make public", "PUT", "https://www.googleapis.com/youtube/v3/videos", YOUTUBE, [2420, 480],
+        query=[("part", "status")], json_body="={{ JSON.stringify($('YouTube publish job').first().json.update) }}")
+    code(wf, "YouTube public result", YT_PUBLIC_JS, [2640, 540])
+    code(wf, "YouTube public row", "return [{ json: $input.first().json.row }];", [2860, 540])
+    table_insert(wf, "Save YouTube public", "social_posts", [3080, 540])
+    telegram(wf, "Tell owner (YouTube public)", "={{ $('YouTube public result').first().json.text }}", [3300, 540], html=True,
              onError="continueRegularOutput")
     wf.connect("Save marks", "YouTube publish job")
-    wf.chain("YouTube publish job", "YouTube: make public", "YouTube public result", "YouTube public row",
-             "Save YouTube public", "Tell owner (YouTube public)")
+    wf.chain("YouTube publish job", "Reload post (YouTube)", "Check post again (YouTube)", "Still approved? (YouTube)",
+             "YouTube: make public", "YouTube public result", "YouTube public row", "Save YouTube public", "Tell owner (YouTube public)")
+    wf.connect("Still approved? (YouTube)", "YouTube public result", out=1)
 
     # Facebook: a Reel on the owner's Page. Page key -> start an upload -> Facebook fetches the video from its link ->
     # last look at the post (the owner may have tapped ❌ Stop) -> publish.
@@ -3061,16 +3093,22 @@ const zone = zoneOf(s);
 const shop = shopOf(s);
 const up = $('Check upload').first().json;
 const check = $('Check post texts').first().json;
-const posts = foldPosts(rowsOf('Load posts (queue)'));
+// read fresh: the Post agent took a while, and another video may have been saved meanwhile
+const posts = foldPosts(rowsOf('Reload posts (intake)'));
 const taken = new Set(posts.filter(x => x.status === 'approved' && !isNaN(ms(x.post_at))).map(x => ms(x.post_at)));
 const { post_at, slot } = nextSlot($now, taken, s);
 const auto = k => String(s[k] || '').trim().toLowerCase() === 'yes';
 const yt = auto('youtube_auto'), ig = auto('instagram_auto'), fb = auto('facebook_auto');
 const name = up.name.replace(/\.mp4$/i, '');
-// The same file twice (for example sent again after the PC lost the answer) is never queued twice
-const twin = posts.find(x => x.video === name && x.status !== 'rejected');
+// The same file twice (for example sent again after the PC lost the answer) is never queued twice. Only posts of the
+// last 14 days count, so a file name the PC uses again weeks later is fine.
+const recent = x => ms(x.post_at) > $now.minus({ days: 14 }).toMillis() || isNaN(ms(x.post_at));
+const twin = posts.find(x => x.video === name && x.status !== 'rejected' && recent(x));
 if (twin) return [{ json: { ok: false, error: `${up.name} is already queued as ${twin.post_id}. Send /posts to see it.` } }];
-const p = { ...check.row, at: $now.toUTC().toISO(), video: name, status: 'approved', post_at, slot,
+// The post id comes from the clock (P + month day hour minute second): add a letter if that id is already taken
+let post_id = check.row.post_id;
+for (const c of 'bcdefghij') { if (!posts.some(x => x.post_id === post_id)) break; post_id = check.row.post_id + c; }
+const p = { ...check.row, post_id, at: $now.toUTC().toISO(), video: name, status: 'approved', post_at, slot,
   yt_status: yt ? 'queued' : 'todo', ig_status: ig ? 'queued' : 'todo', fb_status: fb ? 'queued' : '', tiktok_status: 'todo' };
 const isAi = p.ai === 'yes';
 const at = `${when(post_at, zone)} (${zone})`;
@@ -3207,6 +3245,7 @@ def build_intake():
     agent(wf, "Post agent", "={{ $json.prompt }}", POST_SYSTEM, [2640, 100], [2640, 320])
     code(wf, "Check post texts", CHECK_POST_JS, [2860, 100])
     if_true(wf, "Post texts ok?", "={{ $json.ok }}", [3080, 100])
+    table_get(wf, "Reload posts (intake)", "social_posts", [3190, 40])
     code(wf, "Plan intake", INTAKE_PLAN_JS, [3300, 40])
     if_true(wf, "Not queued before?", "={{ $json.ok }}", [3410, 40])
     code(wf, "Video for Telegram", "// the file from the PC, handed to the Telegram node below\n"
@@ -3233,7 +3272,7 @@ def build_intake():
     wf.connect("What came in?", "Parse command", out=0)
     wf.chain("Parse command", "Load products (post)", "Load playbook (post)", "Load videos (post)", "Load stats (post)",
              "Load posts (queue)", "Build post brief", "Post brief ok?", "Post agent", "Check post texts", "Post texts ok?",
-             "Plan intake", "Not queued before?", "Video for Telegram", "Show video to owner", "Intake result", "Video arrived in Telegram?",
+             "Reload posts (intake)", "Plan intake", "Not queued before?", "Video for Telegram", "Show video to owner", "Intake result", "Video arrived in Telegram?",
              "Intake row", "Save intake", "To-do messages", "Send to-dos", "Answer PC (queued)")
 
     # every reason a video was not queued: tell the owner, answer the PC

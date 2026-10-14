@@ -859,7 +859,7 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // public again: back to "scheduled", never a second upload, and no "posted twice" warning
     for (const st of ['late', 'failed', 'stuck']) {
       [r] = await action('/retry P1', [...live, ev('P1', { yt_status: st, yt_video_id: 'YT1' })], berlin('2026-10-14T15:00'));
-      assert(r.ok && r.rows[0].yt_status === 'scheduled' && !r.msgs[0].includes('posted twice') && r.msgs[0].includes('YouTube will be tried again'), st + ': ' + JSON.stringify(r).slice(0, 300));
+      assert(r.ok && r.rows[0].yt_status === 'scheduled' && r.rows[0].warned === 'again' && !r.msgs[0].includes('posted twice') && r.msgs[0].includes('YouTube will be tried again'), st + ': ' + JSON.stringify(r).slice(0, 300));
     }
     [r] = await action('/retry P1', [...live, ev('P1', { fb_status: 'failed' })], berlin('2026-10-14T15:00'));
     assert(r.ok && r.rows[0].fb_status === 'queued' && r.msgs[0].includes('Facebook will be tried again'), JSON.stringify(r).slice(0, 300));
@@ -1178,12 +1178,19 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // setup help: while ig_user_id is empty, the check asks Meta for the account and tells the owner its ID
     const noId = { ...s08, ig_user_id: 'PASTE_YOUR_INSTAGRAM_ACCOUNT_ID' };
     const first = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }], berlin('2026-10-21T21:00'), noId);
+    const both = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }], berlin('2026-10-21T21:00'), { ...noId, fb_page_id: '' });
+    assert(both.out.text.includes('Facebook Page ID is 1055') && both.out.text.includes('Instagram account ID is 17841400000000000'), 'during the setup both IDs: ' + both.out.text);
     assert(first.calls[0].url === 'https://graph.facebook.com/v25.0/me/accounts' && first.calls[0].query.fields.includes('instagram_business_account'), JSON.stringify(first.calls));
     assert(first.out.text.includes('🆔 Your Instagram account ID is 17841400000000000 (@pivendoteam)') && first.out.text.includes('ig_user_id'), first.out.text);
     assert(!first.out.text.includes('Facebook Page ID'), 'fb_page_id is set here: ' + first.out.text);
     // the same help for the Facebook Page ID, also when the Instagram ID is already set
     const noPage = { ...s08, fb_page_id: 'PASTE_YOUR_FACEBOOK_PAGE_ID' };
-    const fbHelp = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }], berlin('2026-10-21T21:00'), noPage);
+    const pageAnswer = [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }];
+    // Facebook not used and Instagram already set up: no daily reminder about the Page ID
+    const quietFb = await stats([{}], { items: [] }, pageAnswer, berlin('2026-10-21T21:00'), noPage);
+    assert(!quietFb.out.text.includes('Facebook Page ID'), 'no daily nag: ' + quietFb.out.text);
+    // once a post uses Facebook (or while Instagram is still being set up), the ID is offered
+    const fbHelp = await stats([{ ...basePost }, ev('P1', { status: 'approved', post_at: '2026-10-25T01:00:00.000+02:00', fb_status: 'failed' })], { items: [] }, pageAnswer, berlin('2026-10-21T21:00'), noPage);
     assert(fbHelp.calls[0].url === 'https://graph.facebook.com/v25.0/me/accounts', JSON.stringify(fbHelp.calls));
     assert(fbHelp.out.text.includes('🆔 Your Facebook Page ID is 1055 (Pivendo)') && fbHelp.out.text.includes('fb_page_id') && !fbHelp.out.text.includes('Instagram account ID'), fbHelp.out.text);
     const noLink = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055' }] }], berlin('2026-10-21T21:00'), noId);
@@ -1240,6 +1247,8 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(all.has('Facebook: publish') && !unlookedFb.has('Facebook: publish'), '"Facebook: publish" must only run after "Still approved? (Facebook)"');
     const fbVerdict = wf.connections['Still approved? (Facebook)'].main;
     assert(fbVerdict[0].map(c => c.node).join() === 'Facebook: publish' && fbVerdict[1].map(c => c.node).join() === 'Facebook result', 'true = publish, false = report why not');
+    const unlookedYt = reach(triggers, 'Still approved? (YouTube)');
+    assert(all.has('YouTube: make public') && !unlookedYt.has('YouTube: make public'), '"YouTube: make public" must only run after "Still approved? (YouTube)"');
     // the warning carries the ❌ Stop button that workflow 02 already understands ("reject:P…")
     for (const name of ['Warn with video', 'Warn with text']) {
       const b = wf.nodes.find(n => n.name === name).parameters.inlineKeyboard.rows[0].row.buttons;
@@ -1308,10 +1317,14 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // 30 and 11 minutes before: nothing yet
     assert((await plan(unwarned(), berlin('2026-10-25T00:30'))).length === 0, '30 minutes before: nothing');
     assert((await plan(unwarned(), berlin('2026-10-25T00:49'))).length === 0, '11 minutes before: nothing');
-    // 10 minutes before: the warning, and it is marked before it is sent
+    // 10 minutes before: the warning. It is only marked "sending": the time is written once Telegram confirmed it, so a
+    // run that dies before Telegram answered leaves a post that is not warned (it gets the warning again)
     let [p] = await plan(unwarned({ tg_file_id: 'TGFILE1' }), berlin('2026-10-25T00:50'));
     assert(p.warn && p.warn.post_id === 'P1' && p.warn.file === 'TGFILE1' && p.ig === null && p.yt === null, JSON.stringify(p));
-    assert(p.rows.length === 1 && p.rows[0].warned === '2026-10-24T22:50:00.000Z' && Object.keys(p.rows[0]).join(',') === postCols, JSON.stringify(p.rows));
+    assert(p.rows.length === 1 && p.rows[0].warned === 'sending' && Object.keys(p.rows[0]).join(',') === postCols, JSON.stringify(p.rows));
+    const died = [...unwarned({ tg_file_id: 'TGFILE1' }), ev('P1', { warned: 'sending' })];
+    const [d] = await plan(died, berlin('2026-10-25T01:00'));
+    assert(d.warn && d.ig === null, 'n8n died before Telegram answered: warned again, nothing posted: ' + JSON.stringify(d));
     assert(p.warn.text.includes('⏰ In about 10 minutes P1 goes out on Instagram.') && p.warn.text.includes('Star &amp; Moon Lamp (AI label on)')
       && p.warn.text.includes("Don't like it? Tap ❌ Stop. No answer = it goes out."), p.warn.text);
     assert(p.warn.fallback.includes('Video: ' + vurl) && p.warn.fallback.includes('/reject P1') && p.warn.text.length < 1000, p.warn.fallback);
@@ -1330,8 +1343,9 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // warned 10 minutes before: everything goes at the slot
     let [p] = await plan(warnedAt('2026-10-25T00:50'), berlin('2026-10-25T01:00'));
     assert(p.ig && p.yt_pub && p.fb && !p.warn, JSON.stringify(p));
-    // n8n was off: warned only at 01:30, half an hour after the slot -> not before 01:34 (5 minutes, one minute of slack)
+    // n8n was off: warned only at 01:30, half an hour after the slot -> not before 01:34:30 (5 minutes, 30 seconds of slack)
     assert((await plan(warnedAt('2026-10-25T01:30'), berlin('2026-10-25T01:33'))).length === 0, '3 minutes after the warning: still waiting');
+    assert((await plan(warnedAt('2026-10-25T01:30'), berlin('2026-10-25T01:34'))).length === 0, '4 minutes (a manual run): still waiting');
     [p] = await plan(warnedAt('2026-10-25T01:30'), berlin('2026-10-25T01:35'));
     assert(p.ig && p.yt_pub && p.fb, '5 minutes after the warning: out');
     // a missed warning is sent late (here 30 minutes after the slot), and only one warning per run
@@ -1339,7 +1353,7 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
       ev('P2', { status: 'approved', post_at: '2026-10-25T01:10:00.000+02:00', yt_status: 'todo', ig_status: 'queued', tiktok_status: 'todo' })];
     [p] = await plan(two, berlin('2026-10-25T01:30'));
     assert(p.warn.post_id === 'P1' && p.rows.length === 1 && p.warn.text.includes('In about 5 minutes'), 'the oldest first: ' + JSON.stringify(p));
-    two.push({ ...p.rows[0], id: rowId++ });
+    two.push({ ...p.rows[0], id: rowId++ }, ev('P1', { warned: utc('2026-10-25T01:30') }));   // the mark, then Telegram's confirmation
     [p] = await plan(two, berlin('2026-10-25T01:35'));
     assert(p.warn.post_id === 'P2' && p.ig && p.ig.post_id === 'P1', 'next run: P2 is warned, P1 goes out: ' + JSON.stringify(p));
     // "failed" = the warning did not arrive: it is sent again and nothing is posted meanwhile
@@ -1354,20 +1368,23 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     [p] = await plan(unwarned(), berlin('2026-10-25T00:44'), { ...s08, warn_minutes: 15 });
     assert(p.warn && p.warn.text.includes('In about 16 minutes'), JSON.stringify(p.warn));
   });
-  await test('08 Warning nodes: video first, then text, then "failed" so the next run tries again', async () => {
+  await test('08 Warning nodes: the time is written only after Telegram confirmed; video first, then text, then "failed"', async () => {
     const job = { post_id: 'P1', file: 'TGFILE1', text: 't', fallback: 'f' };
-    let [w] = await run(soc, 'Warning sent?', { 'Warning job': [job] }, [{ ok: true, result: { message_id: 7 } }]);
-    assert(w.sent === true && w.post_id === 'P1', JSON.stringify(w));
-    [w] = await run(soc, 'Warning sent?', { 'Warning job': [job] }, [{ error: { message: 'Bad Request: wrong file identifier' } }]);
+    const T = berlin('2026-10-25T00:50');
+    let [w] = await run(soc, 'Warning sent?', { 'Warning job': [job] }, [{ ok: true, result: { message_id: 7 } }], { now: T });
+    assert(w.sent === true && w.post_id === 'P1' && w.row.warned === '2026-10-24T22:50:00.000Z' && Object.keys(w.row).join(',') === postCols, JSON.stringify(w));
+    assert(JSON.stringify(await run(soc, 'Warning time row', {}, [w])) === JSON.stringify([w.row]), 'Warning time row');
+    [w] = await run(soc, 'Warning sent?', { 'Warning job': [job] }, [{ error: { message: 'Bad Request: wrong file identifier' } }], { now: T });
     assert(w.sent === false && w.fallback === 'f', JSON.stringify(w));
-    assert((await run(soc, 'Warning failed?', { 'Warning job': [job] }, [{ ok: true, result: { message_id: 8 } }])).length === 0, 'the text arrived: nothing to save');
-    const [row] = await run(soc, 'Warning failed?', { 'Warning job': [job] }, [{ error: { message: 'Forbidden: bot was blocked by the user' } }]);
+    let [row] = await run(soc, 'Text warning result', { 'Warning job': [job] }, [{ ok: true, result: { message_id: 8 } }], { now: T });
+    assert(row.warned === '2026-10-24T22:50:00.000Z', 'the text arrived: its time is written: ' + JSON.stringify(row));
+    [row] = await run(soc, 'Text warning result', { 'Warning job': [job] }, [{ error: { message: 'Forbidden: bot was blocked by the user' } }], { now: T });
     assert(row.post_id === 'P1' && row.warned === 'failed' && row.note.includes('bot was blocked') && Object.keys(row).join(',') === postCols, JSON.stringify(row));
     assert((await run(soc, 'Warning job', { 'Plan this run': [{ warn: null }] }, [{}])).length === 0 && (await run(soc, 'Warning job', { 'Plan this run': [{ warn: job }] }, [{}]))[0].file === 'TGFILE1', 'Warning job');
     const wf = load(soc);
     const video = wf.nodes.find(n => n.name === 'Warn with video').parameters;
     assert(video.operation === 'sendVideo' && video.file === '={{ $json.file }}' && video.additionalFields.caption === '={{ $json.text }}', JSON.stringify(video));
-    assert(wf.connections['Video warning arrived?'].main[1].map(c => c.node).join() === 'Warn with text' && !(wf.connections['Video warning arrived?'].main[0] || []).length, 'only a missing video warning goes on to the text warning');
+    assert(wf.connections['Video warning arrived?'].main[1].map(c => c.node).join() === 'Warn with text' && wf.connections['Video warning arrived?'].main[0].map(c => c.node).join() === 'Warning time row', 'arrived = save its time; missing = text warning');
   });
 
   // ---- 08: YouTube made public at the slot, Facebook Reels
@@ -1375,12 +1392,21 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     let [p] = await plan(livePost({ yt_status: 'publishing', yt_video_id: 'YT1', ig_status: 'todo' }), berlin('2026-10-25T01:31'));
     assert(p.rows[0].yt_status === 'stuck' && p.alerts[0].includes('making P1 public did not finish') && p.alerts[0].includes('/retry P1'), JSON.stringify(p));
     const job = { post_id: 'P1', video_id: 'YT1' };
-    let [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job] }, [{ id: 'YT1', status: { privacyStatus: 'public' } }]);
+    const ok = { 'YouTube publish job': [job], 'Check post again (YouTube)': [{ ok: true }] };
+    let [r] = await run(soc, 'YouTube public result', ok, [{ id: 'YT1', status: { privacyStatus: 'public' } }]);
     assert(r.row.yt_status === 'published' && r.text.includes('📺 YouTube: P1 is public now.') && r.text.includes('https://youtube.com/shorts/YT1') && Object.keys(r.row).join(',') === postCols, JSON.stringify(r));
-    [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job] }, [{ id: 'YT1', status: { privacyStatus: 'private' } }]);
+    [r] = await run(soc, 'YouTube public result', ok, [{ id: 'YT1', status: { privacyStatus: 'private' } }]);
     assert(r.row.yt_status === 'failed' && r.text.includes('YouTube still shows it as "private"') && r.text.includes('Private (locked)') && r.text.includes('/retry P1') && r.text.includes('stays private'), r.text);
-    [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job] }, [{ error: { code: 403, message: 'The request <is> forbidden' } }]);
+    [r] = await run(soc, 'YouTube public result', ok, [{ error: { code: 403, message: 'The request <is> forbidden' } }]);
     assert(r.row.yt_status === 'failed' && r.row.note.includes('forbidden') && r.text.includes('&lt;is&gt;'), r.text);
+    // ❌ Stop between the plan and the call (the upload branch can take minutes in the same run): it stays private
+    const look = async rows => (await run(soc, 'Check post again (YouTube)', { 'YouTube publish job': [job], 'Reload post (YouTube)': rows }, []))[0];
+    const busy = livePost({ yt_status: 'publishing', yt_video_id: 'YT1', ig_status: 'todo' });
+    assert((await look(busy)).ok === true, 'still approved');
+    const stopped = await look([...busy, ev('P1', { status: 'rejected' })]);
+    assert(stopped.ok === false && stopped.rejected === true, JSON.stringify(stopped));
+    [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job], 'Check post again (YouTube)': [stopped] }, [{ ok: false }]);
+    assert(r.row.yt_status === 'cancelled' && r.text.includes('was not made public: you stopped it. It stays private.'), JSON.stringify(r));
   });
   const fbJob = { post_id: 'P1', ai: 'yes', graph: 'https://graph.facebook.com/v25.0', page_id: '1000000000000001', video_url: vurl, description: 'ig cap' };
   await test('08 Facebook: planned at the slot after the warning, with the Instagram caption; Page ID missing; late; stuck', async () => {
@@ -1491,9 +1517,9 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const [q] = await postBrief(['https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4', 'cjys315']);
     assert(q.ok, '/queue with a bot video link: ' + JSON.stringify(q).slice(0, 200));
   });
-  const intakePlan = async (now, table, settings = s09, name = 'r03-lights-off.mp4') => (await run(intake, 'Plan intake', { '⚙️ Settings': [settings],
-    'Check upload': [{ name }], 'Check post texts': [{ ok: true, row: { ...basePost, id: undefined, post_id: 'Q' + (rowId++), video: 'pivendo-video', video_url: 'https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4' } }],
-    'Load posts (queue)': table }, [], { now }))[0];
+  const intakePlan = async (now, table, settings = s09, name = 'r03-lights-off.mp4', post_id = 'Q' + (rowId++)) => (await run(intake, 'Plan intake', { '⚙️ Settings': [settings],
+    'Check upload': [{ name }], 'Check post texts': [{ ok: true, row: { ...basePost, id: undefined, post_id, video: 'pivendo-video', video_url: 'https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4' } }],
+    'Reload posts (intake)': table }, [], { now }))[0];
   await test('09 Plan intake: 6 videos fill the next 24 hours, no second OK, to-dos for TikTok and Pinterest', async () => {
     const table = [{}];
     const out = [];
@@ -1521,6 +1547,11 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(twin.ok === false && twin.error.includes('v1.mp4 is already queued as'), JSON.stringify(twin));
     const again = await intakePlan(berlin('2026-10-15T14:20'), [...table, ev(out[0].row.post_id, { status: 'rejected' })], s09, 'v1.mp4');
     assert(again.ok === true, 'a stopped video may be sent again');
+    const later = await intakePlan(berlin('2026-11-05T14:20'), table, s09, 'v1.mp4');
+    assert(later.ok === true, 'the same file name three weeks later is a new video');
+    // two videos that got the same clock id never become one post
+    const same = await intakePlan(berlin('2026-10-15T14:20'), table, s09, 'v7.mp4', out[0].row.post_id);
+    assert(same.ok && same.row.post_id === out[0].row.post_id + 'b' && same.answer.post_id === same.row.post_id, JSON.stringify(same.row.post_id));
   });
   await test('09 Intake result, problems, and the public video link', async () => {
     const plan = { row: { post_id: 'P9', status: 'approved' }, answer: { ok: true, post_id: 'P9' } };

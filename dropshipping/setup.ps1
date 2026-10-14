@@ -463,7 +463,11 @@ function Ensure-Tables {
             # fb_video_id, warned, tg_file_id since 14 Oct 2026). Only missing columns are added; nothing is removed.
             $table = AsList (N8n 'GET' "/rest/projects/$projectId/data-tables") | Where-Object { $_.name -eq $name } | Select-Object -First 1
             $have = @(Get-Prop $table 'columns' @() | ForEach-Object { $_.name })
-            $missing = @($cols | Where-Object { $have.Count -gt 0 -and $have -notcontains $_.name })
+            if ($have.Count -eq 0) {
+                Warn "${name}: could not read its columns. If it was made before 14 Oct 2026, check that it has every column of templates\$name.csv (n8n -> Data tables -> $name), and add the missing ones (type: text)."
+                continue
+            }
+            $missing = @($cols | Where-Object { $have -notcontains $_.name })
             foreach ($c in $missing) {
                 try { N8n 'POST' "/rest/projects/$projectId/data-tables/$($existing[$name])/columns" $c | Out-Null; Ok "${name}: column $($c.name) added" }
                 catch { Warn "${name}: could not add the column $($c.name) ($($_.Exception.Message)). Add it by hand: n8n -> Data tables -> $name -> + (type: text)." }
