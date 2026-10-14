@@ -130,6 +130,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 4. **Trading test mode.** Built and fixed on the PC, 982 tests pass, guard and gate untouched, still paper, NOT on the server. Next: one more independent review of the fixes, then copy the code to the server (restart of the service is the owner's double-click), one day paper, then demo. With the saved start balance of 1,000 only GBPUSD rules fit (NAS100 needs about 17,400).
 5. **Roblox.** PowerShell Claude puts `GoblinArena` and `DungeonWallTorch` into Bloodline Dungeon after its current task (the owner has the prompt). **UI art is ready too (14 Oct):** `Roblox Game/ui-art/pieces/` holds 25 UI pieces (bars, slots, buttons, frames) and 25 icons as see-through PNGs, with `README.txt` saying which number is which; not in the game yet.
 6. **Daily videos.** When the owner writes "prepare the videos": r02 is waiting; from 18 Oct use `--xmas`.
+7. **Worktrees (set up 14 Oct, owner's wish):** every agent has its own copy. All six Desktop projects use git now (only Boss Jarvis is on GitHub). PowerShell Claude starts with `claude.cmd -w powershell`; desktop Claude works in `.claude/worktrees/desktop`; finished work is merged into the Desktop folder. Rules: the owner's global `~/.claude/CLAUDE.md`, section "Worktrees".
 
 **Older start notes (13 Oct), kept for reference:**
 
