@@ -10,8 +10,9 @@
     - checks and saves your keys as n8n credentials (typed here, never written to disk)
     - finds your Telegram chat ID
     - creates the 10 Data Tables and loads the starting playbook rules
-    - imports the 9 workflows, fills their Settings, attaches the credentials, switches them on
-      (08 - Social publisher - is only imported once you made its two logins, see SOCIAL-SETUP.md)
+    - imports the 10 workflows, fills their Settings, attaches the credentials, switches them on
+      (08 - Social publisher - is only imported once you made its two logins, and 09 - Video intake -
+      once its login "Video intake (Pivendo)" exists, see SOCIAL-SETUP.md)
   At the end it prints the few things left to click by hand.
 
   Safe to run again: anything already done is skipped. Run it again after restarting the PC,
@@ -410,6 +411,9 @@ function Ensure-Credentials($state) {
         if ($have.ContainsKey($d.name)) { $ids[$d.type] = @{ id = $have[$d.name].id; name = $d.name }; Ok "$($d.name): found" }
         else { $missingSocial += $d.name }
     }
+    # The key the PC uses to send finished videos to workflow 09 (header X-Pivendo-Key). It is a Header Auth login like
+    # JSON2Video, so it is kept apart under its own name and only ever attached to the node "Video in" of workflow 09.
+    if ($have.ContainsKey('Video intake (Pivendo)')) { $ids['videoIntake'] = @{ id = $have['Video intake (Pivendo)'].id; name = 'Video intake (Pivendo)' }; Ok 'Video intake (Pivendo): found' }
     return @{ ids = $ids; telegram = $keys.telegram; empty = $empty; missingSocial = $missingSocial }
 }
 
@@ -449,12 +453,24 @@ function Ensure-Tables {
     $existing = @{}
     foreach ($t in (AsList (N8n 'GET' "/rest/projects/$projectId/data-tables"))) { $existing[$t.name] = $t.id }
     foreach ($name in $Tables.Keys) {
-        if ($existing.ContainsKey($name)) { Ok "${name}: already there"; continue }
         $header = (Get-Content (Join-Path $Root "templates\$name.csv") -TotalCount 1 -Encoding UTF8).Trim()
         $cols = @($header -split ',' | ForEach-Object {
             $type = 'string'; if ($Tables[$name] -contains $_) { $type = 'number' }
             @{ name = $_; type = $type }
         })
+        if ($existing.ContainsKey($name)) {
+            # A table made by an older version can miss columns that were added later (social_posts: fb_status,
+            # fb_video_id, warned, tg_file_id since 14 Oct 2026). Only missing columns are added; nothing is removed.
+            $table = AsList (N8n 'GET' "/rest/projects/$projectId/data-tables") | Where-Object { $_.name -eq $name } | Select-Object -First 1
+            $have = @(Get-Prop $table 'columns' @() | ForEach-Object { $_.name })
+            $missing = @($cols | Where-Object { $have.Count -gt 0 -and $have -notcontains $_.name })
+            foreach ($c in $missing) {
+                try { N8n 'POST' "/rest/projects/$projectId/data-tables/$($existing[$name])/columns" $c | Out-Null; Ok "${name}: column $($c.name) added" }
+                catch { Warn "${name}: could not add the column $($c.name) ($($_.Exception.Message)). Add it by hand: n8n -> Data tables -> $name -> + (type: text)." }
+            }
+            if (-not $missing.Count) { Ok "${name}: already there" }
+            continue
+        }
         $t = N8n 'POST' "/rest/projects/$projectId/data-tables" @{ name = $name; columns = $cols }
         $existing[$name] = $t.id
         Ok "${name}: created"
@@ -500,6 +516,9 @@ function Prepare-Workflow($wf, $answers, $chatId, $credIds, $errorWorkflowId, $s
         }
         if ($credType -and $credIds.ContainsKey($credType)) {
             Set-Prop $node 'credentials' ([pscustomobject]@{ $credType = [pscustomobject]$credIds[$credType] })
+        }
+        if ($node.name -eq 'Video in' -and $credIds.ContainsKey('videoIntake')) {
+            Set-Prop $node 'credentials' ([pscustomobject]@{ httpHeaderAuth = [pscustomobject]$credIds['videoIntake'] })
         }
         if ($node.name -eq 'Shopify: order paid') {
             $path = Get-Prop $state 'shopify_webhook_path'
@@ -619,7 +638,7 @@ function Replace-Workflow($old, $body) {
 }
 
 function Ensure-Workflows($answers, $chatId, $credIds, $state, $missingSocial) {
-    Step 'Importing the 9 workflows'
+    Step 'Importing the 10 workflows'
     $existing = @{}
     foreach ($w in (AsList (N8n 'GET' '/rest/workflows'))) { $existing[$w.name] = $w }
     $files = Get-ChildItem (Join-Path $Root 'n8n-workflows') -Filter '*.json' | Sort-Object Name
@@ -634,6 +653,11 @@ function Ensure-Workflows($answers, $chatId, $credIds, $state, $missingSocial) {
         if ($f.Name -like '08-*' -and -not $old -and $missingSocial -and @($missingSocial).Count -gt 0) {
             # Imported later, together with its logins, so its nodes never sit there without a credential
             Warn "$($wf.name): not imported yet. First make these logins in n8n (SOCIAL-SETUP.md): $(@($missingSocial) -join ', '). Then run this script again."
+            continue
+        }
+        if ($f.Name -like '09-*' -and -not $old -and -not $credIds.ContainsKey('videoIntake')) {
+            # Without its login anybody could send videos to it, so it waits for "Video intake (Pivendo)"
+            Warn "$($wf.name): not imported yet. First make the login 'Video intake (Pivendo)' in n8n (SOCIAL-SETUP.md, part 5). Then run this script again."
             continue
         }
         if ($old -and -not $replace) {

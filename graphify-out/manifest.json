@@ -1,176 +1,194 @@
 {
   "dropshipping/n8n-server/backup.sh": {
-    "mtime": 1791850553.3471258,
-    "seen": 1791850577.433372,
+    "mtime": 1792008698.9478104,
+    "seen": 1792012104.748612,
     "ast_hash": "9fdf0ef14b045c00021d4a44d4d58e74",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/00-error-alerts.json": {
-    "mtime": 1791850553.3471258,
-    "seen": 1791850577.4333818,
+    "mtime": 1792012031.67515,
+    "seen": 1792012104.7486222,
     "ast_hash": "65319acfb9e38535d25626467d313ed5",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/01-product-research.json": {
-    "mtime": 1791850553.347384,
-    "seen": 1791850577.4333863,
+    "mtime": 1792012031.6762242,
+    "seen": 1792012104.7486265,
     "ast_hash": "f235d324f8c4b7f28ebd3a4e45bdfe4d",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/02-telegram-commands.json": {
-    "mtime": 1791850553.348598,
-    "seen": 1791850577.4333887,
-    "ast_hash": "b4835ae1bed270cf6a6a7644d7ebc32c",
+    "mtime": 1792012031.6794016,
+    "seen": 1792012104.7486298,
+    "ast_hash": "5788de60cc01504ea8be9028c6a5a2cb",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/03-new-order-alert.json": {
-    "mtime": 1791850553.348598,
-    "seen": 1791850577.433391,
+    "mtime": 1792012031.685121,
+    "seen": 1792012104.748633,
     "ast_hash": "88f00fe92bd924b3a2faf070c64313a7",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/04-cj-order-check.json": {
-    "mtime": 1791850553.348598,
-    "seen": 1791850577.433393,
+    "mtime": 1792012031.6859107,
+    "seen": 1792012104.748636,
     "ast_hash": "ce2e5b342e7a04a6e303190ca61a9661",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/05-daily-coach.json": {
-    "mtime": 1791850553.3489554,
-    "seen": 1791850577.433395,
+    "mtime": 1792012031.6868446,
+    "seen": 1792012104.7486389,
     "ast_hash": "6f937344876f71dc47f9c0d63d24c81a",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/06-customer-support.json": {
-    "mtime": 1791850553.3489554,
-    "seen": 1791850577.4333966,
+    "mtime": 1792012031.6884387,
+    "seen": 1792012104.7486417,
     "ast_hash": "2a4283077499e7bcc94b01984af5b564",
     "semantic_hash": ""
   },
   "dropshipping/n8n-workflows/07-cj-auto-pay.json": {
-    "mtime": 1791850553.3491583,
-    "seen": 1791850577.4333982,
+    "mtime": 1792012031.6904445,
+    "seen": 1792012104.7486448,
     "ast_hash": "2044495132eb6063bb7f627fd3074975",
     "semantic_hash": ""
   },
   "dropshipping/setup.ps1": {
-    "mtime": 1791850553.3497736,
-    "seen": 1791850577.4334,
-    "ast_hash": "2c842fba4a84e429423515e3d9ed9f97",
+    "mtime": 1792011586.4210587,
+    "seen": 1792012104.7486558,
+    "ast_hash": "ba4d7fe0306685a758781a60ee020185",
     "semantic_hash": ""
   },
   "dropshipping/tools/build_workflows.py": {
-    "mtime": 1791850553.3500698,
-    "seen": 1791850577.4334013,
-    "ast_hash": "f35a88891587cbd98045f24b3feb9540",
+    "mtime": 1792011557.9301422,
+    "seen": 1792012104.748659,
+    "ast_hash": "cbfd006d890e66cc70673d6ca8412b22",
     "semantic_hash": ""
   },
   "dropshipping/tools/test_code_nodes.js": {
-    "mtime": 1791850553.3500698,
-    "seen": 1791850577.4334035,
-    "ast_hash": "004bb75138d529643bc55e671be29e87",
+    "mtime": 1792011851.5835984,
+    "seen": 1792012104.748662,
+    "ast_hash": "606f161999f5620fe2b157f065ed4290",
     "semantic_hash": ""
   },
   "jarvis.py": {
-    "mtime": 1791850553.3506713,
-    "seen": 1791850577.4334054,
+    "mtime": 1792008698.9547703,
+    "seen": 1792012104.748665,
     "ast_hash": "1027724278b28e7a2f24156a8d8fe9fc",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1791850553.3586478,
-    "seen": 1791850577.433407,
-    "ast_hash": "0dec8a45877ad7940fa5ea3a63edd937",
+    "mtime": 1792008698.9378414,
+    "seen": 1792012104.7486677,
+    "ast_hash": "c03a0fe5216770f04d739bea5188e51a",
     "semantic_hash": ""
   },
   "PLAN-30-DAYS.md": {
-    "mtime": 1791850553.361168,
-    "seen": 1791850577.4334087,
-    "ast_hash": "5469fc7b9a83b8dee96563c47c0b1754",
+    "mtime": 1792011028.8348956,
+    "seen": 1792012104.7486708,
+    "ast_hash": "e0c3fc51f48f2e81cdba5d5e061ee8c3",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791850553.3422956,
-    "seen": 1791850577.4334106,
+    "mtime": 1792008698.9418414,
+    "seen": 1792012104.7486734,
     "ast_hash": "ee79764f6dd39b18624dc86a4207b90e",
     "semantic_hash": ""
   },
   "dropshipping/ADD-PRODUCT.md": {
-    "mtime": 1791850553.3422956,
-    "seen": 1791850577.4334123,
+    "mtime": 1792008698.9418414,
+    "seen": 1792012104.748676,
     "ast_hash": "ea30f0289b2e8cff97a0a6e4e859ba80",
     "semantic_hash": ""
   },
   "dropshipping/BOT-GUIDE.md": {
-    "mtime": 1791850553.346265,
-    "seen": 1791850577.433414,
-    "ast_hash": "5b267dfd9308dec7768a4c5490533cb8",
+    "mtime": 1792011904.873328,
+    "seen": 1792012104.748679,
+    "ast_hash": "c1a170662efa86a43e0a2968e4742d1c",
     "semantic_hash": ""
   },
   "dropshipping/NEXT.md": {
-    "mtime": 1791850553.346265,
-    "seen": 1791850577.4334157,
-    "ast_hash": "de7a716b30a7db8ee4ed7afe310bb3fa",
+    "mtime": 1792008698.9461732,
+    "seen": 1792012104.7486823,
+    "ast_hash": "f46d88e21d3ca0efc473f5c2dbbf92c1",
     "semantic_hash": ""
   },
   "dropshipping/PLAN.md": {
-    "mtime": 1791850553.346265,
-    "seen": 1791850577.4334176,
+    "mtime": 1792008698.9461732,
+    "seen": 1792012104.748685,
     "ast_hash": "d6cbd63890db02c529d9423a0a282ee5",
     "semantic_hash": ""
   },
   "dropshipping/POLICIES.md": {
-    "mtime": 1791850553.346265,
-    "seen": 1791850577.433419,
+    "mtime": 1792008698.9461732,
+    "seen": 1792012104.7486873,
     "ast_hash": "eeb82032714753e03684a3735b9e69b6",
     "semantic_hash": ""
   },
   "dropshipping/README.md": {
-    "mtime": 1791850553.346265,
-    "seen": 1791850577.433421,
-    "ast_hash": "fe384aec402bc04d8e1bc858db648af6",
+    "mtime": 1792011904.8740566,
+    "seen": 1792012104.7486908,
+    "ast_hash": "6f68b7fcb0cd796dbd4a276bfb5fef96",
     "semantic_hash": ""
   },
   "dropshipping/SETUP.md": {
-    "mtime": 1791850553.3469613,
-    "seen": 1791850577.4334233,
-    "ast_hash": "c9bdd1d36b795a36baff309dd7355ce3",
+    "mtime": 1792008698.9461732,
+    "seen": 1792012104.7486935,
+    "ast_hash": "76bdb0e3cf74f04f69e0816af1f9a8cc",
     "semantic_hash": ""
   },
   "dropshipping/n8n-server/compose.yml": {
-    "mtime": 1791850553.3471258,
-    "seen": 1791850577.433425,
+    "mtime": 1792008698.9478104,
+    "seen": 1792012104.7487044,
     "ast_hash": "bab2945c33fabc51531e07d8edd58dee",
     "semantic_hash": ""
   },
   "dropshipping/research/01-setup-costs-legal.md": {
-    "mtime": 1791850553.3491583,
-    "seen": 1791850577.4334264,
+    "mtime": 1792008698.9485443,
+    "seen": 1792012104.7487075,
     "ast_hash": "a02d6a33e720a1a4270fe80627527e63",
     "semantic_hash": ""
   },
   "dropshipping/research/02-first-profit-14-days.md": {
-    "mtime": 1791850553.3493004,
-    "seen": 1791850577.433428,
+    "mtime": 1792008698.9517574,
+    "seen": 1792012104.7487109,
     "ast_hash": "480d18d5f13c8e98ec0920ac1da1276e",
     "semantic_hash": ""
   },
   "dropshipping/research/03-n8n-agent-system.md": {
-    "mtime": 1791850553.3493004,
-    "seen": 1791850577.4334295,
+    "mtime": 1792008698.9517574,
+    "seen": 1792012104.7487235,
     "ast_hash": "683a34c99d8cc97cd65ae23e8434785f",
     "semantic_hash": ""
   },
   "dropshipping/research/04-video-automation.md": {
-    "mtime": 1791850553.3493004,
-    "seen": 1791850577.4334316,
+    "mtime": 1792008698.9517574,
+    "seen": 1792012104.7487278,
     "ast_hash": "64f6a0f48386773ee2d2bde96c1d4831",
     "semantic_hash": ""
   },
   "requirements.txt": {
-    "mtime": 1791850068.3253179,
-    "seen": 1791850577.4334333,
+    "mtime": 1791850068.9653602,
+    "seen": 1792012104.7487304,
     "ast_hash": "33b92b99278587b5e484a83599fa5012",
+    "semantic_hash": ""
+  },
+  "dropshipping/n8n-workflows/08-social-publisher.json": {
+    "mtime": 1792012031.693229,
+    "seen": 1792012104.7486491,
+    "ast_hash": "8fe490d1e34d57b7059ed084279cb532",
+    "semantic_hash": ""
+  },
+  "dropshipping/n8n-workflows/09-video-intake.json": {
+    "mtime": 1792012031.6981196,
+    "seen": 1792012104.7486522,
+    "ast_hash": "2ccadc7f724dbc40d6b20421ab2e9709",
+    "semantic_hash": ""
+  },
+  "dropshipping/SOCIAL-SETUP.md": {
+    "mtime": 1792012031.6235054,
+    "seen": 1792012104.7487013,
+    "ast_hash": "45a9fc205bc987af8306f5e9db36a166",
     "semantic_hash": ""
   }
 }

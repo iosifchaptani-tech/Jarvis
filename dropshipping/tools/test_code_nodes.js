@@ -483,6 +483,7 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
 
   // ------------------------------------------------ social posts: 02 (/queue, approve, to-dos) + 08 (publisher)
   const soc = '08-social-publisher.json';
+  const intake = '09-video-intake.json';
   const header = name => fs.readFileSync(path.join(__dirname, '..', 'templates', name + '.csv'), 'utf8').split('\n')[0].trim();
   const postCols = header('social_posts');
   const berlin = iso => DateTime.fromISO(iso, { zone: 'Europe/Berlin' });
@@ -782,18 +783,23 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(r.ok && r.rows[0].status === 'rejected' && r.rows[0].post_at === '' && r.msgs[0].includes('Nothing will be posted'), JSON.stringify(r));
     [r] = await action('/reject P1', [...live, ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' })], berlin('2026-10-13T20:30'));
     assert(r.ok && r.rows[0].status === 'rejected' && r.msgs[0].includes('will not post anything more'), r.msgs[0]);
-    // a video that is already scheduled on YouTube cannot be taken back by Reject: the owner is told so, with the link and the clicks
+    // An uploaded YouTube video is private until the bot makes it public at the slot: after ❌ Stop it simply stays private
     const m = r.msgs[0];
-    assert(m.includes('YouTube already has this video: it is scheduled, private until Wed 14 Oct at 02:30 (Europe/Berlin), and then it goes public by itself'), m);
-    assert(m.includes('Rejecting does not remove it, and the bot cannot delete videos') && m.includes('https://studio.youtube.com/video/YT1/edit'), m);
-    assert(m.includes('1. Open YouTube Studio → Content (left menu).') && m.includes('three dots ⋮ (Options) → Delete forever') && m.includes('3. Tick the box and click Delete forever.'), m);
+    assert(m.includes('YouTube has it as a private video: it stays private, nobody can see it. You can delete it if you like') && !m.includes('goes public by itself'), m);
+    assert(m.includes('https://studio.youtube.com/video/YT1/edit') && m.includes('1. Open YouTube Studio → Content (left menu).') && m.includes('three dots ⋮ (Options) → Delete forever') && m.includes('3. Tick the box and click Delete forever.'), m);
     assert(!m.match(/[<>]/), 'the message is sent as HTML, so only escaped text is allowed');
-    // the slot time has passed: it may be public already
+    // still private after the slot time (n8n was late, or "make public" failed): still private, not "may be public"
     [r] = await action('/reject P1', [...live, ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' })], berlin('2026-10-14T03:30'));
-    assert(r.msgs[0].includes('its slot time has passed, so it may be public already') && r.msgs[0].includes('studio.youtube.com/video/YT1/edit'), r.msgs[0]);
-    // being uploaded right now (no id yet), a failed or stuck upload (a video may be there), Instagram on its way or out
+    assert(r.msgs[0].includes('it stays private') && !r.msgs[0].includes('already public'), r.msgs[0]);
+    // already public, or being made public: Reject cannot take it back, the owner gets the link and the clicks
+    for (const [st, words] of [['published', 'it is already public'], ['publishing', 'it may be public already'], ['stuck', 'it may be public already']]) {
+      [r] = await action('/reject P1', [...live, ev('P1', { yt_status: st, yt_video_id: 'YT1' })], berlin('2026-10-14T03:30'));
+      assert(r.msgs[0].includes(`YouTube: ${words.startsWith('it is') ? 'it is already public' : 'it was being made public, so it may be public already'}`)
+        && r.msgs[0].includes('Rejecting does not remove it, and the bot cannot delete videos') && r.msgs[0].includes('studio.youtube.com/video/YT1/edit'), st + ': ' + r.msgs[0]);
+    }
+    // being uploaded right now (no id yet, private), a failed or stuck upload (a video may be there), Instagram on its way or out
     [r] = await action('/reject P1', [...live, ev('P1', { yt_status: 'uploading' }), ev('P1', { ig_status: 'publishing' })], berlin('2026-10-13T20:30'));
-    assert(r.msgs[0].includes('YouTube is uploading it right now and rejecting does not stop an upload that has started') && r.msgs[0].includes('Delete forever'), r.msgs[0]);
+    assert(r.msgs[0].includes('YouTube is uploading it right now as a private video. It stays private') && r.msgs[0].includes('Delete forever'), r.msgs[0]);
     assert(r.msgs[0].includes('Instagram is busy with it right now') && r.msgs[0].includes('"not posted" means it is stopped'), r.msgs[0]);
     for (const st of ['failed', 'stuck']) {
       [r] = await action('/reject P1', [...live, ev('P1', { yt_status: st })], berlin('2026-10-13T20:30'));
@@ -805,6 +811,15 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(r.msgs[0].includes('Instagram may have posted it'), r.msgs[0]);
     [r] = await action('/reject P1', live, berlin('2026-10-13T20:30'));
     assert(!r.msgs[0].includes('⚠️'), 'nothing is out yet, so there is nothing to delete: ' + r.msgs[0]);
+    // Facebook: on its way, out, or unknown
+    [r] = await action('/reject P1', [...live, ev('P1', { fb_status: 'publishing' })], berlin('2026-10-13T20:30'));
+    assert(r.msgs[0].includes('Facebook is busy with it right now') && r.msgs[0].includes('"not posted" means it is stopped'), r.msgs[0]);
+    [r] = await action('/reject P1', [...live, ev('P1', { fb_status: 'published' })], berlin('2026-10-13T20:30'));
+    assert(r.msgs[0].includes('already on Facebook: delete the Reel on your Facebook Page'), r.msgs[0]);
+    [r] = await action('/reject P1', [...live, ev('P1', { fb_status: 'stuck' })], berlin('2026-10-13T20:30'));
+    assert(r.msgs[0].includes('Facebook may have posted it'), r.msgs[0]);
+    [r] = await action('/reject P1', [...live, ev('P1', { fb_status: 'queued' })], berlin('2026-10-13T20:30'));
+    assert(!r.msgs[0].includes('⚠️'), 'Facebook not started: nothing to delete: ' + r.msgs[0]);
     [r] = await action('/reject P1', [basePost, ev('P1', { status: 'rejected' })], berlin('2026-10-13T20:00'));
     assert(!r.ok && r.reply.includes('already rejected'), r.reply);
 
@@ -814,7 +829,10 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const list = r.msgs[0];
     assert(list.indexOf('WAITING FOR YOUR OK') < list.indexOf('COMING UP') && list.indexOf('COMING UP') < list.indexOf('LAST POSTS'), list);
     assert(list.includes('/approve P3') && list.includes('P1 · Wed 14 Oct at 02:30') && list.includes('YouTube ⏳ waiting · Instagram ⏳ waiting · TikTok ☐ you post it'), list);
-    assert(list.includes('P2 · Mon 12 Oct at 18:30') && list.includes('(times in Europe/Berlin)') && list.includes('YouTube ✅ scheduled · Instagram ✅ posted · TikTok ✅ done'), list);
+    assert(list.includes('P2 · Mon 12 Oct at 18:30') && list.includes('(times in Europe/Berlin)') && list.includes('YouTube ✅ uploaded, private until the slot · Instagram ✅ posted · TikTok ✅ done'), list);
+    // Facebook shows up only for posts the bot posts there
+    [r] = await action('/posts', [...live, ev('P1', { fb_status: 'published' })], berlin('2026-10-13T20:00'));
+    assert(r.msgs[0].includes('Instagram ⏳ waiting · Facebook ✅ posted · TikTok ☐ you post it'), r.msgs[0]);
     [r] = await action('/posts', [{}], berlin('2026-10-13T20:00'));
     assert(r.ok && r.msgs[0].includes('No posts yet') && r.msgs[0].includes('&lt;video link&gt;'), r.msgs[0]);
 
@@ -837,6 +855,14 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // 15:00 in Berlin is 09:00 in New York: a late retry is not a lunch or evening post, and its slot says so
     assert(r.ok && r.rows[0].ig_status === 'queued' && r.rows[0].yt_status === '' && r.rows[0].post_at === '2026-10-14T13:00:00.000Z' && r.rows[0].slot === '09:00', 'retry of a late post goes out now: ' + JSON.stringify(r.rows[0]));
     assert(r.msgs[0].includes('Instagram will be tried again') && !r.msgs[0].includes('YouTube') && r.msgs[0].includes('right away'), r.msgs[0]);
+    // an uploaded YouTube video that was not made public (late, failed or stuck while being made public) is only made
+    // public again: back to "scheduled", never a second upload, and no "posted twice" warning
+    for (const st of ['late', 'failed', 'stuck']) {
+      [r] = await action('/retry P1', [...live, ev('P1', { yt_status: st, yt_video_id: 'YT1' })], berlin('2026-10-14T15:00'));
+      assert(r.ok && r.rows[0].yt_status === 'scheduled' && !r.msgs[0].includes('posted twice') && r.msgs[0].includes('YouTube will be tried again'), st + ': ' + JSON.stringify(r).slice(0, 300));
+    }
+    [r] = await action('/retry P1', [...live, ev('P1', { fb_status: 'failed' })], berlin('2026-10-14T15:00'));
+    assert(r.ok && r.rows[0].fb_status === 'queued' && r.msgs[0].includes('Facebook will be tried again'), JSON.stringify(r).slice(0, 300));
     [r] = await action('/retry P1', [...live, ev('P1', { yt_status: 'failed' }), ev('P1', { ig_status: 'stuck' })], berlin('2026-10-13T21:00'));
     assert(r.ok && r.rows[0].yt_status === 'queued' && r.rows[0].ig_status === 'queued' && r.rows[0].post_at === '' && r.rows[0].slot === '' && r.msgs[0].includes('posted twice'), 'before the slot time the slot stays: ' + JSON.stringify(r));
     // the duplicate warning: for "stuck" (nobody knows) and also for a failed YouTube upload (a video may be there); not for a plain failed Instagram post or a late one
@@ -847,10 +873,12 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
   });
 
   // ---- 08: the publisher
-  const s08 = { telegram_chat_id: '123', ig_user_id: '17841400000000000', ig_token_expires: 'never', graph_api: 'https://graph.facebook.com/v25.0',
-    max_late_hours: 12, stuck_minutes: 30, stats_after_hours: 48, time_zone: 'Europe/Berlin' };
+  const s08 = { telegram_chat_id: '123', ig_user_id: '17841400000000000', fb_page_id: '1000000000000001', ig_token_expires: 'never', graph_api: 'https://graph.facebook.com/v25.0',
+    max_late_hours: 12, stuck_minutes: 30, stats_after_hours: 48, time_zone: 'Europe/Berlin', warn_minutes: 5 };
   const SLOT = '2026-10-25T01:00:00.000+02:00';
-  const livePost = (changes = {}) => [{ ...basePost }, ev('P1', { status: 'approved', post_at: SLOT, yt_status: 'queued', ig_status: 'queued', tiktok_status: 'todo', ...changes })];
+  // the owner was warned 10 minutes before the slot (the warning itself has its own tests below)
+  const WARNED = '2026-10-24T22:50:00.000Z';
+  const livePost = (changes = {}) => [{ ...basePost }, ev('P1', { status: 'approved', post_at: SLOT, yt_status: 'queued', ig_status: 'queued', tiktok_status: 'todo', warned: WARNED, ...changes })];
   const plan = (rows, now, settings = s08) => run(soc, 'Plan this run', { '⚙️ Settings': [settings], 'Load posts': rows }, [], { now });
   await test('08 Plan this run: nothing without the owner\'s OK', async () => {
     assert((await plan([{}], berlin('2026-10-25T01:05'))).length === 0, 'empty table');
@@ -858,22 +886,25 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert((await plan([...livePost(), ev('P1', { status: 'rejected' })], berlin('2026-10-25T01:05'))).length === 0, 'rejected after approval is never posted');
     assert((await plan(livePost({ yt_status: 'todo', ig_status: 'todo' }), berlin('2026-10-25T01:05'))).length === 0, 'platforms the owner posts by hand are left alone');
   });
-  await test('08 Plan this run: YouTube right after approval, Instagram at slot time, marks first', async () => {
+  await test('08 Plan this run: YouTube right after approval (private), Instagram at slot time, marks first', async () => {
     let [p] = await plan(livePost(), berlin('2026-10-24T20:00'));
-    assert(p.ig === null && p.yt && p.yt.post_id === 'P1' && p.yt.publish_at === '2026-10-24T23:00:00.000Z' && p.yt.ai === 'yes' && p.yt.title === 'yt title', JSON.stringify(p.yt));
+    assert(p.ig === null && p.yt && p.yt.post_id === 'P1' && !('publish_at' in p.yt) && p.yt.ai === 'yes' && p.yt.title === 'yt title', JSON.stringify(p.yt));
     assert(p.rows.length === 1 && p.rows[0].yt_status === 'uploading' && p.rows[0].ig_status === '' && Object.keys(p.rows[0]).join(',') === postCols, 'mark row: ' + JSON.stringify(p.rows[0]));
     assert(p.alerts.length === 0, 'no alerts');
     const afterYt = [...livePost(), ev('P1', { yt_status: 'scheduled', yt_video_id: 'YT1' }, '2026-10-24T18:02:00.000Z')];
-    assert((await plan(afterYt, berlin('2026-10-25T00:59'))).length === 0, 'Instagram waits for the slot time');
+    assert((await plan(afterYt, berlin('2026-10-25T00:59'))).length === 0, 'Instagram and the YouTube "make public" wait for the slot time');
     [p] = await plan(afterYt, berlin('2026-10-25T01:00'));
     assert(p.yt === null && p.ig && p.ig.create_url === 'https://graph.facebook.com/v25.0/17841400000000000/media' && p.ig.publish_url.endsWith('/17841400000000000/media_publish'), JSON.stringify(p.ig));
     assert(JSON.stringify(p.ig.query) === JSON.stringify({ media_type: 'REELS', video_url: vurl, caption: 'ig cap', share_to_feed: 'true', is_ai_generated: 'true' }), JSON.stringify(p.ig.query));
-    assert(p.rows.length === 1 && p.rows[0].ig_status === 'publishing' && p.rows[0].yt_status === '', JSON.stringify(p.rows[0]));
+    // at the slot the private YouTube video is made public, with every status field sent again
+    assert(p.yt_pub && p.yt_pub.video_id === 'YT1' && JSON.stringify(p.yt_pub.update) === JSON.stringify({ id: 'YT1', status: { privacyStatus: 'public', selfDeclaredMadeForKids: false,
+      embeddable: true, license: 'youtube', publicStatsViewable: true, containsSyntheticMedia: true } }), JSON.stringify(p.yt_pub));
+    assert(p.rows.length === 2 && p.rows.find(r => r.ig_status === 'publishing') && p.rows.find(r => r.yt_status === 'publishing'), JSON.stringify(p.rows));
     [p] = await plan([{ ...basePost, ai: 'no' }, ...afterYt.slice(1)], berlin('2026-10-25T01:00'));
-    assert(!('is_ai_generated' in p.ig.query) && p.ig.ai === 'no', 'no AI label without AI');
-    // n8n was off until after the slot: both at once, and YouTube gets a publish time 15 minutes ahead
+    assert(!('is_ai_generated' in p.ig.query) && p.ig.ai === 'no' && p.yt_pub.update.status.containsSyntheticMedia === false, 'no AI label without AI');
+    // n8n was off until after the slot: the upload and Instagram in the same run (the upload stays private)
     [p] = await plan(livePost(), berlin('2026-10-25T03:00'));
-    assert(p.yt.publish_at === '2026-10-25T02:15:00.000Z' && p.ig && p.rows.length === 2, 'late but inside the limit: ' + JSON.stringify(p.yt));   // 03:00 winter time = 02:00 UTC
+    assert(p.yt && p.ig && p.rows.length === 2, 'late but inside the limit: ' + JSON.stringify(p));
   });
   await test('08 Plan this run: the double-post guard', async () => {
     const tick1 = berlin('2026-10-25T01:00');
@@ -899,7 +930,7 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const [again] = await plan([...rows, ev('P1', { ig_status: 'queued' })], berlin('2026-10-25T02:00'));
     assert(again.ig && again.rows[0].ig_status === 'publishing', 'after /retry');
     // one post per run and platform
-    const two = [...livePost({ yt_status: 'todo' }), { ...basePost, id: rowId++, post_id: 'P2' }, ev('P2', { status: 'approved', post_at: '2026-10-25T00:30:00.000+02:00', yt_status: 'todo', ig_status: 'queued' })];
+    const two = [...livePost({ yt_status: 'todo' }), { ...basePost, id: rowId++, post_id: 'P2' }, ev('P2', { status: 'approved', post_at: '2026-10-25T00:30:00.000+02:00', yt_status: 'todo', ig_status: 'queued', warned: '2026-10-24T22:20:00.000Z' })];
     const [one] = await plan(two, berlin('2026-10-25T01:00'));
     assert(one.ig.post_id === 'P2' && one.rows.length === 1, 'the oldest due post goes first, the other waits for the next run');
   });
@@ -913,18 +944,21 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(p.alerts.length === 1 && p.alerts[0].includes('Instagram: P1 was NOT posted') && p.alerts[0].includes('/retry P1'), p.alerts[0]);
     [p] = await plan(livePost(), berlin('2026-10-26T09:00'));
     assert(p.yt === null && p.ig === null && p.rows.map(r => r.yt_status + r.ig_status).join() === 'late,late' && p.alerts.length === 2, 'both platforms: ' + JSON.stringify(p.rows));
+    // an uploaded video that is too late to be made public stays private, and the owner is told so
+    [p] = await plan(livePost({ yt_status: 'scheduled', yt_video_id: 'YT1', ig_status: 'todo' }), berlin('2026-10-26T09:00'));
+    assert(p.yt_pub === null && p.rows[0].yt_status === 'late' && p.alerts[0].includes('was NOT made public') && p.alerts[0].includes('It stays private'), JSON.stringify(p));
     [p] = await plan(livePost({ yt_status: 'todo' }), berlin('2026-10-25T05:00'), { ...s08, max_late_hours: 3 });
     assert(p.ig === null && p.rows[0].ig_status === 'late', 'the limit comes from Settings');
     [p] = await plan(livePost({ yt_status: 'todo' }), berlin('2026-10-25T01:00'), { ...s08, ig_user_id: 'PASTE_YOUR_INSTAGRAM_ACCOUNT_ID' });
     assert(p.ig === null && p.rows[0].ig_status === 'failed' && p.alerts[0].includes('ig_user_id'), 'missing account id: ' + JSON.stringify(p));
   });
 
-  const ytJob = { post_id: 'P1', video_url: vurl, title: 'yt title', description: 'yt desc', ai: 'yes', publish_at: '2026-10-24T23:00:00.000Z' };
+  const ytJob = { post_id: 'P1', video_url: vurl, title: 'yt title', description: 'yt desc', ai: 'yes' };
   await test('08 YouTube: upload check + AI declaration keeps every status field', async () => {
     let [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [ytJob], 'Download video': [{}] }, [{ uploadId: 'YT1' }]);
     assert(u.ok && u.declare === true && u.video_id === 'YT1' && u.update.id === 'YT1', JSON.stringify(u));
-    assert(JSON.stringify(u.update.status) === JSON.stringify({ privacyStatus: 'private', publishAt: '2026-10-24T23:00:00.000Z', selfDeclaredMadeForKids: false,
-      embeddable: true, license: 'youtube', publicStatsViewable: true, containsSyntheticMedia: true }), 'the update must resend private + publishAt + not made for kids: ' + JSON.stringify(u.update.status));
+    assert(JSON.stringify(u.update.status) === JSON.stringify({ privacyStatus: 'private', selfDeclaredMadeForKids: false,
+      embeddable: true, license: 'youtube', publicStatsViewable: true, containsSyntheticMedia: true }), 'the update must resend private + not made for kids, and no publish time: ' + JSON.stringify(u.update.status));
     [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [{ ...ytJob, ai: 'no' }], 'Download video': [{}] }, [{ uploadId: 'YT1' }]);
     assert(u.ok && u.declare === false, 'no declaration without AI');
     [u] = await run(soc, 'YouTube uploaded?', { 'YouTube job': [ytJob], 'Download video': [{}] }, [{ error: 'The request cannot be completed because you have exceeded your quota.' }]);
@@ -935,18 +969,18 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(!u.ok && u.reason.includes('did not return a video id') && u.none === false, 'no id = not uploaded, but maybe on YouTube: ' + JSON.stringify(u));
     const wf = load(soc);
     const up = wf.nodes.find(n => n.name === 'YouTube: upload').parameters;
-    assert(up.options.privacyStatus === 'private' && up.options.selfDeclaredMadeForKids === false && up.options.publishAt.includes('publish_at'), 'upload must be private, scheduled, not made for kids');
+    assert(up.options.privacyStatus === 'private' && up.options.selfDeclaredMadeForKids === false && !('publishAt' in up.options), 'upload must be private (made public later by the bot), not made for kids');
   });
   await test('08 YouTube result: row + message', async () => {
-    const set = { '⚙️ Settings': [s08], 'YouTube job': [ytJob] };
+    const set = { '⚙️ Settings': [s08], 'YouTube job': [ytJob], 'Load posts': livePost() };
     const okUp = { ok: true, declare: true, video_id: 'YT1' };
     let [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [okUp] }, [{ id: 'YT1', status: { privacyStatus: 'private', publishAt: '2026-10-24T23:00:00Z', containsSyntheticMedia: true } }]);
     assert(Object.keys(r.row).join(',') === postCols && r.row.yt_status === 'scheduled' && r.row.yt_video_id === 'YT1' && r.row.note === '', JSON.stringify(r.row));
-    assert(r.text.includes('goes public Sun 25 Oct at 01:00 (Europe/Berlin)') && r.text.includes('studio.youtube.com/video/YT1/edit') && r.text.includes('AI label: set'), r.text);
+    assert(r.text.includes('is uploaded as a private video. The bot makes it public at its slot, Sun 25 Oct at 01:00 (Europe/Berlin), after your 10-minute warning.') && r.text.includes('studio.youtube.com/video/YT1/edit') && r.text.includes('AI label: set'), r.text);
     [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [okUp] }, [{ error: { code: 403, message: 'Forbidden' } }]);
     assert(r.row.yt_status === 'scheduled' && r.row.note.includes('AI label not confirmed') && r.text.includes('⚠️ AI label') && r.text.includes('Forbidden'), r.text);
     [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [okUp] }, [{ id: 'YT1', status: { privacyStatus: 'public', containsSyntheticMedia: true } }]);
-    assert(r.text.includes('shows it as "public"'), r.text);
+    assert(r.text.includes('shows it as "public", not as a private video'), r.text);
     [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [{ ok: true, declare: false, video_id: 'YT2' }] }, [{ ok: true, declare: false, video_id: 'YT2' }]);
     assert(r.row.yt_video_id === 'YT2' && !r.text.includes('AI label'), r.text);
     [r] = await run(soc, 'YouTube result', { ...set, 'YouTube uploaded?': [{ ok: false, declare: false, none: false, reason: 'quota <exceeded>' }] }, [{}]);
@@ -1146,6 +1180,12 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const first = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }], berlin('2026-10-21T21:00'), noId);
     assert(first.calls[0].url === 'https://graph.facebook.com/v25.0/me/accounts' && first.calls[0].query.fields.includes('instagram_business_account'), JSON.stringify(first.calls));
     assert(first.out.text.includes('🆔 Your Instagram account ID is 17841400000000000 (@pivendoteam)') && first.out.text.includes('ig_user_id'), first.out.text);
+    assert(!first.out.text.includes('Facebook Page ID'), 'fb_page_id is set here: ' + first.out.text);
+    // the same help for the Facebook Page ID, also when the Instagram ID is already set
+    const noPage = { ...s08, fb_page_id: 'PASTE_YOUR_FACEBOOK_PAGE_ID' };
+    const fbHelp = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055', instagram_business_account: { id: '17841400000000000', username: 'pivendoteam' } }] }], berlin('2026-10-21T21:00'), noPage);
+    assert(fbHelp.calls[0].url === 'https://graph.facebook.com/v25.0/me/accounts', JSON.stringify(fbHelp.calls));
+    assert(fbHelp.out.text.includes('🆔 Your Facebook Page ID is 1055 (Pivendo)') && fbHelp.out.text.includes('fb_page_id') && !fbHelp.out.text.includes('Instagram account ID'), fbHelp.out.text);
     const noLink = await stats([{}], { items: [] }, [{ data: [{ name: 'Pivendo', id: '1055' }] }], berlin('2026-10-21T21:00'), noId);
     assert(noLink.out.text.includes('has no Instagram account linked'), noLink.out.text);
     const noToken = await stats([{}], { error: 'x' }, [{ error: { message: 'An active access token must be used', code: 2500 } }], berlin('2026-10-21T21:00'), noId);
@@ -1157,18 +1197,27 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const reach = (from, without) => { const seen = new Set(); const todo = [...from];
       while (todo.length) { const n = todo.pop(); if (seen.has(n) || n === without) continue; seen.add(n); todo.push(...next(n)); } return seen; };
     const triggers = wf.nodes.filter(n => n.type === 'n8n-nodes-base.scheduleTrigger').map(n => n.name);
-    assert(triggers.join() === 'Every 10 minutes,Every evening 21:00', triggers.join());
+    assert(triggers.join() === 'Every 5 minutes,Every evening 21:00', triggers.join());
     const cron = Object.fromEntries(wf.nodes.filter(n => triggers.includes(n.name)).map(n => [n.name, n.parameters.rule.interval[0].expression]));
-    assert(cron['Every 10 minutes'] === '*/10 * * * *' && cron['Every evening 21:00'] === '0 21 * * *', JSON.stringify(cron));
+    assert(cron['Every 5 minutes'] === '*/5 * * * *' && cron['Every evening 21:00'] === '0 21 * * *', JSON.stringify(cron));
     const coachCron = load(coach).nodes.find(n => n.type === 'n8n-nodes-base.scheduleTrigger').parameters.rule.interval[0].expression;
     assert(coachCron === '30 21 * * *', 'the numbers must be saved before the Coach runs: ' + coachCron);
     const all = reach(triggers), unmarked = reach(triggers, 'Save marks');
-    for (const n of ['Download video', 'YouTube: upload', 'YouTube: declare AI content', 'Instagram: create container', 'Instagram: publish']) {
+    for (const n of ['Download video', 'YouTube: upload', 'YouTube: declare AI content', 'YouTube: make public', 'Instagram: create container', 'Instagram: publish',
+      'Facebook: page key', 'Facebook: start', 'Facebook: upload', 'Facebook: publish', 'Warn with video', 'Warn with text']) {
       assert(all.has(n) && !unmarked.has(n), `"${n}" must only run after "Save marks"`);
     }
     const posting = wf.nodes.filter(n => n.type === 'n8n-nodes-base.httpRequest' && n.name !== 'Download video');
-    assert(posting.length === 7 && posting.every(n => n.parameters.authentication === 'predefinedCredentialType' && n.onError === 'continueRegularOutput'), 'API calls: ' + posting.map(n => n.name));
-    assert(posting.filter(n => n.parameters.nodeCredentialType === 'youTubeOAuth2Api').length === 2 && posting.filter(n => n.parameters.nodeCredentialType === 'facebookGraphApi').length === 5, 'credential types');
+    assert(posting.length === 12 && posting.every(n => n.onError === 'continueRegularOutput'), 'API calls: ' + posting.map(n => n.name));
+    const stored = posting.filter(n => n.parameters.authentication === 'predefinedCredentialType');
+    assert(stored.filter(n => n.parameters.nodeCredentialType === 'youTubeOAuth2Api').length === 3 && stored.filter(n => n.parameters.nodeCredentialType === 'facebookGraphApi').length === 6, 'credential types: ' + stored.map(n => n.name));
+    // Facebook Reels need a Page key: read at run time with the stored Meta login, and used only by the three Reel calls
+    const pageKeyed = posting.filter(n => n.parameters.authentication === 'none');
+    assert(pageKeyed.map(n => n.name).sort().join() === 'Facebook: publish,Facebook: start,Facebook: upload', 'calls with the Page key: ' + pageKeyed.map(n => n.name));
+    for (const n of pageKeyed) {
+      const used = JSON.stringify(n.parameters).includes("$('Facebook: page key').first().json.access_token");
+      assert(used, `${n.name} must use the Page key read in this run`);
+    }
     // The marks are the double-post guard, so the node that saves them has no error setting at all: if the marks
     // cannot be saved, the run stops with an error and nothing is sent to YouTube or Instagram.
     const marks = wf.nodes.find(n => n.name === 'Save marks');
@@ -1177,7 +1226,8 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // every node that WRITES to YouTube or Instagram is reachable only through "Save marks" (the evening run only reads)
     const writes = wf.nodes.filter(n => n.type === 'n8n-nodes-base.youTube' || (n.type === 'n8n-nodes-base.httpRequest'
       && ['youTubeOAuth2Api', 'facebookGraphApi'].includes(n.parameters.nodeCredentialType) && n.parameters.method !== 'GET'));
-    assert(writes.map(n => n.name).sort().join() === 'Instagram: create container,Instagram: publish,YouTube: declare AI content,YouTube: upload', 'nodes that write: ' + writes.map(n => n.name));
+    writes.push(...pageKeyed);
+    assert(writes.map(n => n.name).sort().join() === 'Facebook: publish,Facebook: start,Facebook: upload,Instagram: create container,Instagram: publish,YouTube: declare AI content,YouTube: make public,YouTube: upload', 'nodes that write: ' + writes.map(n => n.name));
     for (const n of writes) assert(all.has(n.name) && !unmarked.has(n.name), `"${n.name}" writes to a platform and must only run after "Save marks"`);
     // and the Reel is only published through the last look at the post
     const unlooked = reach(triggers, 'Still approved? (Instagram)');
@@ -1185,16 +1235,33 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     const verdict = wf.connections['Still approved? (Instagram)'].main;
     assert(verdict[0].map(c => c.node).join() === 'Instagram: publish' && verdict[1].map(c => c.node).join() === 'Instagram result', 'true = publish, false = report why not');
     assert(wf.connections['Container ready?'].main[0].map(c => c.node).join() === 'Reload post (Instagram)', 'the wait loop ends with a fresh read of the post');
+    // the Facebook Reel too: published only through the last look at the post, after the upload
+    const unlookedFb = reach(triggers, 'Still approved? (Facebook)');
+    assert(all.has('Facebook: publish') && !unlookedFb.has('Facebook: publish'), '"Facebook: publish" must only run after "Still approved? (Facebook)"');
+    const fbVerdict = wf.connections['Still approved? (Facebook)'].main;
+    assert(fbVerdict[0].map(c => c.node).join() === 'Facebook: publish' && fbVerdict[1].map(c => c.node).join() === 'Facebook result', 'true = publish, false = report why not');
+    // the warning carries the ❌ Stop button that workflow 02 already understands ("reject:P…")
+    for (const name of ['Warn with video', 'Warn with text']) {
+      const b = wf.nodes.find(n => n.name === name).parameters.inlineKeyboard.rows[0].row.buttons;
+      assert(b.length === 1 && b[0].text === '❌ Stop' && b[0].additionalFields.callback_data.includes("'reject:'"), name + ': ' + JSON.stringify(b));
+    }
     // a Telegram message that cannot be sent must never stop the posting branches that come after it
     const telegrams = wf.nodes.filter(n => n.type === 'n8n-nodes-base.telegram');
-    assert(telegrams.length === 4 && telegrams.every(n => n.onError === 'continueRegularOutput'), 'every Telegram node in 08 must continue on error: ' + telegrams.map(n => n.name + ':' + n.onError));
+    assert(telegrams.length === 8 && telegrams.every(n => n.onError === 'continueRegularOutput'), 'every Telegram node in 08 must continue on error: ' + telegrams.map(n => n.name + ':' + n.onError));
     // the bot has no call that deletes a video or a Reel
-    for (const f of [soc, cmds]) for (const n of load(f).nodes) {
+    for (const f of [soc, cmds, intake]) for (const n of load(f).nodes) {
       assert(String((n.parameters || {}).method || '').toUpperCase() !== 'DELETE' && !(n.type === 'n8n-nodes-base.youTube' && /delete/i.test(String(n.parameters.operation))), `"${n.name}" deletes something`);
     }
-    assert(!JSON.stringify(wf).match(/access_token|client_secret|Bearer /i), 'no secrets in the workflow file');
+    // no secrets in the workflow files: the only "access_token" values are the Page key read at run time
+    for (const f of [soc, cmds, intake]) {
+      const text = JSON.stringify(load(f));
+      assert(!/client_secret|Bearer |EAA[A-Za-z0-9]{20}|ya29\./.test(text), 'no secrets in ' + f);
+      for (const n of load(f).nodes) for (const q of ((n.parameters.queryParameters || {}).parameters || [])) {
+        if (q.name === 'access_token') assert(q.value === "={{ $('Facebook: page key').first().json.access_token }}", `${n.name}: access_token must be the Page key read at run time`);
+      }
+    }
     // community nodes are not allowed; only nodes that ship with n8n
-    for (const f of [soc, cmds]) assert(load(f).nodes.every(n => /^(n8n-nodes-base|@n8n\/n8n-nodes-langchain)\./.test(n.type)), 'built-in nodes only in ' + f);
+    for (const f of [soc, cmds, intake]) assert(load(f).nodes.every(n => /^(n8n-nodes-base|@n8n\/n8n-nodes-langchain)\./.test(n.type)), 'built-in nodes only in ' + f);
     // every Telegram text built by the new nodes is sent as HTML (plain Markdown breaks on "_" in links and hashtags)
     const html = n => n.parameters.additionalFields && n.parameters.additionalFields.parse_mode === 'HTML';
     assert(wf.nodes.filter(n => n.type === 'n8n-nodes-base.telegram').every(html), '08 Telegram nodes must use HTML');
@@ -1235,6 +1302,285 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     assert(pay07.auto_pay === 'no' && pay07.max_order_usd === 40 && pay07.daily_limit_usd === 100 && pay07.min_profit_usd === 3, 'workflow 07 money rules: ' + JSON.stringify(pay07));
   });
 
+  // ---- 08: the warning 5-10 minutes before a post goes public (owner's rule, 14 Oct: no answer = it goes out)
+  const unwarned = (changes = {}) => livePost({ warned: '', yt_status: 'todo', ...changes }).map(r => { const x = { ...r }; delete x.warned; return x; });
+  await test('08 Warning: about 10 minutes before the slot, once, with the video; nothing goes public before it', async () => {
+    // 30 and 11 minutes before: nothing yet
+    assert((await plan(unwarned(), berlin('2026-10-25T00:30'))).length === 0, '30 minutes before: nothing');
+    assert((await plan(unwarned(), berlin('2026-10-25T00:49'))).length === 0, '11 minutes before: nothing');
+    // 10 minutes before: the warning, and it is marked before it is sent
+    let [p] = await plan(unwarned({ tg_file_id: 'TGFILE1' }), berlin('2026-10-25T00:50'));
+    assert(p.warn && p.warn.post_id === 'P1' && p.warn.file === 'TGFILE1' && p.ig === null && p.yt === null, JSON.stringify(p));
+    assert(p.rows.length === 1 && p.rows[0].warned === '2026-10-24T22:50:00.000Z' && Object.keys(p.rows[0]).join(',') === postCols, JSON.stringify(p.rows));
+    assert(p.warn.text.includes('⏰ In about 10 minutes P1 goes out on Instagram.') && p.warn.text.includes('Star &amp; Moon Lamp (AI label on)')
+      && p.warn.text.includes("Don't like it? Tap ❌ Stop. No answer = it goes out."), p.warn.text);
+    assert(p.warn.fallback.includes('Video: ' + vurl) && p.warn.fallback.includes('/reject P1') && p.warn.text.length < 1000, p.warn.fallback);
+    // a video without a Telegram file (queued with a link) is warned with its link
+    [p] = await plan(unwarned(), berlin('2026-10-25T00:52'));
+    assert(p.warn.file === vurl, p.warn.file);
+    // every platform the bot still has to make public is named
+    [p] = await plan(unwarned({ yt_status: 'scheduled', yt_video_id: 'YT1', fb_status: 'queued' }), berlin('2026-10-25T00:52'));
+    assert(p.warn.text.includes('goes out on YouTube, Instagram, Facebook.'), p.warn.text);
+    // at the slot time without a warning: nothing is made public, the warning goes out first
+    [p] = await plan(unwarned({ yt_status: 'scheduled', yt_video_id: 'YT1', fb_status: 'queued' }), berlin('2026-10-25T01:00'));
+    assert(p.warn && p.ig === null && p.yt_pub === null && p.fb === null && p.rows.length === 1, 'warning first: ' + JSON.stringify(p));
+  });
+  await test('08 Warning: the post waits warn_minutes after the warning, also when the warning came late', async () => {
+    const warnedAt = iso => livePost({ yt_status: 'scheduled', yt_video_id: 'YT1', fb_status: 'queued', warned: utc(iso) });
+    // warned 10 minutes before: everything goes at the slot
+    let [p] = await plan(warnedAt('2026-10-25T00:50'), berlin('2026-10-25T01:00'));
+    assert(p.ig && p.yt_pub && p.fb && !p.warn, JSON.stringify(p));
+    // n8n was off: warned only at 01:30, half an hour after the slot -> not before 01:34 (5 minutes, one minute of slack)
+    assert((await plan(warnedAt('2026-10-25T01:30'), berlin('2026-10-25T01:33'))).length === 0, '3 minutes after the warning: still waiting');
+    [p] = await plan(warnedAt('2026-10-25T01:30'), berlin('2026-10-25T01:35'));
+    assert(p.ig && p.yt_pub && p.fb, '5 minutes after the warning: out');
+    // a missed warning is sent late (here 30 minutes after the slot), and only one warning per run
+    const two = [...unwarned({ tg_file_id: 'A' }), { ...basePost, id: rowId++, post_id: 'P2' },
+      ev('P2', { status: 'approved', post_at: '2026-10-25T01:10:00.000+02:00', yt_status: 'todo', ig_status: 'queued', tiktok_status: 'todo' })];
+    [p] = await plan(two, berlin('2026-10-25T01:30'));
+    assert(p.warn.post_id === 'P1' && p.rows.length === 1 && p.warn.text.includes('In about 5 minutes'), 'the oldest first: ' + JSON.stringify(p));
+    two.push({ ...p.rows[0], id: rowId++ });
+    [p] = await plan(two, berlin('2026-10-25T01:35'));
+    assert(p.warn.post_id === 'P2' && p.ig && p.ig.post_id === 'P1', 'next run: P2 is warned, P1 goes out: ' + JSON.stringify(p));
+    // "failed" = the warning did not arrive: it is sent again and nothing is posted meanwhile
+    [p] = await plan(livePost({ yt_status: 'todo', warned: 'failed' }), berlin('2026-10-25T01:05'));
+    assert(p.warn && p.ig === null, 'resend after a failed warning: ' + JSON.stringify(p));
+    // no warning for a post the owner posts all by himself, nor for a rejected one, nor when it is too late anyway
+    assert((await plan(unwarned({ ig_status: 'todo' }), berlin('2026-10-25T00:55'))).length === 0, 'all by hand: no warning');
+    assert((await plan([...unwarned(), ev('P1', { status: 'rejected' })], berlin('2026-10-25T00:55'))).length === 0, 'stopped: no warning');
+    [p] = await plan(unwarned(), berlin('2026-10-26T09:00'));
+    assert(!p.warn && p.rows[0].ig_status === 'late', 'too late: reported, not warned');
+    // the warning time comes from Settings
+    [p] = await plan(unwarned(), berlin('2026-10-25T00:44'), { ...s08, warn_minutes: 15 });
+    assert(p.warn && p.warn.text.includes('In about 16 minutes'), JSON.stringify(p.warn));
+  });
+  await test('08 Warning nodes: video first, then text, then "failed" so the next run tries again', async () => {
+    const job = { post_id: 'P1', file: 'TGFILE1', text: 't', fallback: 'f' };
+    let [w] = await run(soc, 'Warning sent?', { 'Warning job': [job] }, [{ ok: true, result: { message_id: 7 } }]);
+    assert(w.sent === true && w.post_id === 'P1', JSON.stringify(w));
+    [w] = await run(soc, 'Warning sent?', { 'Warning job': [job] }, [{ error: { message: 'Bad Request: wrong file identifier' } }]);
+    assert(w.sent === false && w.fallback === 'f', JSON.stringify(w));
+    assert((await run(soc, 'Warning failed?', { 'Warning job': [job] }, [{ ok: true, result: { message_id: 8 } }])).length === 0, 'the text arrived: nothing to save');
+    const [row] = await run(soc, 'Warning failed?', { 'Warning job': [job] }, [{ error: { message: 'Forbidden: bot was blocked by the user' } }]);
+    assert(row.post_id === 'P1' && row.warned === 'failed' && row.note.includes('bot was blocked') && Object.keys(row).join(',') === postCols, JSON.stringify(row));
+    assert((await run(soc, 'Warning job', { 'Plan this run': [{ warn: null }] }, [{}])).length === 0 && (await run(soc, 'Warning job', { 'Plan this run': [{ warn: job }] }, [{}]))[0].file === 'TGFILE1', 'Warning job');
+    const wf = load(soc);
+    const video = wf.nodes.find(n => n.name === 'Warn with video').parameters;
+    assert(video.operation === 'sendVideo' && video.file === '={{ $json.file }}' && video.additionalFields.caption === '={{ $json.text }}', JSON.stringify(video));
+    assert(wf.connections['Video warning arrived?'].main[1].map(c => c.node).join() === 'Warn with text' && !(wf.connections['Video warning arrived?'].main[0] || []).length, 'only a missing video warning goes on to the text warning');
+  });
+
+  // ---- 08: YouTube made public at the slot, Facebook Reels
+  await test('08 YouTube: made public at the slot; a locked or failed one stays private and the owner is told', async () => {
+    let [p] = await plan(livePost({ yt_status: 'publishing', yt_video_id: 'YT1', ig_status: 'todo' }), berlin('2026-10-25T01:31'));
+    assert(p.rows[0].yt_status === 'stuck' && p.alerts[0].includes('making P1 public did not finish') && p.alerts[0].includes('/retry P1'), JSON.stringify(p));
+    const job = { post_id: 'P1', video_id: 'YT1' };
+    let [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job] }, [{ id: 'YT1', status: { privacyStatus: 'public' } }]);
+    assert(r.row.yt_status === 'published' && r.text.includes('📺 YouTube: P1 is public now.') && r.text.includes('https://youtube.com/shorts/YT1') && Object.keys(r.row).join(',') === postCols, JSON.stringify(r));
+    [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job] }, [{ id: 'YT1', status: { privacyStatus: 'private' } }]);
+    assert(r.row.yt_status === 'failed' && r.text.includes('YouTube still shows it as "private"') && r.text.includes('Private (locked)') && r.text.includes('/retry P1') && r.text.includes('stays private'), r.text);
+    [r] = await run(soc, 'YouTube public result', { 'YouTube publish job': [job] }, [{ error: { code: 403, message: 'The request <is> forbidden' } }]);
+    assert(r.row.yt_status === 'failed' && r.row.note.includes('forbidden') && r.text.includes('&lt;is&gt;'), r.text);
+  });
+  const fbJob = { post_id: 'P1', ai: 'yes', graph: 'https://graph.facebook.com/v25.0', page_id: '1000000000000001', video_url: vurl, description: 'ig cap' };
+  await test('08 Facebook: planned at the slot after the warning, with the Instagram caption; Page ID missing; late; stuck', async () => {
+    let [p] = await plan(livePost({ yt_status: 'todo', ig_status: 'todo', fb_status: 'queued' }), berlin('2026-10-25T01:00'));
+    assert(JSON.stringify(p.fb) === JSON.stringify(fbJob) && p.rows[0].fb_status === 'publishing', JSON.stringify(p));
+    [p] = await plan(livePost({ yt_status: 'todo', ig_status: 'todo', fb_status: 'queued' }), berlin('2026-10-25T01:00'), { ...s08, fb_page_id: 'PASTE_YOUR_FACEBOOK_PAGE_ID' });
+    assert(p.fb === null && p.rows[0].fb_status === 'failed' && p.alerts[0].includes('fb_page_id'), JSON.stringify(p));
+    [p] = await plan(livePost({ yt_status: 'todo', ig_status: 'todo', fb_status: 'queued' }), berlin('2026-10-26T09:00'));
+    assert(p.fb === null && p.rows[0].fb_status === 'late' && p.alerts[0].includes('Facebook: P1 was NOT posted'), JSON.stringify(p));
+    [p] = await plan([...livePost({ yt_status: 'todo', ig_status: 'todo' }), ev('P1', { fb_status: 'publishing' }, '2026-10-24T23:00:00.000Z')], berlin('2026-10-25T01:31'));
+    assert(p.rows[0].fb_status === 'stuck' && p.alerts[0].includes('Open your Facebook Page'), JSON.stringify(p));
+    assert((await plan(livePost({ yt_status: 'todo', ig_status: 'todo', fb_status: '' }), berlin('2026-10-25T01:00'))).length === 0, 'no Facebook when it is not switched on');
+  });
+  await test('08 Facebook result: only the publish call makes it public; Stop in between; stuck when unsure', async () => {
+    const key = { access_token: 'PAGEKEY', id: '1000000000000001' };
+    const start = { video_id: 'FBV1', upload_url: 'https://rupload.facebook.com/video-upload/v25.0/FBV1' };
+    const res = async (outs, input = [{}]) => (await run(soc, 'Facebook result', { 'Facebook job': [fbJob], ...outs }, input))[0];
+    let r = await res({ 'Facebook: page key': [{ error: { message: 'Unsupported get request', code: 100 } }] });
+    assert(r.row.fb_status === 'failed' && r.text.includes('Page key could not be read (Unsupported get request)') && r.text.includes('Nothing is public on Facebook'), r.text);
+    r = await res({ 'Facebook: page key': [key], 'Facebook: start': [{ error: { message: '(#200) No permission' } }] });
+    assert(r.row.fb_status === 'failed' && r.text.includes('(#200) No permission') && !JSON.stringify(r).includes('PAGEKEY'), 'the key never goes into a row or a message: ' + JSON.stringify(r));
+    r = await res({ 'Facebook: page key': [key], 'Facebook: start': [start], 'Facebook: upload': [{ debug_info: { message: 'file_url could not be fetched' } }] });
+    assert(r.row.fb_status === 'failed' && r.row.fb_video_id === 'FBV1' && r.text.includes('Nothing is public on Facebook'), r.text);
+    r = await res({ 'Facebook: page key': [key], 'Facebook: start': [start], 'Facebook: upload': [{ success: true }], 'Check post again (Facebook)': [{ ok: false, rejected: true, reason: 'you stopped it before it went out' }] });
+    assert(r.row.fb_status === 'cancelled' && r.text.includes('🚫 Facebook: P1 was not posted: you stopped it before it went out.'), r.text);
+    r = await res({ 'Facebook: page key': [key], 'Facebook: start': [start], 'Facebook: upload': [{ success: true }], 'Check post again (Facebook)': [{ ok: true }], 'Facebook: publish': [{}] });
+    assert(r.row.fb_status === 'stuck' && r.text.includes('may not have been posted') && r.text.includes('/retry P1'), r.text);
+    r = await res({ 'Facebook: page key': [key], 'Facebook: start': [start], 'Facebook: upload': [{ success: true }], 'Check post again (Facebook)': [{ ok: true }], 'Facebook: publish': [{ success: true }] });
+    assert(r.row.fb_status === 'published' && r.row.fb_video_id === 'FBV1' && r.text.includes('https://www.facebook.com/reel/FBV1') && r.text.includes('"AI-made video."'), JSON.stringify(r));
+    // the last look at the post
+    const look = async rows => (await run(soc, 'Check post again (Facebook)', { 'Facebook job': [fbJob], 'Reload post (Facebook)': rows }, []))[0];
+    const busy = livePost({ yt_status: 'todo', ig_status: 'todo', fb_status: 'publishing' });
+    assert((await look(busy)).ok === true, 'still approved and publishing');
+    const stopped = await look([...busy, ev('P1', { status: 'rejected' })]);
+    assert(stopped.ok === false && stopped.rejected === true, JSON.stringify(stopped));
+    assert((await look([...busy, ev('P1', { fb_status: 'stuck' })])).ok === false, 'reported as stuck meanwhile');
+  });
+
+  // ---- 02: Facebook in the approve message, the music line and the AI-made line
+  await test('02 Approve with Facebook switched on; the warning is announced; the AI-made line in every text', async () => {
+    let [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'), { ...s02p, facebook_auto: 'yes' });
+    assert(r.rows[0].fb_status === 'queued' && r.msgs[0].includes('Facebook: the bot posts it on your Page at the slot time.'), r.msgs[0]);
+    assert(r.msgs[0].includes('⏰ About 10 minutes before the slot you get the video again with a ❌ Stop button. No answer = it goes out.'), r.msgs[0]);
+    assert(r.msgs[0].includes('YouTube, Instagram and Facebook: the bot posts them and cannot add a sound'), r.msgs[0]);
+    [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'));
+    assert(r.rows[0].fb_status === '' && !r.msgs[0].includes('Facebook'), 'Facebook off: not mentioned, no to-do');
+    [r] = await action('/approve P1', [basePost], berlin('2026-10-13T20:00'), { ...s02p, youtube_auto: 'no', instagram_auto: 'no' });
+    assert(!r.msgs[0].includes('Stop button'), 'all by hand: no warning announced');
+    // AI in the video: "AI-made video." in the TikTok and Instagram captions and the YouTube description, never twice
+    const ai = await run(cmds, 'Check post texts', { '⚙️ Settings': [s02p], 'Build post brief': [pbrief], 'Post agent': [{ output: JSON.stringify(goodTexts) }] }, [], { now: T0 });
+    for (const f of ['caption_tiktok', 'caption_instagram', 'yt_description']) {
+      const v = ai[0].row[f];
+      assert((v.match(/AI-made video\./g) || []).length === 1 && v.indexOf('AI-made video.') < v.indexOf('Shop:'), f + ': ' + v);
+    }
+    assert(!ai[0].row.yt_title.includes('AI-made'), 'not in the title');
+    const no = await run(cmds, 'Check post texts', { '⚙️ Settings': [s02p], 'Build post brief': [{ ...pbrief, ai: 'no' }], 'Post agent': [{ output: JSON.stringify(goodTexts) }] }, [], { now: T0 });
+    assert(!JSON.stringify(no[0].row).includes('AI-made'), 'no AI, no line');
+    const already = await run(cmds, 'Check post texts', { '⚙️ Settings': [s02p], 'Build post brief': [pbrief], 'Post agent': [{ output: JSON.stringify({ ...goodTexts, caption_tiktok: 'AI-generated lights demo' }) }] }, [], { now: T0 });
+    assert(!already[0].row.caption_tiktok.includes('AI-made video.'), 'the text already says it: ' + already[0].row.caption_tiktok);
+  });
+
+  // ---- 09: the finished videos from the PC
+  const s09 = { telegram_chat_id: '123', post_times: '00:30,04:30,08:30,12:30,16:30,20:30', post_timezone: 'America/New_York', time_zone: 'Europe/Berlin',
+    min_lead_hours: 1, youtube_auto: 'yes', instagram_auto: 'yes', facebook_auto: 'yes', shop_url: 'pivendo.com', pinterest_board: 'Christmas Decor & Gift Ideas',
+    video_link_base: 'https://n8n.pivendo.com/webhook/pivendo-video', max_mb: 19 };
+  // run() has no binary data, so "Check upload" is run here with a $() that also hands over the uploaded file
+  const uploadWith = async (body, binary) => {
+    const wf = load(intake);
+    const node = wf.nodes.find(n => n.name === 'Check upload');
+    const $ = name => ({ isExecuted: true, first: () => (name === 'Video in' ? { json: { body }, binary } : { json: s09 }), all: () => [] });
+    const fn = new Function('$', '$input', '$now', 'DateTime', '$runIndex', 'return (async () => {' + node.parameters.jsCode + '})()');
+    return (await fn($, { all: () => [], first: () => ({ json: {} }) }, DateTime.now(), DateTime, 0)).map(r => r.json);
+  };
+  const mp4 = (size = '12.4 MB', extra = {}) => ({ video: { mimeType: 'video/mp4', fileName: 'r03-lights-off.mp4', fileSize: size, ...extra } });
+  await test('09 Check upload: a video, a message, and every reason to refuse', async () => {
+    let [u] = await uploadWith({ sku: 'CJYS315', ai: 'yes', shows: 'lights  go off,\n stars on the ceiling', name: 'r03-lights-off.mp4' }, mp4());
+    assert(u.mode === 'video' && u.name === 'r03-lights-off.mp4' && u.mb === 12.4 && u.post.sku === 'CJYS315' && u.post.ai === 'yes' && u.post.shows === 'lights go off, stars on the ceiling', JSON.stringify(u));
+    assert(/^https:\/\/n8n\.pivendo\.com\/webhook\/pivendo-video\?v=[a-z0-9]{20}\.mp4$/.test(u.post.url), u.post.url);
+    const [u2] = await uploadWith({ sku: 'CJYS315', ai: 'yes' }, mp4());
+    assert(u2.post.url !== u.post.url, 'every video gets its own random link');
+    [u] = await uploadWith({ sku: 'CJYS315', ai: 'no' }, mp4(undefined, { fileSize: undefined, bytes: 18900000 }));
+    assert(u.mode === 'video' && u.mb === 18.9, 'size in bytes: ' + JSON.stringify(u));
+    const refuse = async (body, binary, words) => { const [x] = await uploadWith(body, binary); assert(x.mode === 'error' && x.error.includes(words), words + ': ' + JSON.stringify(x)); };
+    await refuse({ sku: 'CJYS315', ai: 'yes' }, mp4('19.5 MB'), 'is 19.5 MB. The limit is 19 MB');
+    await refuse({ sku: 'CJYS315', ai: 'yes' }, mp4('0 B'), 'empty');
+    await refuse({ sku: 'CJYS315', ai: 'yes' }, { video: { mimeType: 'video/quicktime', fileName: 'a.mov', fileSize: '3 MB' } }, 'only MP4');
+    await refuse({ ai: 'yes' }, mp4(), 'SKU is missing');
+    await refuse({ sku: 'CJYS315', ai: 'maybe' }, mp4(), '"ai" must be yes or no');
+    await refuse({}, {}, 'Nothing to do');
+    // a short message for the owner, escaped for Telegram
+    [u] = await uploadWith({ message: '6 video plans are ready <open the Claude app>' }, {});
+    assert(u.mode === 'message' && u.text === '6 video plans are ready &lt;open the Claude app&gt;', JSON.stringify(u));
+  });
+  await test('09 The video goes through the same brief and checks as /queue', async () => {
+    const [shim] = await run(intake, 'Parse command', { 'Check upload': [{ post: { url: 'https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4', sku: 'cjys315', ai: 'yes', shows: 'stars' } }] }, []);
+    assert(shim.route === 'queue' && shim.post.sku === 'cjys315', JSON.stringify(shim));
+    const brief = async post => (await run(intake, 'Build post brief', { '⚙️ Settings': [s09], 'Parse command': [{ route: 'queue', args: [], post }],
+      'Load products (post)': [lamp], 'Load playbook (post)': playbook, 'Load videos (post)': [{}], 'Load stats (post)': [{}], 'Load posts (queue)': [{}] }, []))[0];
+    let b = await brief(shim.post);
+    assert(b.ok && b.ai === 'yes' && b.sku === 'CJYS315' && b.shows === 'stars' && b.url === shim.post.url && b.prompt.includes('an AI presenter'), JSON.stringify(b).slice(0, 300));
+    b = await brief({ ...shim.post, ai: 'no' });
+    assert(b.ok && b.ai === 'no', 'ai no');
+    b = await brief({ ...shim.post, url: 'http://x/y.mp4' });
+    assert(!b.ok && b.reply.includes('its link is not valid') && !b.reply.includes('Usage'), b.reply);
+    b = await brief({ ...shim.post, sku: 'NOPE' });
+    assert(!b.ok && b.reply.includes('NOPE'), b.reply);
+    // the same code in 02 still takes a /queue link of the bot's own video link form
+    const [q] = await postBrief(['https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4', 'cjys315']);
+    assert(q.ok, '/queue with a bot video link: ' + JSON.stringify(q).slice(0, 200));
+  });
+  const intakePlan = async (now, table, settings = s09, name = 'r03-lights-off.mp4') => (await run(intake, 'Plan intake', { '⚙️ Settings': [settings],
+    'Check upload': [{ name }], 'Check post texts': [{ ok: true, row: { ...basePost, id: undefined, post_id: 'Q' + (rowId++), video: 'pivendo-video', video_url: 'https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4' } }],
+    'Load posts (queue)': table }, [], { now }))[0];
+  await test('09 Plan intake: 6 videos fill the next 24 hours, no second OK, to-dos for TikTok and Pinterest', async () => {
+    const table = [{}];
+    const out = [];
+    for (let i = 1; i <= 6; i++) {
+      const r = await intakePlan(berlin('2026-10-15T14:10'), table, s09, `v${i}.mp4`);
+      assert(r.ok, JSON.stringify(r));
+      table.push({ ...r.row, id: rowId++ });
+      out.push(r);
+    }
+    // 14:10 in Berlin = 08:10 in New York: the first free slot at least 1 hour ahead is 12:30 New York = 18:30 Berlin
+    assert(out.map(r => r.row.slot).join() === '12:30,16:30,20:30,00:30,04:30,08:30', out.map(r => r.row.slot).join());
+    assert(out.map(r => r.answer.shown).join(' | ') === 'Thu 15 Oct at 18:30 (Europe/Berlin) | Thu 15 Oct at 22:30 (Europe/Berlin) | Fri 16 Oct at 02:30 (Europe/Berlin) | Fri 16 Oct at 06:30 (Europe/Berlin) | Fri 16 Oct at 10:30 (Europe/Berlin) | Fri 16 Oct at 14:30 (Europe/Berlin)', out.map(r => r.answer.shown).join(' | '));
+    const r = out[0];
+    assert(r.row.status === 'approved' && r.row.yt_status === 'queued' && r.row.ig_status === 'queued' && r.row.fb_status === 'queued' && r.row.tiktok_status === 'todo' && r.row.video === 'v1', JSON.stringify(r.row));
+    assert(Object.keys(r.row).filter(k => k !== 'id').every(k => postCols.split(',').includes(k)), 'only table columns: ' + Object.keys(r.row));
+    assert(r.caption.includes('Goes out Thu 15 Oct at 18:30 (Europe/Berlin) on YouTube, Instagram, Facebook.') && r.caption.includes('No answer = it goes out') && r.caption.length < 1024, r.caption);
+    assert(r.todos.length === 2 && r.todos[0].includes('TikTok to-do') && r.todos[0].includes('no-music TikTok file of "v1"') && r.todos[0].includes('Schedule it for Thu 15 Oct at 18:30') && r.todos[0].includes('"AI-generated content" ON') && r.todos[0].includes('/tiktok'), r.todos[0]);
+    assert(r.todos[1].includes('Pinterest to-do') && r.todos[1].includes('Board: Christmas Decor &amp; Gift Ideas') && r.todos[1].includes('Publish at a later date: Thu 15 Oct at 18:30') && r.todos[1].includes('<code>yt title</code>') && !r.todos[1].includes('Done?'), r.todos[1]);
+    for (const m of r.todos) assert(m.replace(/<\/?code>/g, '').match(/[<>]/) === null, 'HTML-safe');
+    // platforms that are not switched on get a to-do (YouTube, Instagram) or are left out (Facebook)
+    const byHand = await intakePlan(berlin('2026-10-15T14:10'), [{}], { ...s09, youtube_auto: 'no', instagram_auto: 'no', facebook_auto: 'no' });
+    assert(byHand.row.yt_status === 'todo' && byHand.row.ig_status === 'todo' && byHand.row.fb_status === '' && byHand.todos.length === 4 && byHand.caption.includes('You post it yourself'), JSON.stringify(byHand.row));
+    // the same file twice is never queued twice
+    const twin = await intakePlan(berlin('2026-10-15T14:20'), table, s09, 'v1.mp4');
+    assert(twin.ok === false && twin.error.includes('v1.mp4 is already queued as'), JSON.stringify(twin));
+    const again = await intakePlan(berlin('2026-10-15T14:20'), [...table, ev(out[0].row.post_id, { status: 'rejected' })], s09, 'v1.mp4');
+    assert(again.ok === true, 'a stopped video may be sent again');
+  });
+  await test('09 Intake result, problems, and the public video link', async () => {
+    const plan = { row: { post_id: 'P9', status: 'approved' }, answer: { ok: true, post_id: 'P9' } };
+    let [r] = await run(intake, 'Intake result', { 'Plan intake': [plan] }, [{ ok: true, result: { message_id: 5, video: { file_id: 'TGF9' } } }]);
+    assert(r.ok && r.row.tg_file_id === 'TGF9' && r.answer.post_id === 'P9', JSON.stringify(r));
+    [r] = await run(intake, 'Intake result', { 'Plan intake': [plan] }, [{ error: { message: 'Request Entity Too Large' } }]);
+    assert(!r.ok && r.error.includes('Telegram did not take the video (Request Entity Too Large). Nothing was queued.'), JSON.stringify(r));
+    let [pr] = await run(intake, 'Problem', { 'Check upload': [{ name: 'v1.mp4' }] }, [{ ok: false, reply: 'I can&#39;t find SKU &lt;X&gt;' }]);
+    assert(pr.answer.ok === false && pr.answer.error.includes('SKU <X>') && pr.text.includes('(v1.mp4)') && pr.text.includes('&lt;X&gt;'), JSON.stringify(pr));
+    [pr] = await run(intake, 'Problem', {}, [{ mode: 'error', error: 'Nothing to do' }]);
+    assert(pr.answer.error === 'Nothing to do' && pr.text.startsWith('❌ A video from the PC was not queued:'), JSON.stringify(pr));
+    const link = 'https://n8n.pivendo.com/webhook/pivendo-video?v=abcdefghijkmnpqrstuv.mp4';
+    const rows = [{ ...basePost, video_url: link }, ev('P1', { status: 'approved', tg_file_id: 'TGF1' })];
+    const find = async (v, table = rows) => (await run(intake, 'Find video', { 'Video link': [{ query: { v } }], 'Load posts (link)': table }, []))[0];
+    assert(JSON.stringify(await find('abcdefghijkmnpqrstuv.mp4')) === '{"found":true,"file_id":"TGF1"}', 'found');
+    assert((await find('abcdefghijkmnpqrstuv.mp4', [...rows, ev('P1', { status: 'rejected' })])).found === false, 'a stopped video is not served');
+    for (const bad of ['', 'abc.mp4', '../x', 'ABCDEFGHIJKMNPQRSTUV.mp4', 'bcdefghijkmnpqrstuvw.mp4']) assert((await find(bad)).found === false, 'not found: ' + bad);
+    assert((await find('abcdefghijkmnpqrstuv.mp4', [{ ...basePost, video_url: link, status: 'approved' }])).found === false, 'no Telegram file, nothing to serve');
+  });
+  await test('09 Workflow shape: login on the intake, every path answers the PC, the link needs no login', async () => {
+    const wf = load(intake);
+    const node = name => wf.nodes.find(n => n.name === name);
+    const vin = node('Video in').parameters, vlink = node('Video link').parameters;
+    assert(vin.httpMethod === 'POST' && vin.authentication === 'headerAuth' && vin.responseMode === 'responseNode' && vin.path === 'pivendo-video-in', JSON.stringify(vin));
+    assert(vlink.httpMethod === 'GET' && !vlink.authentication && vlink.responseMode === 'responseNode' && vlink.path === 'pivendo-video', JSON.stringify(vlink));
+    const s = Object.fromEntries(node('⚙️ Settings').parameters.assignments.assignments.map(a => [a.name, a.value]));
+    assert(s.video_link_base.endsWith('/webhook/' + vlink.path) && s.post_times.split(',').length === 6 && s.max_mb === 19, JSON.stringify(s));
+    assert(s.youtube_auto === 'no' && s.instagram_auto === 'no' && s.facebook_auto === 'no' && String(s.telegram_chat_id).startsWith('PASTE'), 'nothing is posted by itself before the setup');
+    // every path that starts at "Video in" ends in an answer to the PC
+    const next = n => ((wf.connections[n] || {}).main || []).flat().map(c => c.node);
+    const seen = new Set(), todo = ['Video in'];
+    while (todo.length) { const n = todo.pop(); if (seen.has(n)) continue; seen.add(n); todo.push(...next(n)); }
+    const leaves = [...seen].filter(n => !next(n).length);
+    assert(leaves.length && leaves.every(n => node(n).type === 'n8n-nodes-base.respondToWebhook'), 'leaves: ' + leaves);
+    for (const [ifNode, out] of [['What came in?', 2], ['Post brief ok?', 1], ['Post texts ok?', 1], ['Not queued before?', 1], ['Video arrived in Telegram?', 1]]) {
+      assert(wf.connections[ifNode].main[out].map(c => c.node).join() === 'Problem', ifNode + ' must report the problem');
+    }
+    // the video is shown to the owner with the ❌ Stop button, and the table row is only saved once Telegram has the file
+    const show = node('Show video to owner').parameters;
+    assert(show.operation === 'sendVideo' && show.binaryData === true && show.additionalFields.parse_mode === 'HTML'
+      && show.inlineKeyboard.rows[0].row.buttons[0].additionalFields.callback_data.includes("'reject:'"), JSON.stringify(show));
+    const unsent = new Set(), q = ['Video in'];
+    while (q.length) { const n = q.pop(); if (unsent.has(n) || n === 'Video arrived in Telegram?') continue; unsent.add(n); q.push(...next(n)); }
+    assert(seen.has('Save intake') && !unsent.has('Save intake'), '"Save intake" only after Telegram took the video');
+    assert(wf.nodes.filter(n => n.type === 'n8n-nodes-base.telegram' && n.name !== 'Get video from Telegram').every(n => n.onError === 'continueRegularOutput'), 'messages never block the answer');
+    assert(node('Answer PC (queued)').executeOnce === true, 'one answer, even with several to-dos');
+    assert(node('Get video from Telegram').parameters.resource === 'file' && node('Get video from Telegram').parameters.download === true && node('Send the video').parameters.respondWith === 'binary', 'the link streams the file');
+  });
+  await test('08 + 09 small pass-on nodes and Settings', async () => {
+    const planned = { rows: [], alerts: [], warn: null, yt: null, yt_pub: { post_id: 'P1' }, ig: null, fb: { post_id: 'P2' } };
+    assert((await run(soc, 'YouTube publish job', { 'Plan this run': [planned] }, [{}]))[0].post_id === 'P1', 'YouTube publish job');
+    assert((await run(soc, 'Facebook job', { 'Plan this run': [planned] }, [{}]))[0].post_id === 'P2', 'Facebook job');
+    assert((await run(soc, 'Facebook job', { 'Plan this run': [{ ...planned, fb: null }] }, [{}])).length === 0, 'no Facebook job');
+    for (const n of ['YouTube public row', 'Facebook row']) assert(JSON.stringify(await run(soc, n, {}, [{ row: { post_id: 'P1' } }])) === '[{"post_id":"P1"}]', n);
+    assert(JSON.stringify(await run(intake, 'Intake row', {}, [{ row: { post_id: 'P1' } }])) === '[{"post_id":"P1"}]', 'Intake row');
+    assert(JSON.stringify(await run(intake, 'To-do messages', { 'Plan intake': [{ todos: ['a', 'b'] }] }, [{}])) === '[{"text":"a"},{"text":"b"}]', 'To-do messages');
+    const b = Object.fromEntries(load(soc).nodes.find(n => n.name === '⚙️ Settings').parameters.assignments.assignments.map(a => [a.name, a.value]));
+    assert(String(b.fb_page_id).startsWith('PASTE') && b.warn_minutes === 5, JSON.stringify(b));
+  });
+
   await test('setup.ps1: -OnlyWorkflows takes a list, and a replaced workflow is archived only after the new one is on', async () => {
     // The script is never run by these tests; they only guard the order of its steps against a careless edit.
     const ps = fs.readFileSync(path.join(__dirname, '..', 'setup.ps1'), 'utf8');
@@ -1255,6 +1601,10 @@ const cjList = { code: 200, result: true, data: { content: [{ productList: [
     // webhook at Telegram. So a copy is switched off exactly once, the old one, before the new one is switched on; a copy
     // that is already off (the failed new one, the old one after the swap) is only archived, never "switched off" again.
     assert((ps.match(/\/deactivate/g) || []).length === 1 && offOld > 0, 'only the old copy is ever switched off, once, inside the swap');
+    // workflow 09 waits for its own login, and that login (a Header Auth key like JSON2Video's) only ever goes on its node "Video in"
+    const ensureWf = ps.slice(ps.indexOf('function Ensure-Workflows'), ps.indexOf('function Activate-Workflows'));
+    assert(ensureWf.includes("$f.Name -like '09-*' -and -not $old -and -not $credIds.ContainsKey('videoIntake')"), '09 must not be imported without its login');
+    assert(/\$node\.name -eq 'Video in' -and \$credIds\.ContainsKey\('videoIntake'\)/.test(ps) && !/\$CredentialFor[^\n]*webhook/.test(ps), 'the intake key is attached by node name, never by node type');
     assert(ps.indexOf('$OnlyList = @(Get-OnlyWorkflows)') > ps.indexOf('Dropshipping agents - setup') && ps.indexOf('$OnlyList = @(Get-OnlyWorkflows)') < ps.indexOf('$state = Load-State'), 'a wrong workflow number must stop the script before anything is asked or changed');
   });
 
