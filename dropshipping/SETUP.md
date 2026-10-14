@@ -42,8 +42,8 @@ powershell -ExecutionPolicy Bypass -File .\dropshipping\setup.ps1
 2. Creates your n8n login.
 3. Asks for your keys and checks them with Claude, Telegram, CJ and Gmail. Keys are typed only into this window and stored encrypted inside n8n, never in a file or a chat.
 4. Finds your Telegram chat ID. You just send your bot a message.
-5. Creates the 9 tables and loads the starting rules.
-6. Imports and fills in all 8 workflows, then switches them on.
+5. Creates the 10 tables and loads the starting rules.
+6. Imports and fills in the workflows, then switches them on. Workflow 08 (Social publisher) is added once you've made its two logins: see `SOCIAL-SETUP.md`.
 
 At the end it prints the Shopify webhook address to paste in (Part 5, "Connect Shopify orders", step 4).
 
@@ -92,7 +92,7 @@ Sign up at n8n.io. There's nothing to install. Skip to Part 3.
 
 ## Part 3: Create the agents' memory (Data Tables)
 
-In n8n: **Overview → Data tables → Create data table**. Create these 9 tables with **exactly** these names and columns.
+In n8n: **Overview → Data tables → Create data table**. Create these 10 tables with **exactly** these names and columns.
 
 - If n8n offers "Import CSV", use the matching file in `templates/`.
 - Otherwise add the columns by hand.
@@ -109,6 +109,9 @@ In n8n: **Overview → Data tables → Create data table**. Create these 9 table
 | `clips` | day, sku, url | none |
 | `payments` | day, cj_order_id, order_name, amount, revenue, profit, status, note | amount, revenue, profit |
 | `support` | day, ticket_id, from_email, from_name, subject, question, intent, confidence, order_name, draft, final_reply, decision, note | confidence |
+| `social_posts` | day, at, post_id, sku, product, video, video_url, ai, status, post_at, slot, caption_tiktok, caption_instagram, yt_title, yt_description, yt_status, yt_video_id, ig_status, ig_media_id, tiktok_status, stats_done, note, rules_version | none |
+
+`social_posts` is a log: every change to a post is a new row, and only the columns that changed are filled. The newest value of each column counts.
 
 **Important:** put the 7 starting rules from `templates/playbook.csv` into `playbook`, either by importing the CSV or by typing them in. These are the first things your agents "know". The coach adds to them every night.
 
@@ -126,6 +129,8 @@ In n8n: **Overview → Data tables → Create data table**. Create these 9 table
 | **Header Auth** | `JSON2Video` | Name: `x-api-key` · Value: your JSON2Video API key |
 | **IMAP** | `Support inbox` | User: the support address · Password: the **App password** · Host: `imap.gmail.com` · Port: `993` · SSL on |
 | **SMTP** | `Support email` | User: the support address · Password: the **App password** · Host: `smtp.gmail.com` · Port: `465` · SSL on |
+| **YouTube OAuth2 API** | `YouTube (Pivendo)` | only for workflow 08: Client ID and Client Secret from Google, then **Sign in with Google**. Steps: `SOCIAL-SETUP.md`, Part 1 |
+| **Facebook Graph API** | `Instagram (Pivendo)` | only for workflow 08: the Meta system-user token. Steps: `SOCIAL-SETUP.md`, Part 2 |
 
 These are Gmail's settings. For other providers, look up their IMAP and SMTP server names.
 
@@ -141,12 +146,13 @@ The CJ key sits inside an n8n credential, so it's stored encrypted and never end
 |---|---|---|
 | `00-error-alerts.json` | Messages you on Telegram when any workflow breaks | on errors |
 | `01-product-research.json` | Research agent: CJ trending products → AI picks 3 → priced → Telegram | every day at 07:00 |
-| `02-telegram-commands.json` | Your remote control: `/content`, `/clips`, `/render` (Video agent), `/send` `/reply` `/skip` (support emails), `/video`, `/product`, `/rules` | when you message the bot |
+| `02-telegram-commands.json` | Your remote control: `/content`, `/clips`, `/render` (Video agent), `/send` `/reply` `/skip` (support emails), `/video`, `/product`, `/rules`, and the social posts: `/queue`, the ✅/❌ buttons, `/posts`, `/tiktok`, `/retry` | when you message the bot or tap a button |
 | `03-new-order-alert.json` | Shopify order → saved → "pay it in CJ" message | on every paid order |
 | `04-cj-order-check.json` | Warns about unpaid CJ orders and missing tracking | every 3 hours, 9:00-21:00 |
 | `05-daily-coach.json` | Daily report plus learning: proposes new playbook rules, which you approve | every day at 21:30 |
 | `07-cj-auto-pay.json` | Auto-pay (**off until you switch it on**): confirms new CJ orders and pays them from your CJ balance, but only if every money rule passes. Anything else is sent to you | every 30 minutes |
 | `06-customer-support.json` | Support agent: reads new customer emails, looks up their order and tracking, drafts a reply, and sends it only if safe; everything else goes to you on Telegram | every new email |
+| `08-social-publisher.json` | Social publisher: uploads videos you approved to YouTube (private until the slot time), posts Instagram Reels at the slot time, reads the views after 48 hours for the coach. **Only acts on videos you approved, and only on platforms you switched to `yes` in workflow 02.** Needs `SOCIAL-SETUP.md` | every 10 minutes, and every day at 21:00 |
 
 In **each** workflow:
 1. Open every node with a red warning and pick the credential:
@@ -156,6 +162,7 @@ In **each** workflow:
    - `JSON2Video: start render` and `JSON2Video: check` (in 02) → **JSON2Video**
    - `New customer email` (in 06) → **Support inbox**
    - `Send reply email` (in 06) and `Email the customer` (in 02) → **Support email**
+   - `YouTube: …` nodes (in 08) → **YouTube (Pivendo)**, `Instagram: …` nodes (in 08) → **Instagram (Pivendo)**
 2. If a Data Table node is red, pick the table from the dropdown.
 3. Open the **⚙️ Settings** node. It holds everything you might change: prices, markup, warehouse country, and so on. In **01**, `sell_countries` lists every country the research agent checks shipping and profit for. EU countries only count when the product has stock in an EU warehouse, so customers never pay customs.
 4. **Workflow menu → Settings → Error workflow → "00 · Error alerts"**.
@@ -163,7 +170,7 @@ In **each** workflow:
 ### Get your Telegram chat ID
 1. Activate workflow **02** (toggle top right).
 2. Send your bot any message. It replies: *"Your chat ID is 123456789"*.
-3. Paste that number into the **⚙️ Settings** node of **every** workflow (00-07) and save each one.
+3. Paste that number into the **⚙️ Settings** node of **every** workflow (00-08) and save each one.
 4. In the Settings of **02** and **06**, also fill in `support_email` and `email_signature`. In **06**, also fill in `store_name`, `shipping_policy` and `refund_policy`: the support agent may only promise what these say.
 
 ### How auto-pay decides (workflow 07)
