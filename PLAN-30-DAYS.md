@@ -8,6 +8,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 ## 📍 Status (updated Wed 14 Oct, day 17). New chats start here.
 
 **Done ✅**
+- **4 new skit videos (15 Oct 16:10):** "Landlord said NO", "He got me THIS?", "Tiny dorm", "Bedtime magic" in `Desktop/Pivendo Videos/new/drafts/V5-V8` (premium voice, ceiling projection payoff, no music, about 66 Higgsfield credits, about 95 left). Upload copies in `.playwright-mcp/upload/v5`. Next: the owner watches, picks music, then schedule 2 a day on TikTok. Meta (FB+IG): 3 posts are filled in and wait for the owner's Schedule click.
 - **24/7 posting live (14 Oct 23:25):** Instagram Business + Facebook Page "Pivendo" + Meta app/system user, workflow 08 loaded on the server, auto-posting for YouTube and Instagram switched on (after the owner's ✅).
 - **24/7 Part 1 YouTube login (14 Oct 20:10):** Google project `pivendo-posting` (dship00720@gmail.com), app In production, n8n login `YouTube (Pivendo)` tested against the channel PivendoTeam.
 - **24/7 step 1 (14 Oct 21:10):** new Telegram workflow 02 (`/queue`, ✅/❌ buttons, `/posts`, to-do lists) and table `social_posts` loaded into n8n on the Oracle server with `load-new-telegram-workflow.cmd`; checked by Claude on the server.
