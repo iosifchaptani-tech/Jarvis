@@ -125,6 +125,7 @@ One plan for everything: the **Pivendo** store, **legal and admin**, the **Wok W
 - **Daily video task** ("Pivendo: make 2 new videos and prepare the uploads", about 16:40): it makes and checks the videos by itself. It cannot use Chrome while another Claude chat holds it, so the owner writes "prepare the videos" in the main chat and that chat fills TikTok, YouTube and Instagram. Waiting in the queue: r02 (unboxing).
 
 - **Owner's video format (20 Oct):** like the viral sellers: an AI person (woman or man) looks surprised and excited, then the product, then unboxing and plugging it in, then a POV walk into the dark room as the lights come on. Claude's notes: no Walmart shelf (we are not sold there: a false claim and their brand), use the box arriving at the door instead; adults only, no kids; AI label on; the glow as strong as the real product, not stronger. Prompt for the desktop Claude given in chat 20 Oct; not done yet.
+- **Owner decision 20 Oct:** no 24/7 "night shift" of agents (few Higgsfield credits, ~84). Just post more videos in the new format; if it does not work, try something else.
 
 **Social stats (latest)** (20 Oct, about 15:30, automatic check, all 3 read in Claude's Chrome window)
 - Total views: YouTube **7,131** (14 Shorts, was 4,942; 6 subscribers) · Instagram **1,352** (12 Reels, was 600) · TikTok **1,303** (14 posts, was 414 on 14 Oct; 1 follower).
