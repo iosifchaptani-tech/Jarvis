@@ -58,13 +58,13 @@ local PRESETS = {
 		Texture = "Sparkle", Lifetime = { 0.7, 1.3 }, Speed = { 0.3, 1.2 }, Spread = 180,
 		Size = { { 0, 0.3 }, { 0.5, 0.42 }, { 1, 0 } }, Transparency = { { 0, 0.1 }, { 1, 1 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -90, 90 }, Accel = Vector3.new(0, 0.6, 0), Drag = 1,
-		Shape = "Sphere", Style = "Volume", HostScale = 1.15,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.15, Locked = true,
 	},
 	Stars = {
 		Texture = "Sparkle", Lifetime = { 1.0, 1.8 }, Speed = { 0.1, 0.5 }, Spread = 180,
 		Size = { { 0, 0 }, { 0.35, 0.5 }, { 1, 0 } }, Transparency = { { 0, 0.6 }, { 0.35, 0 }, { 1, 1 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -40, 40 },
-		Shape = "Sphere", Style = "Volume", HostScale = 1.45,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.45, Locked = true,
 	},
 	Snow = {
 		Texture = "Sparkle", Lifetime = { 1.2, 2.0 }, Speed = { 0.1, 0.4 }, Spread = 180,
@@ -105,18 +105,18 @@ local PRESETS = {
 		Texture = "Sparkle", Lifetime = { 0.8, 1.4 }, Speed = { 0.4, 1.0 }, Spread = 180,
 		Size = { { 0, 0 }, { 0.3, 0.55 }, { 1, 0 } }, Transparency = { { 0, 0 }, { 1, 0.8 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -180, 180 },
-		Shape = "Sphere", Style = "Volume", HostScale = 1.35,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.35, Locked = true,
 	},
 	Nebula = {
 		Texture = "Smoke", Lifetime = { 2.5, 3.5 }, Speed = { 0.1, 0.3 }, Spread = 180,
 		Size = { { 0, 1.4 }, { 0.5, 2.4 }, { 1, 2.8 } }, Transparency = { { 0, 1 }, { 0.3, 0.55 }, { 0.7, 0.6 }, { 1, 1 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -15, 15 },
-		Shape = "Sphere", Style = "Volume", HostScale = 1.3,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.3, Locked = true,
 	},
 	VoidPull = {
 		Texture = "Sparkle", Lifetime = { 0.7, 1.0 }, Speed = { 2.5, 3.5 }, Spread = 0,
 		Size = { { 0, 0.35 }, { 1, 0 } }, Transparency = { { 0, 0.2 }, { 1, 0.9 } },
-		Light = 1, Shape = "Sphere", Style = "Surface", InOut = "Inward", HostScale = 2.0,
+		Light = 1, Shape = "Sphere", Style = "Surface", InOut = "Inward", HostScale = 2.0, Locked = true,
 	},
 	Breath = {
 		Texture = "Fire", Lifetime = { 0.35, 0.6 }, Speed = { 2, 3.2 }, Spread = 12,
@@ -355,6 +355,8 @@ function PetBuilder.Build(petId: string, options: { Scale: number?, Fx: boolean?
 		part.Material = MATERIALS[p.Mat] or Enum.Material.SmoothPlastic
 		part.Transparency = p.Transparency
 		if p.Mat == "G" then
+			-- Roblox only draws the glass look on parts that are a bit see-through
+			part.Transparency = math.max(p.Transparency, 0.2)
 			part.Reflectance = 0.12
 		end
 		plain(part)
@@ -487,7 +489,10 @@ function Pet:_buildRing(index: number, ring)
 		attachments[s + 1] = att
 	end
 
-	local forward = (ring.Spin or 0) >= 0
+	-- The holder turns with CFrame.Angles(0, Spin * t, 0): a positive Spin moves every point
+	-- towards a smaller angle, i.e. towards Attachment0 of each Beam. The bright, wide head
+	-- of each comet must be at the front of that movement.
+	local headAtStart = (ring.Spin or 0) >= 0
 	local width = (ring.Width or 0.15) * scale
 	for s = 1, segments do
 		local beam = Instance.new("Beam")
@@ -501,15 +506,14 @@ function Pet:_buildRing(index: number, ring)
 		else
 			beam.Color = colorSequence(ring.Colors)
 		end
-		if forward then
-			-- spinning towards Attachment1: the bright head is at the front
-			beam.Transparency = numberSequence({ { 0, 0.9 }, { 0.4, 0.35 }, { 1, 0 } })
-			beam.Width0 = width * 0.35
-			beam.Width1 = width
-		else
+		if headAtStart then
 			beam.Transparency = numberSequence({ { 0, 0 }, { 0.6, 0.35 }, { 1, 0.9 } })
 			beam.Width0 = width
 			beam.Width1 = width * 0.35
+		else
+			beam.Transparency = numberSequence({ { 0, 0.9 }, { 0.4, 0.35 }, { 1, 0 } })
+			beam.Width0 = width * 0.35
+			beam.Width1 = width
 		end
 		beam.FaceCamera = true
 		beam.LightEmission = 1
@@ -585,6 +589,8 @@ function Pet:_buildParticles(spec)
 		e.Acceleration = (preset.Accel or Vector3.zero) * scale
 		e.Drag = preset.Drag or 0
 		e.EmissionDirection = DIRECTIONS[preset.Direction or "Top"]
+		-- round auras move with the pet; flames, embers and smoke stay behind like real fire
+		e.LockedToPart = preset.Locked == true
 		if not fromModelPart then
 			trySet(e, "Shape", SHAPES[preset.Shape or "Box"])
 			trySet(e, "ShapeStyle", STYLES[preset.Style or "Volume"])
@@ -846,6 +852,13 @@ function Pet:SetFx(level: number, rateMultiplier: number)
 	end
 	if self.Shell then
 		self.Shell.Transparency = if level >= 1 then self.ShellTransparency else 1
+	end
+end
+
+-- After a jump (teleport) or when the pet shows again: no streak across the map.
+function Pet:ClearTrails()
+	for _, trail in ipairs(self.Trails) do
+		trail:Clear()
 	end
 end
 

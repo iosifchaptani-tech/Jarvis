@@ -5,8 +5,9 @@
 	  - reads the "PetsEquipped" and "PetFormation" attributes the server puts on each player
 	  - builds the pets locally (nothing is sent over the network every frame, so it is smooth)
 	  - flies them behind their owner in a formation, with floating, banking and wing flaps
-	  - saves work far away: fewer particles, then no particles, then the pet hides
-	  - limits the neon outlines to what Roblox can show (31 at once)
+	  - saves work far away: fewer particles, then no particles, then the pet hides;
+	    other players' pets are only built when they come near
+	  - limits the neon outlines (Roblox shows at most 31, the game needs some too)
 	Also gently spins and bobs the eggs on their stands.
 ]]
 
@@ -32,7 +33,7 @@ local fxSetting = "High"
 local eggs: { [Instance]: any } = {}
 local started = false
 
-local GROUND_BELOW_ROOT = 3 -- studs from a character's HumanoidRootPart down to its feet
+local BUILDS_PER_TICK = 3 -- pets built per LOD tick (spreads the work over frames)
 
 local function isPhoneOrTablet(): boolean
 	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -74,7 +75,7 @@ end
 ---------------------------------------------------------------------
 
 local function setVisible(entry, visible: boolean)
-	if entry.Visible == visible then
+	if entry.Visible == visible or not entry.Pet then
 		return
 	end
 	entry.Visible = visible
@@ -83,6 +84,7 @@ local function setVisible(entry, visible: boolean)
 			entry.Pet:SetCFrame(entry.CF)
 		end
 		entry.Pet.Model.Parent = container
+		entry.Pet:ClearTrails()
 		if entry.New then
 			entry.New = false
 			entry.Pet:Poof()
@@ -116,30 +118,26 @@ local function syncOwner(player: Player, owner)
 		table.insert(pool[entry.Id], entry)
 	end
 	local list = {}
+	local spacing = 1
 	for _, petId in ipairs(wanted) do
 		local bucket = pool[petId]
 		if bucket and #bucket > 0 then
 			table.insert(list, table.remove(bucket, 1))
 		else
-			local ok, pet = pcall(PetBuilder.Build, petId)
-			if ok then
-				table.insert(list, { Id = petId, Pet = pet, Visible = false, New = true, Yaw = 0 })
-			else
-				warn("[Pets] Could not build " .. petId .. ": " .. tostring(pet))
-			end
+			-- built later by buildMissing(), only when the owner is near
+			table.insert(list, { Id = petId, Pet = nil, Visible = false, New = true, Yaw = 0 })
 		end
+		local info = PetBuilder.GetInfo(petId, PetBuilder.DefaultScale(petId))
+		spacing = math.max(spacing, info.Radius * 1.6)
 	end
 	for _, bucket in pairs(pool) do
 		for _, entry in ipairs(bucket) do
-			entry.Pet:Destroy()
+			if entry.Pet then
+				entry.Pet:Destroy()
+			end
 		end
 	end
 	owner.Pets = list
-
-	local spacing = 1
-	for _, entry in ipairs(list) do
-		spacing = math.max(spacing, entry.Pet.Radius * 1.6)
-	end
 	owner.Spacing = spacing
 	if lodNow then
 		lodNow()
@@ -150,7 +148,15 @@ local function track(player: Player)
 	if owners[player] then
 		return
 	end
-	local owner = { Player = player, Pets = {}, Formation = PetConfig.DefaultFormation, Spacing = 1, Connections = {} }
+	local owner = {
+		Player = player,
+		Pets = {},
+		Formation = PetConfig.DefaultFormation,
+		Spacing = 1,
+		GroundOffset = 3,
+		BodyScale = 1,
+		Connections = {},
+	}
 	owners[player] = owner
 	table.insert(owner.Connections, player:GetAttributeChangedSignal("PetsEquipped"):Connect(function()
 		syncOwner(player, owner)
@@ -171,8 +177,23 @@ local function untrack(player: Player)
 		connection:Disconnect()
 	end
 	for _, entry in ipairs(owner.Pets) do
-		entry.Pet:Destroy()
+		if entry.Pet then
+			entry.Pet:Destroy()
+		end
 	end
+end
+
+-- How far below the HumanoidRootPart the feet are, and how big the character is
+-- (lifting games often make characters bigger).
+local function measureCharacter(owner, character: Model, rootPart: BasePart)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local halfRoot = rootPart.Size.Y / 2
+	if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+		owner.GroundOffset = halfRoot + humanoid.HipHeight
+	else
+		owner.GroundOffset = halfRoot + 2 * halfRoot -- R6: legs are as long as the torso is tall
+	end
+	owner.BodyScale = math.max(1, halfRoot)
 end
 
 ---------------------------------------------------------------------
@@ -209,33 +230,36 @@ local function update(dt: number)
 		local speed = flat.Magnitude
 		local facing = if speed > 2 then flat.Unit else look
 		local targetYaw = math.atan2(-facing.X, -facing.Z)
-		local groundY = rootCF.Position.Y - GROUND_BELOW_ROOT
+		local groundY = rootCF.Position.Y - owner.GroundOffset
 		local slots = PetLogic.FormationSlots(owner.Formation, #owner.Pets, owner.Spacing, t)
 		local pitch = -math.clamp(speed / 22, 0, 1) * math.rad(14)
 
 		for i, entry in ipairs(owner.Pets) do
 			entry.NoOwner = false
-			local slot = slots[i]
 			local pet = entry.Pet
-			local spot = base * Vector3.new(slot[1], 0, slot[3])
-			local bob = math.sin(t * 2 + pet.Phase) * 0.3
-			local target = Vector3.new(spot.X, groundY + 1.2 + PetConfig.FloatHeight + slot[2] - pet.Bottom + bob, spot.Z)
-			if not entry.Pos or (entry.Pos - target).Magnitude > 60 then
-				entry.Pos = target
-				entry.Yaw = targetYaw
-			end
-			local previous = entry.Pos
-			entry.Pos = previous:Lerp(target, follow)
-			entry.Yaw = PetLogic.LerpAngle(entry.Yaw, targetYaw, turn)
-			-- bank into turns: compare where the pet is going with where it faces
-			local move = entry.Pos - previous
-			local right = Vector3.new(math.cos(entry.Yaw), 0, -math.sin(entry.Yaw))
-			local roll = math.clamp(-move:Dot(right) / math.max(dt, 1e-3) * 0.02, -0.35, 0.35)
-			entry.Roll = (entry.Roll or 0) + (roll - (entry.Roll or 0)) * turn
-			entry.CF = CFrame.new(entry.Pos) * CFrame.Angles(0, entry.Yaw, 0) * CFrame.Angles(pitch, 0, entry.Roll)
-			if entry.Visible then
-				pet:SetCFrame(entry.CF)
-				pet:Animate(t, dt, speed, entry.Detailed == true)
+			local slot = slots[i]
+			if pet and slot then
+				local spot = base * Vector3.new(slot[1] * owner.BodyScale, 0, slot[3] * owner.BodyScale)
+				local bob = math.sin(t * 2 + pet.Phase) * 0.3
+				local target = Vector3.new(spot.X, groundY + 1.2 + PetConfig.FloatHeight + slot[2] - pet.Bottom + bob, spot.Z)
+				if not entry.Pos or (entry.Pos - target).Magnitude > 60 then
+					entry.Pos = target
+					entry.Yaw = targetYaw
+					pet:ClearTrails()
+				end
+				local previous = entry.Pos
+				entry.Pos = previous:Lerp(target, follow)
+				entry.Yaw = PetLogic.LerpAngle(entry.Yaw, targetYaw, turn)
+				-- bank into turns: compare where the pet is going with where it faces
+				local move = entry.Pos - previous
+				local right = Vector3.new(math.cos(entry.Yaw), 0, -math.sin(entry.Yaw))
+				local roll = math.clamp(-move:Dot(right) / math.max(dt, 1e-3) * 0.02, -0.35, 0.35)
+				entry.Roll = (entry.Roll or 0) + (roll - (entry.Roll or 0)) * turn
+				entry.CF = CFrame.new(entry.Pos) * CFrame.Angles(0, entry.Yaw, 0) * CFrame.Angles(pitch, 0, entry.Roll)
+				if entry.Visible then
+					pet:SetCFrame(entry.CF)
+					pet:Animate(t, dt, speed, entry.Detailed == true)
+				end
 			end
 		end
 	end
@@ -253,8 +277,34 @@ local function update(dt: number)
 end
 
 ---------------------------------------------------------------------
--- A few times a second: what to show, how much effects, which outlines
+-- A few times a second: build near pets, what to show, effects, outlines
 ---------------------------------------------------------------------
+
+local function buildMissing(camPos: Vector3)
+	local budget = BUILDS_PER_TICK
+	for player, owner in pairs(owners) do
+		local character = player.Character
+		local rootPart = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if rootPart and character then
+			measureCharacter(owner, character, rootPart)
+			local near = player == localPlayer or (rootPart.Position - camPos).Magnitude < PetConfig.Fx.HideDistance
+			if near then
+				for _, entry in ipairs(owner.Pets) do
+					if not entry.Pet and not entry.Failed and budget > 0 then
+						budget -= 1
+						local ok, pet = pcall(PetBuilder.Build, entry.Id)
+						if ok then
+							entry.Pet = pet
+						else
+							warn("[Pets] Could not build " .. entry.Id .. ": " .. tostring(pet))
+							entry.Failed = true
+						end
+					end
+				end
+			end
+		end
+	end
+end
 
 local function lod()
 	local camera = Workspace.CurrentCamera
@@ -262,12 +312,14 @@ local function lod()
 		return
 	end
 	local camPos = camera.CFrame.Position
+	buildMissing(camPos)
+
 	local fx = PetConfig.Fx
 	local list = {}
 	for player, owner in pairs(owners) do
 		local mine = player == localPlayer
 		for _, entry in ipairs(owner.Pets) do
-			if entry.Pos and not entry.NoOwner then
+			if entry.Pet and entry.Pos and not entry.NoOwner then
 				table.insert(list, { Entry = entry, Distance = (entry.Pos - camPos).Magnitude, Mine = mine })
 			end
 		end
@@ -280,7 +332,7 @@ local function lod()
 	end)
 
 	local particleSlots = fx.MaxParticlePets
-	local outlines = fx.OutlineBudget
+	local outlines = if fxSetting == "High" then fx.OutlineBudget elseif fxSetting == "Low" then fx.OutlineBudgetLow else 0
 	local baseRate = if fxSetting == "High" then 1 elseif fxSetting == "Low" then fx.LowRate else 0
 	for _, item in ipairs(list) do
 		local entry, distance = item.Entry, item.Distance
@@ -299,7 +351,8 @@ local function lod()
 			local rate = baseRate * (if item.Mine then 1 else fx.OtherPlayersRate)
 			entry.Pet:SetFx(level, rate)
 			entry.Detailed = distance < fx.RingDistance
-			local outline = outlines > 0 and distance < fx.RingDistance
+			-- on "Low" only your own pets get outlines
+			local outline = outlines > 0 and distance < fx.RingDistance and (fxSetting == "High" or item.Mine)
 			if outline then
 				outlines -= 1
 			end

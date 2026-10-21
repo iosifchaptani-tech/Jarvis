@@ -247,6 +247,7 @@ function PetLogic.NewData(defaultFormation: string)
 		Formation = defaultFormation,
 		Hatched = 0,
 		Granted = {},
+		Kept = {}, -- saved pets whose type is no longer in PetConfig (never lost)
 	}
 end
 
@@ -260,19 +261,40 @@ function PetLogic.Sanitize(raw: any, pets, formations: { string }, defaultFormat
 	local highest = 0
 	if type(raw.Pets) == "table" then
 		for _, entry in ipairs(raw.Pets) do
-			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" then
-				if pets[entry.Pet] and not seen[entry.Id] then
-					seen[entry.Id] = true
+			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" and not seen[entry.Id] then
+				seen[entry.Id] = true
+				highest = math.max(highest, idNumber(entry.Id))
+				if pets[entry.Pet] then
 					table.insert(data.Pets, { Id = entry.Id, Pet = entry.Pet })
-					highest = math.max(highest, idNumber(entry.Id))
+				else
+					-- A pet type that is not in PetConfig (renamed or removed): keep it in the
+					-- save so it comes back if the name is put back. It is not shown or used.
+					table.insert(data.Kept, { Id = entry.Id, Pet = entry.Pet })
 				end
 			end
 		end
 	end
+	if type(raw.Kept) == "table" then
+		for _, entry in ipairs(raw.Kept) do
+			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" and not seen[entry.Id] then
+				seen[entry.Id] = true
+				highest = math.max(highest, idNumber(entry.Id))
+				if pets[entry.Pet] then
+					table.insert(data.Pets, { Id = entry.Id, Pet = entry.Pet })
+				else
+					table.insert(data.Kept, { Id = entry.Id, Pet = entry.Pet })
+				end
+			end
+		end
+	end
+	local known = {}
+	for _, pet in ipairs(data.Pets) do
+		known[pet.Id] = true
+	end
 	if type(raw.Equipped) == "table" then
 		local used = {}
 		for _, id in ipairs(raw.Equipped) do
-			if type(id) == "string" and seen[id] and not used[id] and #data.Equipped < 12 then
+			if type(id) == "string" and known[id] and not used[id] and #data.Equipped < 12 then
 				used[id] = true
 				table.insert(data.Equipped, id)
 			end

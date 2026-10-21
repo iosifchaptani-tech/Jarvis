@@ -66,13 +66,13 @@ local PRESETS = {
 		Texture = "Sparkle", Lifetime = { 0.7, 1.3 }, Speed = { 0.3, 1.2 }, Spread = 180,
 		Size = { { 0, 0.3 }, { 0.5, 0.42 }, { 1, 0 } }, Transparency = { { 0, 0.1 }, { 1, 1 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -90, 90 }, Accel = Vector3.new(0, 0.6, 0), Drag = 1,
-		Shape = "Sphere", Style = "Volume", HostScale = 1.15,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.15, Locked = true,
 	},
 	Stars = {
 		Texture = "Sparkle", Lifetime = { 1.0, 1.8 }, Speed = { 0.1, 0.5 }, Spread = 180,
 		Size = { { 0, 0 }, { 0.35, 0.5 }, { 1, 0 } }, Transparency = { { 0, 0.6 }, { 0.35, 0 }, { 1, 1 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -40, 40 },
-		Shape = "Sphere", Style = "Volume", HostScale = 1.45,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.45, Locked = true,
 	},
 	Snow = {
 		Texture = "Sparkle", Lifetime = { 1.2, 2.0 }, Speed = { 0.1, 0.4 }, Spread = 180,
@@ -113,18 +113,18 @@ local PRESETS = {
 		Texture = "Sparkle", Lifetime = { 0.8, 1.4 }, Speed = { 0.4, 1.0 }, Spread = 180,
 		Size = { { 0, 0 }, { 0.3, 0.55 }, { 1, 0 } }, Transparency = { { 0, 0 }, { 1, 0.8 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -180, 180 },
-		Shape = "Sphere", Style = "Volume", HostScale = 1.35,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.35, Locked = true,
 	},
 	Nebula = {
 		Texture = "Smoke", Lifetime = { 2.5, 3.5 }, Speed = { 0.1, 0.3 }, Spread = 180,
 		Size = { { 0, 1.4 }, { 0.5, 2.4 }, { 1, 2.8 } }, Transparency = { { 0, 1 }, { 0.3, 0.55 }, { 0.7, 0.6 }, { 1, 1 } },
 		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -15, 15 },
-		Shape = "Sphere", Style = "Volume", HostScale = 1.3,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.3, Locked = true,
 	},
 	VoidPull = {
 		Texture = "Sparkle", Lifetime = { 0.7, 1.0 }, Speed = { 2.5, 3.5 }, Spread = 0,
 		Size = { { 0, 0.35 }, { 1, 0 } }, Transparency = { { 0, 0.2 }, { 1, 0.9 } },
-		Light = 1, Shape = "Sphere", Style = "Surface", InOut = "Inward", HostScale = 2.0,
+		Light = 1, Shape = "Sphere", Style = "Surface", InOut = "Inward", HostScale = 2.0, Locked = true,
 	},
 	Breath = {
 		Texture = "Fire", Lifetime = { 0.35, 0.6 }, Speed = { 2, 3.2 }, Spread = 12,
@@ -363,6 +363,8 @@ function PetBuilder.Build(petId: string, options: { Scale: number?, Fx: boolean?
 		part.Material = MATERIALS[p.Mat] or Enum.Material.SmoothPlastic
 		part.Transparency = p.Transparency
 		if p.Mat == "G" then
+			-- Roblox only draws the glass look on parts that are a bit see-through
+			part.Transparency = math.max(p.Transparency, 0.2)
 			part.Reflectance = 0.12
 		end
 		plain(part)
@@ -495,7 +497,10 @@ function Pet:_buildRing(index: number, ring)
 		attachments[s + 1] = att
 	end
 
-	local forward = (ring.Spin or 0) >= 0
+	-- The holder turns with CFrame.Angles(0, Spin * t, 0): a positive Spin moves every point
+	-- towards a smaller angle, i.e. towards Attachment0 of each Beam. The bright, wide head
+	-- of each comet must be at the front of that movement.
+	local headAtStart = (ring.Spin or 0) >= 0
 	local width = (ring.Width or 0.15) * scale
 	for s = 1, segments do
 		local beam = Instance.new("Beam")
@@ -509,15 +514,14 @@ function Pet:_buildRing(index: number, ring)
 		else
 			beam.Color = colorSequence(ring.Colors)
 		end
-		if forward then
-			-- spinning towards Attachment1: the bright head is at the front
-			beam.Transparency = numberSequence({ { 0, 0.9 }, { 0.4, 0.35 }, { 1, 0 } })
-			beam.Width0 = width * 0.35
-			beam.Width1 = width
-		else
+		if headAtStart then
 			beam.Transparency = numberSequence({ { 0, 0 }, { 0.6, 0.35 }, { 1, 0.9 } })
 			beam.Width0 = width
 			beam.Width1 = width * 0.35
+		else
+			beam.Transparency = numberSequence({ { 0, 0.9 }, { 0.4, 0.35 }, { 1, 0 } })
+			beam.Width0 = width * 0.35
+			beam.Width1 = width
 		end
 		beam.FaceCamera = true
 		beam.LightEmission = 1
@@ -593,6 +597,8 @@ function Pet:_buildParticles(spec)
 		e.Acceleration = (preset.Accel or Vector3.zero) * scale
 		e.Drag = preset.Drag or 0
 		e.EmissionDirection = DIRECTIONS[preset.Direction or "Top"]
+		-- round auras move with the pet; flames, embers and smoke stay behind like real fire
+		e.LockedToPart = preset.Locked == true
 		if not fromModelPart then
 			trySet(e, "Shape", SHAPES[preset.Shape or "Box"])
 			trySet(e, "ShapeStyle", STYLES[preset.Style or "Volume"])
@@ -857,6 +863,13 @@ function Pet:SetFx(level: number, rateMultiplier: number)
 	end
 end
 
+-- After a jump (teleport) or when the pet shows again: no streak across the map.
+function Pet:ClearTrails()
+	for _, trail in ipairs(self.Trails) do
+		trail:Clear()
+	end
+end
+
 function Pet:SetOutline(on: boolean)
 	if self.Outline and self.Outline.Enabled ~= on then
 		self.Outline.Enabled = on
@@ -985,8 +998,12 @@ local PetConfig = {}
 
 -- The name of your coins value inside leaderstats (an IntValue or NumberValue).
 PetConfig.CurrencyName = "Coins"
--- Also tried, in this order, when CurrencyName is not found.
-PetConfig.CurrencyFallbacks = { "Coins", "Cash", "Money", "Gold" }
+-- Other names to try when CurrencyName is not found (empty = only CurrencyName).
+-- Careful: a wrong name here could spend a different currency.
+PetConfig.CurrencyFallbacks = {}
+-- If your coins are NOT a number value in leaderstats (for example they live in your own
+-- data module and leaderstats only shows them), connect them with
+-- PetService.SetCurrencyAdapter (see README.md), or eggs may not take the real coins.
 -- Only in Studio: if your game has no coins value yet, make leaderstats > Coins
 -- with this many coins so you can test the eggs. Never happens in the live game.
 PetConfig.StudioTestCoins = 1000000
@@ -1034,7 +1051,8 @@ PetConfig.Fx = {
 	RingDistance = 140, -- energy rings stop further away than this
 	HideDistance = 260, -- whole pets hide further away than this
 	MaxParticlePets = 14, -- only the nearest pets this many get particles
-	OutlineBudget = 24, -- neon outlines at once (Roblox shows at most 31)
+	OutlineBudget = 12, -- neon outlines at once on "High" (Roblox shows at most 31, your game needs some too)
+	OutlineBudgetLow = 4, -- on "Low" and phones: only your own pets get outlines; "Off" = none
 	OtherPlayersRate = 0.5, -- other players' pets use half the particles
 	LowRate = 0.4, -- particle amount on the "Low" effects setting
 	PhonesStartLow = true, -- phones and tablets start on "Low"
@@ -1053,16 +1071,18 @@ PetConfig.Textures = {
 
 PetConfig.DataStoreName = "CarryEverything_Pets_v1"
 PetConfig.AutosaveSeconds = 120
+PetConfig.SaveAfterChangeSeconds = 12 -- after a hatch or any change, save within this time
 PetConfig.HatchCooldown = 0.9 -- seconds between two egg openings
 PetConfig.EggRange = 14 -- how close (studs) you must stand to open an egg
+PetConfig.EggPromptKey = Enum.KeyCode.E -- keyboard key for "Open" at an egg
 
 -- Chat test commands: "!pet coins 100000", "!pet give Phoenix 2", "!pet reset".
 -- They work for everyone in Studio, and in the live game only for these UserIds.
 PetConfig.Admins = {}
 PetConfig.CommandPrefix = "!pet"
 
--- Rarity Legendary and up: the whole server sees "X hatched a Mythic Demon Dragon!"
-PetConfig.AnnounceFromOrder = 4
+-- Rarity Mythic and up (Order 5+): the whole server sees "X hatched a Mythic Demon Dragon!"
+PetConfig.AnnounceFromOrder = 5
 
 ---------------------------------------------------------------------
 -- 7. RARITIES
@@ -1650,6 +1670,7 @@ function PetLogic.NewData(defaultFormation: string)
 		Formation = defaultFormation,
 		Hatched = 0,
 		Granted = {},
+		Kept = {}, -- saved pets whose type is no longer in PetConfig (never lost)
 	}
 end
 
@@ -1663,19 +1684,40 @@ function PetLogic.Sanitize(raw: any, pets, formations: { string }, defaultFormat
 	local highest = 0
 	if type(raw.Pets) == "table" then
 		for _, entry in ipairs(raw.Pets) do
-			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" then
-				if pets[entry.Pet] and not seen[entry.Id] then
-					seen[entry.Id] = true
+			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" and not seen[entry.Id] then
+				seen[entry.Id] = true
+				highest = math.max(highest, idNumber(entry.Id))
+				if pets[entry.Pet] then
 					table.insert(data.Pets, { Id = entry.Id, Pet = entry.Pet })
-					highest = math.max(highest, idNumber(entry.Id))
+				else
+					-- A pet type that is not in PetConfig (renamed or removed): keep it in the
+					-- save so it comes back if the name is put back. It is not shown or used.
+					table.insert(data.Kept, { Id = entry.Id, Pet = entry.Pet })
 				end
 			end
 		end
 	end
+	if type(raw.Kept) == "table" then
+		for _, entry in ipairs(raw.Kept) do
+			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" and not seen[entry.Id] then
+				seen[entry.Id] = true
+				highest = math.max(highest, idNumber(entry.Id))
+				if pets[entry.Pet] then
+					table.insert(data.Pets, { Id = entry.Id, Pet = entry.Pet })
+				else
+					table.insert(data.Kept, { Id = entry.Id, Pet = entry.Pet })
+				end
+			end
+		end
+	end
+	local known = {}
+	for _, pet in ipairs(data.Pets) do
+		known[pet.Id] = true
+	end
 	if type(raw.Equipped) == "table" then
 		local used = {}
 		for _, id in ipairs(raw.Equipped) do
-			if type(id) == "string" and seen[id] and not used[id] and #data.Equipped < 12 then
+			if type(id) == "string" and known[id] and not used[id] and #data.Equipped < 12 then
 				used[id] = true
 				table.insert(data.Equipped, id)
 			end

@@ -137,7 +137,7 @@ local function buildStand(eggId: string, cf: CFrame): Model
 	prompt.ActionText = "Open"
 	prompt.ObjectText = egg.Name
 	prompt.HoldDuration = 0
-	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.KeyboardKeyCode = PetConfig.EggPromptKey or Enum.KeyCode.E
 	prompt.MaxActivationDistance = math.max(8, PetConfig.EggRange - 3)
 	prompt.RequiresLineOfSight = false
 	prompt:SetAttribute("EggId", eggId)

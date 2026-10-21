@@ -18,8 +18,12 @@ local PetConfig = {}
 
 -- The name of your coins value inside leaderstats (an IntValue or NumberValue).
 PetConfig.CurrencyName = "Coins"
--- Also tried, in this order, when CurrencyName is not found.
-PetConfig.CurrencyFallbacks = { "Coins", "Cash", "Money", "Gold" }
+-- Other names to try when CurrencyName is not found (empty = only CurrencyName).
+-- Careful: a wrong name here could spend a different currency.
+PetConfig.CurrencyFallbacks = {}
+-- If your coins are NOT a number value in leaderstats (for example they live in your own
+-- data module and leaderstats only shows them), connect them with
+-- PetService.SetCurrencyAdapter (see README.md), or eggs may not take the real coins.
 -- Only in Studio: if your game has no coins value yet, make leaderstats > Coins
 -- with this many coins so you can test the eggs. Never happens in the live game.
 PetConfig.StudioTestCoins = 1000000
@@ -67,7 +71,8 @@ PetConfig.Fx = {
 	RingDistance = 140, -- energy rings stop further away than this
 	HideDistance = 260, -- whole pets hide further away than this
 	MaxParticlePets = 14, -- only the nearest pets this many get particles
-	OutlineBudget = 24, -- neon outlines at once (Roblox shows at most 31)
+	OutlineBudget = 12, -- neon outlines at once on "High" (Roblox shows at most 31, your game needs some too)
+	OutlineBudgetLow = 4, -- on "Low" and phones: only your own pets get outlines; "Off" = none
 	OtherPlayersRate = 0.5, -- other players' pets use half the particles
 	LowRate = 0.4, -- particle amount on the "Low" effects setting
 	PhonesStartLow = true, -- phones and tablets start on "Low"
@@ -86,16 +91,18 @@ PetConfig.Textures = {
 
 PetConfig.DataStoreName = "CarryEverything_Pets_v1"
 PetConfig.AutosaveSeconds = 120
+PetConfig.SaveAfterChangeSeconds = 12 -- after a hatch or any change, save within this time
 PetConfig.HatchCooldown = 0.9 -- seconds between two egg openings
 PetConfig.EggRange = 14 -- how close (studs) you must stand to open an egg
+PetConfig.EggPromptKey = Enum.KeyCode.E -- keyboard key for "Open" at an egg
 
 -- Chat test commands: "!pet coins 100000", "!pet give Phoenix 2", "!pet reset".
 -- They work for everyone in Studio, and in the live game only for these UserIds.
 PetConfig.Admins = {}
 PetConfig.CommandPrefix = "!pet"
 
--- Rarity Legendary and up: the whole server sees "X hatched a Mythic Demon Dragon!"
-PetConfig.AnnounceFromOrder = 4
+-- Rarity Mythic and up (Order 5+): the whole server sees "X hatched a Mythic Demon Dragon!"
+PetConfig.AnnounceFromOrder = 5
 
 ---------------------------------------------------------------------
 -- 7. RARITIES

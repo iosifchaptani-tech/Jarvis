@@ -85,6 +85,9 @@ Made by the scripts while the game runs (nothing to place by hand):
 
 **1. Your coins.** Open `PetConfig` and set `PetConfig.CurrencyName` to the name of your coins
 value inside `leaderstats` (default `"Coins"`). Eggs take coins from that value.
+This is only right if that leaderstats value IS your real, saved coin count. If leaderstats only
+shows a copy of coins kept in your own data module, use step 3, or eggs may cost nothing or the
+spent coins may come back.
 
 **2. The multiplier.** Wherever your game gives strength or coins, multiply by the pet multiplier
 (it is 1 without pets):
@@ -136,9 +139,23 @@ Type in the chat while playing in Studio:
 If your game has no coins value yet, Studio makes `leaderstats > Coins` with 1,000,000 coins by itself.
 In the live game these commands only work for the UserIds listed in `PetConfig.Admins`.
 
+## Saving
+
+- One DataStore (`CarryEverything_Pets_v1`), one key per player, saved about 12 seconds after a
+  hatch or any change, every 2 minutes, when the player leaves and when the server shuts down.
+- A lock in the save says which server uses the player. If a player switches servers quickly,
+  the new server waits for the old one to finish saving, so new pets are never lost.
+- If loading fails, the player can play, but eggs stay closed and nothing is saved, so the old
+  save is never overwritten. They see a message to rejoin.
+- Renaming or removing a pet in `PetConfig` does not delete it from saves: it is kept hidden and
+  comes back if the name is put back.
+- Server-wide "X hatched ..." messages are for Mythic and rarer (`PetConfig.AnnounceFromOrder`).
+- The egg key is E (`PetConfig.EggPromptKey`); the PETS button position is `PetConfig.PetsButtonPosition`.
+
 ## Game passes (optional)
 
-Make the pass on the Creator Hub, then put its ID into `PetConfig.GamePasses`:
+Make the pass on the Creator Hub, then put its ID into `PetConfig.GamePasses`
+(a pass is only given after Roblox confirms the player really owns it):
 
 - `ExtraSlots`: +2 equip slots
 - `CrystalKing`: gives the Crystal King (Exclusive) pet once
@@ -153,8 +170,11 @@ the odds must stay visible (they are) and some countries do not allow them.
 - Every player's device draws all pets itself, so pets move smoothly without network lag.
 - Only the nearest 14 pets get particles; far pets keep only their rings; very far pets hide.
 - Other players' pets use half the particles. Phones start on the "Low" effects setting.
-- At most 24 neon outlines at once (Roblox can show 31).
+- Neon outlines: at most 12 on "High", 4 (your own pets) on "Low", none on "Off".
+  Roblox shows at most 31 at once, so the rest stay free for your game.
 - Players can switch **Effects: High / Low / Off** in the Pets menu.
+- Other players' pets are only built when they come near, a few per moment, so joining a full
+  server doesn't freeze phones.
 - All numbers are in `PetConfig.Fx`.
 
 ## For developers
@@ -162,8 +182,8 @@ the odds must stay visible (they are) and some countries do not allow them.
 - Edit the files in `src/`, then run `python tools/build.py` to rebuild the `.rbxmx` files.
 - Tests: `python tools/run_tests.py` (needs the `luau` command line tool; set `LUAU=` if it is not on
   the PATH; with `LUAU_LSP=` and `ROBLOX_DEFS=` it also type-checks everything against the Roblox API).
-  67 tests: odds, Equip Best, multiplier, save-data cleaning, formations, config and model checks, and
-  the real PetService running in a fake Roblox (hatching, coins, limits, saving, load errors, game passes,
-  test commands).
+  74 tests: odds, Equip Best, multiplier, save-data cleaning, formations, config and model checks, and
+  the real PetService running in a fake Roblox (hatching, coins, limits, quick saves, the save lock between
+  servers, load errors, renamed pets, game passes incl. fake purchase events, test commands).
 - Pet models: one line per Part in `PetModels.luau` (format explained at the top of the file). The design
   canvas draws the pets from the same lines.

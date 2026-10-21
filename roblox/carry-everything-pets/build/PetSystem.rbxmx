@@ -145,7 +145,7 @@ local function buildStand(eggId: string, cf: CFrame): Model
 	prompt.ActionText = "Open"
 	prompt.ObjectText = egg.Name
 	prompt.HoldDuration = 0
-	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.KeyboardKeyCode = PetConfig.EggPromptKey or Enum.KeyCode.E
 	prompt.MaxActivationDistance = math.max(8, PetConfig.EggRange - 3)
 	prompt.RequiresLineOfSight = false
 	prompt:SetAttribute("EggId", eggId)
@@ -269,6 +269,10 @@ PetService.Start()
 		PetService.Changed.Event:Connect(function(player) ... end)
 
 	The multiplier is also on the player: player:GetAttribute("PetMultiplier")
+
+	Saving: one DataStore key per player. A small "lock" in the save says which server is
+	using it, so a player who quickly switches servers can never have new pets overwritten
+	by an older copy.
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -286,11 +290,20 @@ local PetService = {}
 PetService.Changed = Instance.new("BindableEvent") -- fires with (player) after any pet change
 
 local profiles: { [Player]: any } = {}
+local pendingBonus: { [Player]: number } = {}
 local store: DataStore? = nil
 local remotes: any = nil
 local currencyAdapter: any = nil
 local random = Random.new()
 local started = false
+local warnedAboutCurrency = false
+
+local LOOK_INTERVAL = 0.25 -- other players' devices rebuild pets at most this often per player
+local LOCK_WAITS = 6 -- times to wait 5 s for another server to finish saving (then take over)
+
+local function lockTimeout(): number
+	return math.max(150, PetConfig.AutosaveSeconds * 1.5)
+end
 
 ---------------------------------------------------------------------
 -- Coins
@@ -302,13 +315,18 @@ local function currencyValue(player: Player): any
 		return nil
 	end
 	local names = { PetConfig.CurrencyName }
-	for _, name in ipairs(PetConfig.CurrencyFallbacks) do
+	for _, name in ipairs(PetConfig.CurrencyFallbacks or {}) do
 		table.insert(names, name)
 	end
 	for _, name in ipairs(names) do
 		local value = stats:FindFirstChild(name)
-		if value and (value:IsA("IntValue") or value:IsA("NumberValue")) then
-			return value
+		if value then
+			if value:IsA("IntValue") or value:IsA("NumberValue") then
+				return value
+			elseif not warnedAboutCurrency then
+				warnedAboutCurrency = true
+				warn(("[Pets] leaderstats.%s is a %s, not a number. Connect your coins with PetService.SetCurrencyAdapter (see README.md)."):format(name, value.ClassName))
+			end
 		end
 	end
 	return nil
@@ -365,6 +383,9 @@ local function ensureTestCurrency(player: Player)
 			return
 		end
 		local stats = player:FindFirstChild("leaderstats")
+		if stats and stats:FindFirstChild(PetConfig.CurrencyName) then
+			return -- there is one, it is just not a number value (warned above)
+		end
 		if not stats then
 			stats = Instance.new("Folder")
 			stats.Name = "leaderstats"
@@ -407,12 +428,39 @@ local function maxEquip(profile): number
 end
 
 ---------------------------------------------------------------------
--- Sending the state to the player
+-- Sending the state to the players
 ---------------------------------------------------------------------
 
 local function notify(player: Player, text: string)
 	if remotes then
 		remotes.Update:FireClient(player, "Toast", text)
+	end
+end
+
+-- The pets other players see. Written at most every LOOK_INTERVAL seconds per player,
+-- because every device rebuilds that player's pets when it changes.
+local function writeLook(player: Player, profile)
+	profile.LastLook = os.clock()
+	if player.Parent == nil then
+		return
+	end
+	player:SetAttribute("PetsEquipped", table.concat(PetLogic.EquippedTypes(profile.Data, PetConfig.Pets), ","))
+	player:SetAttribute("PetFormation", profile.Data.Formation)
+end
+
+local function pushLook(player: Player, profile)
+	if profile.LookQueued then
+		return
+	end
+	local waited = os.clock() - (profile.LastLook or -math.huge)
+	if waited >= LOOK_INTERVAL then
+		writeLook(player, profile)
+	else
+		profile.LookQueued = true
+		task.delay(LOOK_INTERVAL - waited, function()
+			profile.LookQueued = false
+			writeLook(player, profile)
+		end)
 	end
 end
 
@@ -425,9 +473,8 @@ local function publish(player: Player, profile)
 	local types = PetLogic.EquippedTypes(data, PetConfig.Pets)
 	local multiplier = PetLogic.Multiplier(types, PetConfig.Pets)
 	player:SetAttribute("PetMultiplier", multiplier)
-	player:SetAttribute("PetsEquipped", table.concat(types, ","))
-	player:SetAttribute("PetFormation", data.Formation)
 	player:SetAttribute("PetCount", #data.Pets)
+	pushLook(player, profile)
 	local counts, equipped = PetLogic.Counts(data)
 	if remotes then
 		remotes.Update:FireClient(player, "Data", {
@@ -442,14 +489,177 @@ local function publish(player: Player, profile)
 			Formation = data.Formation,
 			Saving = profile.CanSave,
 			TripleHatch = profile.Passes.TripleHatch == true,
+			Balance = PetService.GetBalance(player),
 		})
 	end
 	PetService.Changed:Fire(player)
 end
 
+---------------------------------------------------------------------
+-- Saving
+---------------------------------------------------------------------
+
+local function dataKey(player: Player): string
+	return "Player_" .. player.UserId
+end
+
+local function isStudioNoAccess(message: string): boolean
+	if not RunService:IsStudio() then
+		return false
+	end
+	return string.find(message, "Studio", 1, true) ~= nil
+		or string.find(message, "publish", 1, true) ~= nil
+		or string.find(message, "403", 1, true) ~= nil
+end
+
+-- Returns: data, canSave, failed
+local function loadData(player: Player): (any, boolean, boolean)
+	local fresh = PetLogic.NewData(PetConfig.DefaultFormation)
+	if not store then
+		return fresh, false, not RunService:IsStudio()
+	end
+	local dataStore = store :: DataStore
+	local jobId = game.JobId
+	local errors, lockWaits = 0, 0
+	while true do
+		local loaded, locked = nil, false
+		local ok, err = pcall(function()
+			dataStore:UpdateAsync(dataKey(player), function(old)
+				loaded = old
+				locked = false
+				if type(old) == "table" and type(old.Lock) == "table" and old.Lock.Job ~= jobId then
+					local age = os.time() - (tonumber(old.Lock.Time) or 0)
+					if age < lockTimeout() and lockWaits < LOCK_WAITS then
+						locked = true
+						return nil -- another server still has this player: change nothing
+					end
+				end
+				local new = if type(old) == "table" then old else {}
+				new.Lock = { Job = jobId, Time = os.time() }
+				return new
+			end)
+		end)
+		if ok and not locked then
+			return PetLogic.Sanitize(loaded, PetConfig.Pets, PetConfig.Formations, PetConfig.DefaultFormation), true, false
+		elseif ok and locked then
+			lockWaits += 1
+			task.wait(5)
+		else
+			local message = tostring(err)
+			if isStudioNoAccess(message) then
+				warn("[Pets] Saving is off here. In Studio: Home > Game Settings > Security > Enable Studio Access to API Services. (" .. message .. ")")
+				return fresh, false, false
+			end
+			errors += 1
+			warn(("[Pets] Loading %s's pets failed (try %d): %s"):format(player.Name, errors, message))
+			if errors >= 3 then
+				return fresh, false, true
+			end
+			task.wait(errors * 2)
+		end
+		if player.Parent == nil then
+			return fresh, false, true
+		end
+	end
+end
+
+local function savePayload(data)
+	local pets = {}
+	for _, pet in ipairs(data.Pets) do
+		table.insert(pets, { Id = pet.Id, Pet = pet.Pet })
+	end
+	local kept = {}
+	for _, pet in ipairs(data.Kept or {}) do
+		table.insert(kept, { Id = pet.Id, Pet = pet.Pet })
+	end
+	return {
+		Version = 1,
+		Pets = pets,
+		Kept = kept,
+		Equipped = table.clone(data.Equipped),
+		NextId = data.NextId,
+		Discovered = table.clone(data.Discovered),
+		Formation = data.Formation,
+		Hatched = data.Hatched,
+		Granted = table.clone(data.Granted),
+	}
+end
+
+local function needsSave(profile): boolean
+	return profile.Ready and profile.CanSave and profile.SavedVersion ~= profile.Version
+end
+
+-- release = true when the player leaves: the lock is removed so the next server can load at once.
+local function saveData(player: Player, profile, release: boolean?): boolean
+	if not store or not profile.CanSave or profile.Released then
+		return false
+	end
+	while profile.Saving do
+		task.wait(0.1)
+	end
+	if profile.Released or not profile.CanSave then
+		return false
+	end
+	if not release and not needsSave(profile) then
+		return true
+	end
+	profile.Saving = true
+	local dataStore = store :: DataStore
+	local jobId = game.JobId
+	local version = profile.Version
+	local payload = savePayload(profile.Data)
+	local saved = false
+	for attempt = 1, 3 do
+		local stolen = false
+		local ok, err = pcall(function()
+			dataStore:UpdateAsync(dataKey(player), function(old)
+				stolen = false
+				if type(old) == "table" and type(old.Lock) == "table" and old.Lock.Job ~= jobId then
+					stolen = true
+					return nil -- another server has taken over this player: don't overwrite
+				end
+				payload.Lock = if release then nil else { Job = jobId, Time = os.time() }
+				return payload
+			end)
+		end)
+		if ok then
+			if stolen then
+				profile.CanSave = false
+				warn(("[Pets] %s's pets are now used by another server, so this server stops saving them."):format(player.Name))
+			else
+				profile.SavedVersion = version
+				if release then
+					profile.Released = true
+				end
+				saved = true
+			end
+			break
+		end
+		warn(("[Pets] Saving %s's pets failed (try %d): %s"):format(player.Name, attempt, tostring(err)))
+		task.wait(attempt)
+	end
+	profile.Saving = false
+	return saved
+end
+
+-- Save soon after a change (a hatch spends coins: don't wait for the next autosave).
+local function scheduleSave(player: Player, profile)
+	if profile.SaveQueued or not profile.CanSave then
+		return
+	end
+	profile.SaveQueued = true
+	task.delay(PetConfig.SaveAfterChangeSeconds or 12, function()
+		profile.SaveQueued = false
+		if profiles[player] == profile and needsSave(profile) then
+			saveData(player, profile)
+		end
+	end)
+end
+
 local function changed(player: Player, profile)
 	profile.Version += 1
 	publish(player, profile)
+	scheduleSave(player, profile)
 end
 
 ---------------------------------------------------------------------
@@ -510,6 +720,9 @@ local function hatch(player: Player, profile, eggId: any, amount: any)
 	if type(eggId) ~= "string" or not PetConfig.Eggs[eggId] then
 		return false, "Unknown egg"
 	end
+	if profile.LoadFailed then
+		return false, "Your pets did not load. Please rejoin before opening eggs."
+	end
 	local egg = PetConfig.Eggs[eggId]
 	local count = if amount == 3 then 3 else 1
 	if count == 3 and not profile.Passes.TripleHatch then
@@ -522,17 +735,19 @@ local function hatch(player: Player, profile, eggId: any, amount: any)
 	local eggPosition = EggStands.GetPosition(eggId)
 	local character = player.Character
 	local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-	if eggPosition and (not rootPart or ((rootPart :: BasePart).Position - eggPosition).Magnitude > PetConfig.EggRange + 4) then
+	if not eggPosition or not rootPart or ((rootPart :: BasePart).Position - eggPosition).Magnitude > PetConfig.EggRange + 4 then
 		return false, "Walk closer to the egg"
 	end
 	if #profile.Data.Pets + count > PetConfig.MaxStorage then
 		return false, ("Your pet storage is full (%d/%d). Delete some pets first."):format(#profile.Data.Pets, PetConfig.MaxStorage)
 	end
 	local cost = egg.Price * count
+	local before = profile.LastHatch
+	profile.LastHatch = now -- set before paying, so two quick requests can't both get through
 	if not trySpend(player, cost) then
+		profile.LastHatch = before
 		return false, "You need " .. PetLogic.Commas(cost) .. " " .. PetConfig.CurrencyName
 	end
-	profile.LastHatch = now
 
 	local results = {}
 	for _ = 1, count do
@@ -653,80 +868,34 @@ local function onRequest(player: Player, action: any, arg: any)
 	return handle(player, profile, action, arg)
 end
 
----------------------------------------------------------------------
--- Saving
----------------------------------------------------------------------
-
-local function dataKey(player: Player): string
-	return "Player_" .. player.UserId
-end
-
-local function loadData(player: Player): (any, boolean, boolean)
-	local fresh = PetLogic.NewData(PetConfig.DefaultFormation)
-	if not store then
-		return fresh, false, false
+-- A finished purchase is only trusted after Roblox confirms the player owns the pass.
+local function onPassPurchased(player: Player, passId: any, purchased: any)
+	if purchased ~= true or type(passId) ~= "number" or passId == 0 then
+		return
 	end
-	local dataStore = store :: DataStore
-	for attempt = 1, 3 do
-		local ok, result = pcall(function()
-			return dataStore:GetAsync(dataKey(player))
-		end)
-		if ok then
-			return PetLogic.Sanitize(result, PetConfig.Pets, PetConfig.Formations, PetConfig.DefaultFormation), true, false
+	local key = nil
+	for name, id in pairs(PetConfig.GamePasses) do
+		if id ~= 0 and id == passId then
+			key = name
 		end
-		local message = tostring(result)
-		if string.find(message, "Studio", 1, true) or string.find(message, "publish", 1, true) or string.find(message, "403", 1, true) then
-			warn("[Pets] Saving is off here. In Studio: Home > Game Settings > Security > Enable Studio Access to API Services. (" .. message .. ")")
-			return fresh, false, false
+	end
+	if not key then
+		return
+	end
+	for _ = 1, 3 do
+		local profile = profiles[player]
+		if not profile or player.Parent == nil then
+			return
 		end
-		warn(("[Pets] Loading %s's pets failed (try %d): %s"):format(player.Name, attempt, message))
-		task.wait(attempt * 2)
-	end
-	return fresh, false, true
-end
-
-local function savePayload(data)
-	local pets = {}
-	for _, pet in ipairs(data.Pets) do
-		table.insert(pets, { Id = pet.Id, Pet = pet.Pet })
-	end
-	return {
-		Version = 1,
-		Pets = pets,
-		Equipped = table.clone(data.Equipped),
-		NextId = data.NextId,
-		Discovered = table.clone(data.Discovered),
-		Formation = data.Formation,
-		Hatched = data.Hatched,
-		Granted = table.clone(data.Granted),
-	}
-end
-
-local function saveData(player: Player, profile): boolean
-	if not store or not profile.CanSave then
-		return false
-	end
-	local dataStore = store :: DataStore
-	local version = profile.Version
-	local payload = savePayload(profile.Data)
-	for attempt = 1, 3 do
-		local ok, err = pcall(function()
-			dataStore:UpdateAsync(dataKey(player), function()
-				return payload
-			end)
-		end)
-		if ok then
-			profile.SavedVersion = version
-			return true
+		if profile.Ready and ownsPass(player, passId) then
+			profile.Passes[key] = true
+			grantExclusives(profile)
+			fillEmptySlots(profile)
+			changed(player, profile)
+			return
 		end
-		warn(("[Pets] Saving %s's pets failed (try %d): %s"):format(player.Name, attempt, tostring(err)))
-		task.wait(attempt)
+		task.wait(2)
 	end
-	return false
-end
-
-local function needsSave(profile): boolean
-	return profile.Ready and profile.CanSave and profile.SavedVersion ~= profile.Version
 end
 
 ---------------------------------------------------------------------
@@ -793,13 +962,14 @@ local function onPlayerAdded(player: Player)
 		Data = PetLogic.NewData(PetConfig.DefaultFormation),
 		Ready = false,
 		CanSave = false,
+		LoadFailed = false,
 		Version = 0,
 		SavedVersion = 0,
-		LastHatch = 0,
+		LastHatch = -math.huge,
 		Requests = 0,
-		WindowStart = 0,
+		WindowStart = -math.huge,
 		Passes = {},
-		BonusSlots = 0,
+		BonusSlots = pendingBonus[player] or 0,
 	}
 	profiles[player] = profile
 	player:SetAttribute("PetMultiplier", 1)
@@ -811,16 +981,32 @@ local function onPlayerAdded(player: Player)
 	ensureTestCurrency(player)
 
 	local data, canSave, failed = loadData(player)
-	if player.Parent == nil then
-		profiles[player] = nil
-		return
-	end
 	profile.Data = data
 	profile.CanSave = canSave
+	profile.LoadFailed = failed
+	local function leftAlready(): boolean
+		if player.Parent ~= nil and profiles[player] == profile then
+			return false
+		end
+		-- left while loading: write the loaded pets back unchanged to give the save lock back
+		profile.Ready = true
+		saveData(player, profile, true)
+		if profiles[player] == profile then
+			profiles[player] = nil
+		end
+		return true
+	end
+	if leftAlready() then
+		return
+	end
 	refreshPasses(player, profile)
+	if leftAlready() then
+		return
+	end
+	profile.BonusSlots = pendingBonus[player] or profile.BonusSlots
 
 	local dirty = false
-	if #data.Pets == 0 and data.Hatched == 0 and not data.Granted.Starter then
+	if not failed and #data.Pets == 0 and data.Hatched == 0 and not data.Granted.Starter then
 		for _, petId in ipairs(PetConfig.StartingPets) do
 			if PetConfig.Pets[petId] then
 				addPet(profile, petId, true)
@@ -829,7 +1015,7 @@ local function onPlayerAdded(player: Player)
 		data.Granted.Starter = true
 		dirty = #PetConfig.StartingPets > 0
 	end
-	if grantExclusives(profile) then
+	if not failed and grantExclusives(profile) then
 		dirty = true
 	end
 	if dirty and PetConfig.AutoEquipNew then
@@ -842,16 +1028,19 @@ local function onPlayerAdded(player: Player)
 		publish(player, profile)
 	end
 	if failed then
-		notify(player, "Your pets could not load. Please rejoin; nothing is saved until then.")
+		notify(player, "Your pets could not load. Please rejoin; until then eggs are closed and nothing is saved.")
 	end
 end
 
 local function onPlayerRemoving(player: Player)
+	pendingBonus[player] = nil
 	local profile = profiles[player]
-	if profile and needsSave(profile) then
-		saveData(player, profile)
+	if profile and profile.Ready then
+		saveData(player, profile, true)
 	end
-	profiles[player] = nil
+	if profiles[player] == profile then
+		profiles[player] = nil
+	end
 end
 
 ---------------------------------------------------------------------
@@ -883,7 +1072,7 @@ end
 -- Gives pets (for quests, codes, rewards). Returns how many were given (storage can be full).
 function PetService.GivePet(player: Player, petId: string, amount: number?): number
 	local profile = profiles[player]
-	if not profile or not profile.Ready or not PetConfig.Pets[petId] then
+	if not profile or not profile.Ready or profile.LoadFailed or not PetConfig.Pets[petId] then
 		return 0
 	end
 	local given = 0
@@ -901,13 +1090,16 @@ function PetService.GivePet(player: Player, petId: string, amount: number?): num
 	return given
 end
 
--- Extra equip slots from your own systems (rebirths, VIP ...). Not saved by the pet system.
+-- Extra equip slots from your own systems (rebirths, VIP ...). Not saved by the pet system:
+-- call it again when the player joins. Works even before the pets have loaded.
 function PetService.SetBonusSlots(player: Player, slots: number)
+	local value = math.max(0, math.floor(tonumber(slots) or 0))
+	pendingBonus[player] = value
 	local profile = profiles[player]
 	if not profile then
 		return
 	end
-	profile.BonusSlots = math.max(0, math.floor(slots))
+	profile.BonusSlots = value
 	if profile.Ready then
 		publish(player, profile)
 	end
@@ -954,25 +1146,7 @@ function PetService.Start()
 
 	EggStands.Build()
 
-	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
-		local profile = profiles[player]
-		if not purchased or not profile or not profile.Ready then
-			return
-		end
-		refreshPasses(player, profile)
-		-- right after buying, Roblox can still say "not owned" for a moment
-		local passes = PetConfig.GamePasses
-		if passId == passes.ExtraSlots then
-			profile.Passes.ExtraSlots = true
-		elseif passId == passes.CrystalKing then
-			profile.Passes.CrystalKing = true
-		elseif passId == passes.TripleHatch then
-			profile.Passes.TripleHatch = true
-		end
-		grantExclusives(profile)
-		fillEmptySlots(profile)
-		changed(player, profile)
-	end)
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(onPassPurchased)
 
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
@@ -983,8 +1157,15 @@ function PetService.Start()
 	task.spawn(function()
 		while true do
 			task.wait(PetConfig.AutosaveSeconds)
+			local list = {}
 			for player, profile in pairs(profiles) do
-				if needsSave(profile) then
+				table.insert(list, { player, profile })
+			end
+			for _, item in ipairs(list) do
+				local player, profile = item[1], item[2]
+				-- also refreshes the save lock of players who changed nothing
+				if profiles[player] == profile and profile.Ready and profile.CanSave then
+					profile.SavedVersion = if needsSave(profile) then profile.SavedVersion else -1
 					saveData(player, profile)
 					task.wait(0.5)
 				end
@@ -995,10 +1176,10 @@ function PetService.Start()
 	game:BindToClose(function()
 		local pending = 0
 		for player, profile in pairs(profiles) do
-			if needsSave(profile) then
+			if profile.Ready and profile.CanSave and not profile.Released then
 				pending += 1
 				task.spawn(function()
-					saveData(player, profile)
+					saveData(player, profile, true)
 					pending -= 1
 				end)
 			end

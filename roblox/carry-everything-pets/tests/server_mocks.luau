@@ -109,6 +109,12 @@ local Vector3 = { new = function(x, y, z)
 	return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0 }, Vector3Meta)
 end }
 
+local Enum = setmetatable({}, { __index = function(_, group)
+	return setmetatable({}, { __index = function(_, item)
+		return group .. "." .. item
+	end })
+end })
+
 local Random = { new = function()
 	return { NextNumber = function()
 		return math.random()
@@ -259,10 +265,13 @@ function fakeStore:GetAsync(key)
 end
 function fakeStore:UpdateAsync(key, transform)
 	storeControl.Updates += 1
-	if storeControl.FailUpdate then
+	if storeControl.FailUpdate or storeControl.FailGet then
 		error("502: mock DataStore is down")
 	end
-	storeData[key] = deepCopy(transform(deepCopy(storeData[key])))
+	local new = transform(deepCopy(storeData[key]))
+	if new ~= nil then -- returning nil cancels the write, like Roblox
+		storeData[key] = deepCopy(new)
+	end
 end
 
 local passOwners = {} -- [userId .. ":" .. passId] = true
@@ -305,6 +314,7 @@ local services = {
 	ServerScriptService = ServerScriptService,
 }
 local game = {
+	JobId = "server-A",
 	GetService = function(_, name)
 		return assert(services[name], "mock has no service " .. name)
 	end,

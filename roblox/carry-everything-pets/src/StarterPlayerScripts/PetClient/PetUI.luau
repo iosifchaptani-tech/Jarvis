@@ -70,6 +70,11 @@ local function toast(text: string, color: Color3?)
 	if not ui.Toasts then
 		return
 	end
+	ui.ToastList = ui.ToastList or {}
+	while #ui.ToastList >= 4 do
+		local oldest = table.remove(ui.ToastList, 1)
+		oldest:Destroy()
+	end
 	local item = UIKit.text({
 		Text = text,
 		RichText = true,
@@ -84,10 +89,18 @@ local function toast(text: string, color: Color3?)
 	UIKit.corner(item, 12)
 	UIKit.make("UIPadding", { PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 16), Parent = item })
 	local stroke = UIKit.stroke(item, C.Border, 2)
+	table.insert(ui.ToastList, item)
 	task.delay(3, function()
+		if not item.Parent then
+			return
+		end
 		UIKit.tween(item, 0.35, { TextTransparency = 1, BackgroundTransparency = 1 })
 		UIKit.tween(stroke, 0.35, { Transparency = 1 })
 		task.wait(0.4)
+		local index = table.find(ui.ToastList, item)
+		if index then
+			table.remove(ui.ToastList, index)
+		end
 		item:Destroy()
 	end)
 end
@@ -127,17 +140,27 @@ local function currencyValue(): any
 	if not stats then
 		return nil
 	end
-	local value = stats:FindFirstChild(PetConfig.CurrencyName)
-	if value then
-		return value
+	local names = { PetConfig.CurrencyName }
+	for _, name in ipairs(PetConfig.CurrencyFallbacks or {}) do
+		table.insert(names, name)
 	end
-	for _, name in ipairs(PetConfig.CurrencyFallbacks) do
-		value = stats:FindFirstChild(name)
-		if value then
+	for _, name in ipairs(names) do
+		local value = stats:FindFirstChild(name)
+		if value and (value:IsA("IntValue") or value:IsA("NumberValue")) then
 			return value
 		end
 	end
 	return nil
+end
+
+-- "You have 12,450 Coins" (from leaderstats, or from the server when coins live elsewhere)
+local function balanceText(): string
+	local value = currencyValue()
+	local amount = if value then value.Value elseif data then data.Balance else nil
+	if type(amount) ~= "number" then
+		return ""
+	end
+	return ("You have %s %s"):format(PetLogic.FormatNumber(amount), PetConfig.CurrencyName)
 end
 
 ---------------------------------------------------------------------
@@ -214,8 +237,7 @@ local function refresh()
 	refreshDetail()
 
 	if currentEgg and ui.EggBalance then
-		local value = currencyValue()
-		ui.EggBalance.Text = if value then ("You have %s %s"):format(PetLogic.FormatNumber(value.Value), PetConfig.CurrencyName) else ""
+		ui.EggBalance.Text = balanceText()
 	end
 end
 
@@ -339,6 +361,10 @@ local function hatch(count: number)
 	closeInventory()
 	local played = pcall(Cutscene.Play, eggId, result.Results, gui.Parent)
 	if not played then
+		local leftover = gui.Parent and gui.Parent:FindFirstChild("PetHatch")
+		if leftover then
+			leftover:Destroy()
+		end
 		for _, r in ipairs(result.Results) do
 			toast("You got " .. PetConfig.Pets[r.Pet].Name .. "!")
 		end
@@ -810,11 +836,10 @@ function PetUI.Start(deps: { Renderer: any, Cutscene: any })
 				local character = player.Character
 				local rootPart = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 				local part = currentEgg.Part
-				if not rootPart or not part or not part:IsA("BasePart") or (rootPart.Position - part.Position).Magnitude > PetConfig.EggRange + 6 then
+				if not rootPart or not part or not part:IsA("BasePart") or (rootPart.Position - part.Position).Magnitude > PetConfig.EggRange + 3 then
 					closeEgg()
-				elseif data then
-					local value = currencyValue()
-					ui.EggBalance.Text = if value then ("You have %s %s"):format(PetLogic.FormatNumber(value.Value), PetConfig.CurrencyName) else ""
+				else
+					ui.EggBalance.Text = balanceText()
 				end
 			end
 		end

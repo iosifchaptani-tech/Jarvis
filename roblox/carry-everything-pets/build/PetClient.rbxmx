@@ -93,6 +93,7 @@ end
 
 -- Plays the animation and returns when the player taps (or after a few seconds).
 function HatchCutscene.Play(eggId: string, results: { any }, playerGui: Instance)
+	local connection: RBXScriptConnection? = nil
 	local gui = UIKit.make("ScreenGui", {
 		Name = "PetHatch",
 		ResetOnSpawn = false,
@@ -101,134 +102,146 @@ function HatchCutscene.Play(eggId: string, results: { any }, playerGui: Instance
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = playerGui,
 	})
-	local dim = UIKit.frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(6, 4, 14), BackgroundTransparency = 1, Parent = gui })
-	UIKit.tween(dim, 0.25, { BackgroundTransparency = 0.12 })
+	local ok, err = pcall(function()
+		local dim = UIKit.frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(6, 4, 14), BackgroundTransparency = 1, Parent = gui })
+		UIKit.tween(dim, 0.25, { BackgroundTransparency = 0.12 })
 
-	local stage = UIKit.frame({
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(STAGE_W, STAGE_H),
-		Parent = gui,
-	})
-	UIKit.autoScale(stage, gui, STAGE_W + 40, STAGE_H + 20, 0.45, 1.5)
+		local stage = UIKit.frame({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(STAGE_W, STAGE_H),
+			Parent = gui,
+		})
+		UIKit.autoScale(stage, gui, STAGE_W + 40, STAGE_H + 20, 0.45, 1.5)
 
-	-- 1. the egg pops up and shakes
-	local eggView = UIKit.viewport({
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(STAGE_W / 2, STAGE_H / 2 - 10),
-		Size = UDim2.fromOffset(10, 10),
-		Parent = stage,
-	})
-	UIKit.show(eggView, PetBuilder.BuildEgg(eggId, 1), 200, 10, 0.8)
-	UIKit.tween(eggView, 0.35, { Size = UDim2.fromOffset(250, 250) }, Enum.EasingStyle.Back)
-	task.wait(0.45)
-	for round = 1, 3 do
-		local amount = 6 * round
-		for _ = 1, 2 do
-			UIKit.tween(eggView, 0.06, { Rotation = amount })
-			task.wait(0.06)
-			UIKit.tween(eggView, 0.06, { Rotation = -amount })
-			task.wait(0.06)
+		-- 1. the egg pops up and shakes
+		local eggView = UIKit.viewport({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(STAGE_W / 2, STAGE_H / 2 - 10),
+			Size = UDim2.fromOffset(10, 10),
+			Parent = stage,
+		})
+		UIKit.show(eggView, PetBuilder.BuildEgg(eggId, 1), 200, 10, 0.8)
+		UIKit.tween(eggView, 0.35, { Size = UDim2.fromOffset(250, 250) }, Enum.EasingStyle.Back)
+		task.wait(0.45)
+		local center = eggView.Position
+		for round = 1, 3 do
+			local amount = 5 * round
+			for _ = 1, 2 do
+				eggView.Position = center + UDim2.fromOffset(amount, 0)
+				UIKit.orbit(eggView, 200 + amount * 1.5)
+				task.wait(0.05)
+				eggView.Position = center + UDim2.fromOffset(-amount, 0)
+				UIKit.orbit(eggView, 200 - amount * 1.5)
+				task.wait(0.05)
+			end
+			eggView.Position = center
+			UIKit.orbit(eggView, 200)
+			task.wait(0.22)
 		end
-		UIKit.tween(eggView, 0.06, { Rotation = 0 })
-		task.wait(0.22)
-	end
 
-	-- 2. flash
-	local flash = UIKit.frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, ZIndex = 20, Parent = gui })
-	eggView:Destroy()
-	UIKit.tween(flash, 0.45, { BackgroundTransparency = 1 })
+		-- 2. flash
+		local flash = UIKit.frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, ZIndex = 20, Parent = gui })
+		eggView:Destroy()
+		UIKit.tween(flash, 0.45, { BackgroundTransparency = 1 })
 
-	-- 3. the pets
-	local count = #results
-	local slotW = 240
-	local gap = 20
-	local startX = (STAGE_W - (count * slotW + (count - 1) * gap)) / 2
-	local spinning = {}
-	local rayFrames = {}
-	if count == 1 then
-		UIKit.text({ Text = "YOU HATCHED", Position = UDim2.fromOffset(0, -6), Size = UDim2.fromOffset(STAGE_W, 28), TextSize = 22, TextColor3 = Color3.fromRGB(255, 220, 230), Parent = stage })
-	end
-	for i, result in ipairs(results) do
-		local def = PetConfig.Pets[result.Pet]
-		if def then
-			local slot = UIKit.frame({ Position = UDim2.fromOffset(startX + (i - 1) * (slotW + gap), 24), Size = UDim2.fromOffset(slotW, 340), Parent = stage })
-			local pop = UIKit.make("UIScale", { Scale = 0, Parent = slot })
-			table.insert(rayFrames, rays(slot, def.Rarity))
-			local view = UIKit.viewport({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(120, 110), Size = UDim2.fromOffset(220, 220), Parent = slot })
-			UIKit.show(view, PetBuilder.Build(result.Pet, { Fx = false, Scale = 1 }).Model, 215, 16, 0.9)
-			table.insert(spinning, view)
-			UIKit.text({ Text = def.Name, Position = UDim2.fromOffset(0, 226), Size = UDim2.fromOffset(slotW, 36), TextSize = 30, TextScaled = true, Parent = slot })
-			local rarityLabel = UIKit.text({
-				Text = string.upper(def.Rarity) .. "  " .. PetLogic.FormatPower(def.Power) .. " POWER",
-				Position = UDim2.fromOffset(0, 262),
-				Size = UDim2.fromOffset(slotW, 22),
-				TextSize = 18,
-				Parent = slot,
-			})
-			UIKit.applyRarity(rarityLabel, def.Rarity)
-			if result.New then
-				local tag = UIKit.text({
-					Text = "NEW!",
-					Position = UDim2.fromOffset(slotW - 84, 14),
-					Size = UDim2.fromOffset(70, 32),
-					Rotation = 10,
-					BackgroundColor3 = Color3.fromRGB(255, 225, 77),
-					BackgroundTransparency = 0,
-					TextColor3 = Color3.fromRGB(42, 26, 0),
-					TextSize = 20,
+		-- 3. the pets
+		local count = #results
+		local slotW = 240
+		local gap = 20
+		local startX = (STAGE_W - (count * slotW + (count - 1) * gap)) / 2
+		local spinning = {}
+		local rayFrames = {}
+		if count == 1 then
+			UIKit.text({ Text = "YOU HATCHED", Position = UDim2.fromOffset(0, -6), Size = UDim2.fromOffset(STAGE_W, 28), TextSize = 22, TextColor3 = Color3.fromRGB(255, 220, 230), Parent = stage })
+		end
+		for i, result in ipairs(results) do
+			local def = PetConfig.Pets[result.Pet]
+			if def then
+				local slot = UIKit.frame({ Position = UDim2.fromOffset(startX + (i - 1) * (slotW + gap), 24), Size = UDim2.fromOffset(slotW, 340), Parent = stage })
+				local pop = UIKit.make("UIScale", { Scale = 0, Parent = slot })
+				table.insert(rayFrames, rays(slot, def.Rarity))
+				local view = UIKit.viewport({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(120, 110), Size = UDim2.fromOffset(220, 220), Parent = slot })
+				UIKit.show(view, PetBuilder.Build(result.Pet, { Fx = false, Scale = 1 }).Model, 215, 16, 0.9)
+				table.insert(spinning, view)
+				UIKit.text({ Text = def.Name, Position = UDim2.fromOffset(0, 226), Size = UDim2.fromOffset(slotW, 36), TextSize = 30, TextScaled = true, Parent = slot })
+				local rarityLabel = UIKit.text({
+					Text = string.upper(def.Rarity) .. "  " .. PetLogic.FormatPower(def.Power) .. " POWER",
+					Position = UDim2.fromOffset(0, 262),
+					Size = UDim2.fromOffset(slotW, 22),
+					TextSize = 18,
 					Parent = slot,
 				})
-				UIKit.corner(tag, 10)
-				UIKit.stroke(tag, Color3.new(1, 1, 1), 3)
+				UIKit.applyRarity(rarityLabel, def.Rarity)
+				if result.New then
+					local tag = UIKit.text({
+						Text = "NEW!",
+						Position = UDim2.fromOffset(slotW - 84, 14),
+						Size = UDim2.fromOffset(70, 32),
+						Rotation = 10,
+						BackgroundColor3 = Color3.fromRGB(255, 225, 77),
+						BackgroundTransparency = 0,
+						TextColor3 = Color3.fromRGB(42, 26, 0),
+						TextSize = 20,
+						Parent = slot,
+					})
+					UIKit.corner(tag, 10)
+					UIKit.stroke(tag, Color3.new(1, 1, 1), 3)
+				end
+				UIKit.tween(pop, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
+				task.wait(0.12)
 			end
-			UIKit.tween(pop, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
-			task.wait(0.12)
 		end
-	end
-	UIKit.text({
-		Text = "Tap anywhere to continue",
-		Position = UDim2.fromOffset(0, STAGE_H - 4),
-		Size = UDim2.fromOffset(STAGE_W, 22),
-		Font = UIKit.BodyFont,
-		TextSize = 15,
-		TextColor3 = Color3.fromRGB(185, 176, 201),
-		Parent = stage,
-	})
+		UIKit.text({
+			Text = "Tap anywhere to continue",
+			Position = UDim2.fromOffset(0, STAGE_H - 4),
+			Size = UDim2.fromOffset(STAGE_W, 22),
+			Font = UIKit.BodyFont,
+			TextSize = 15,
+			TextColor3 = Color3.fromRGB(185, 176, 201),
+			Parent = stage,
+		})
 
-	local yaw = 215
-	local connection = RunService.RenderStepped:Connect(function(dt)
-		yaw += dt * 50
-		for _, view in ipairs(spinning) do
-			UIKit.orbit(view, yaw)
+		local yaw = 215
+		connection = RunService.RenderStepped:Connect(function(dt)
+			yaw += dt * 50
+			for _, view in ipairs(spinning) do
+				UIKit.orbit(view, yaw)
+			end
+			for _, frame in ipairs(rayFrames) do
+				frame.Rotation += dt * 25
+			end
+		end)
+
+		local done = false
+		local catcher = UIKit.make("TextButton", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "",
+			ZIndex = 30,
+			Parent = gui,
+		})
+		catcher.Activated:Connect(function()
+			done = true
+		end)
+		local began = os.clock()
+		task.wait(0.4)
+		while not done and os.clock() - began < 6.5 do
+			task.wait(0.05)
 		end
-		for _, frame in ipairs(rayFrames) do
-			frame.Rotation += dt * 25
-		end
+
+		UIKit.tween(dim, 0.25, { BackgroundTransparency = 1 })
+		UIKit.tween(stage, 0.25, { Position = UDim2.new(0.5, 0, 0.5, 40) })
+		task.wait(0.27)
 	end)
-
-	local done = false
-	local catcher = UIKit.make("TextButton", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Text = "",
-		ZIndex = 30,
-		Parent = gui,
-	})
-	catcher.Activated:Connect(function()
-		done = true
-	end)
-	local began = os.clock()
-	task.wait(0.4)
-	while not done and os.clock() - began < 6.5 do
-		task.wait(0.05)
+	-- always clean up, even if something above went wrong
+	if connection then
+		connection:Disconnect()
 	end
-
-	UIKit.tween(dim, 0.25, { BackgroundTransparency = 1 })
-	UIKit.tween(stage, 0.25, { Position = UDim2.new(0.5, 0, 0.5, 40) })
-	task.wait(0.27)
-	connection:Disconnect()
 	gui:Destroy()
+	if not ok then
+		error(err, 0)
+	end
 end
 
 return HatchCutscene
@@ -245,8 +258,9 @@ return HatchCutscene
 	  - reads the "PetsEquipped" and "PetFormation" attributes the server puts on each player
 	  - builds the pets locally (nothing is sent over the network every frame, so it is smooth)
 	  - flies them behind their owner in a formation, with floating, banking and wing flaps
-	  - saves work far away: fewer particles, then no particles, then the pet hides
-	  - limits the neon outlines to what Roblox can show (31 at once)
+	  - saves work far away: fewer particles, then no particles, then the pet hides;
+	    other players' pets are only built when they come near
+	  - limits the neon outlines (Roblox shows at most 31, the game needs some too)
 	Also gently spins and bobs the eggs on their stands.
 ]]
 
@@ -272,7 +286,7 @@ local fxSetting = "High"
 local eggs: { [Instance]: any } = {}
 local started = false
 
-local GROUND_BELOW_ROOT = 3 -- studs from a character's HumanoidRootPart down to its feet
+local BUILDS_PER_TICK = 3 -- pets built per LOD tick (spreads the work over frames)
 
 local function isPhoneOrTablet(): boolean
 	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -314,7 +328,7 @@ end
 ---------------------------------------------------------------------
 
 local function setVisible(entry, visible: boolean)
-	if entry.Visible == visible then
+	if entry.Visible == visible or not entry.Pet then
 		return
 	end
 	entry.Visible = visible
@@ -323,6 +337,7 @@ local function setVisible(entry, visible: boolean)
 			entry.Pet:SetCFrame(entry.CF)
 		end
 		entry.Pet.Model.Parent = container
+		entry.Pet:ClearTrails()
 		if entry.New then
 			entry.New = false
 			entry.Pet:Poof()
@@ -356,30 +371,26 @@ local function syncOwner(player: Player, owner)
 		table.insert(pool[entry.Id], entry)
 	end
 	local list = {}
+	local spacing = 1
 	for _, petId in ipairs(wanted) do
 		local bucket = pool[petId]
 		if bucket and #bucket > 0 then
 			table.insert(list, table.remove(bucket, 1))
 		else
-			local ok, pet = pcall(PetBuilder.Build, petId)
-			if ok then
-				table.insert(list, { Id = petId, Pet = pet, Visible = false, New = true, Yaw = 0 })
-			else
-				warn("[Pets] Could not build " .. petId .. ": " .. tostring(pet))
-			end
+			-- built later by buildMissing(), only when the owner is near
+			table.insert(list, { Id = petId, Pet = nil, Visible = false, New = true, Yaw = 0 })
 		end
+		local info = PetBuilder.GetInfo(petId, PetBuilder.DefaultScale(petId))
+		spacing = math.max(spacing, info.Radius * 1.6)
 	end
 	for _, bucket in pairs(pool) do
 		for _, entry in ipairs(bucket) do
-			entry.Pet:Destroy()
+			if entry.Pet then
+				entry.Pet:Destroy()
+			end
 		end
 	end
 	owner.Pets = list
-
-	local spacing = 1
-	for _, entry in ipairs(list) do
-		spacing = math.max(spacing, entry.Pet.Radius * 1.6)
-	end
 	owner.Spacing = spacing
 	if lodNow then
 		lodNow()
@@ -390,7 +401,15 @@ local function track(player: Player)
 	if owners[player] then
 		return
 	end
-	local owner = { Player = player, Pets = {}, Formation = PetConfig.DefaultFormation, Spacing = 1, Connections = {} }
+	local owner = {
+		Player = player,
+		Pets = {},
+		Formation = PetConfig.DefaultFormation,
+		Spacing = 1,
+		GroundOffset = 3,
+		BodyScale = 1,
+		Connections = {},
+	}
 	owners[player] = owner
 	table.insert(owner.Connections, player:GetAttributeChangedSignal("PetsEquipped"):Connect(function()
 		syncOwner(player, owner)
@@ -411,8 +430,23 @@ local function untrack(player: Player)
 		connection:Disconnect()
 	end
 	for _, entry in ipairs(owner.Pets) do
-		entry.Pet:Destroy()
+		if entry.Pet then
+			entry.Pet:Destroy()
+		end
 	end
+end
+
+-- How far below the HumanoidRootPart the feet are, and how big the character is
+-- (lifting games often make characters bigger).
+local function measureCharacter(owner, character: Model, rootPart: BasePart)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local halfRoot = rootPart.Size.Y / 2
+	if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
+		owner.GroundOffset = halfRoot + humanoid.HipHeight
+	else
+		owner.GroundOffset = halfRoot + 2 * halfRoot -- R6: legs are as long as the torso is tall
+	end
+	owner.BodyScale = math.max(1, halfRoot)
 end
 
 ---------------------------------------------------------------------
@@ -449,33 +483,36 @@ local function update(dt: number)
 		local speed = flat.Magnitude
 		local facing = if speed > 2 then flat.Unit else look
 		local targetYaw = math.atan2(-facing.X, -facing.Z)
-		local groundY = rootCF.Position.Y - GROUND_BELOW_ROOT
+		local groundY = rootCF.Position.Y - owner.GroundOffset
 		local slots = PetLogic.FormationSlots(owner.Formation, #owner.Pets, owner.Spacing, t)
 		local pitch = -math.clamp(speed / 22, 0, 1) * math.rad(14)
 
 		for i, entry in ipairs(owner.Pets) do
 			entry.NoOwner = false
-			local slot = slots[i]
 			local pet = entry.Pet
-			local spot = base * Vector3.new(slot[1], 0, slot[3])
-			local bob = math.sin(t * 2 + pet.Phase) * 0.3
-			local target = Vector3.new(spot.X, groundY + 1.2 + PetConfig.FloatHeight + slot[2] - pet.Bottom + bob, spot.Z)
-			if not entry.Pos or (entry.Pos - target).Magnitude > 60 then
-				entry.Pos = target
-				entry.Yaw = targetYaw
-			end
-			local previous = entry.Pos
-			entry.Pos = previous:Lerp(target, follow)
-			entry.Yaw = PetLogic.LerpAngle(entry.Yaw, targetYaw, turn)
-			-- bank into turns: compare where the pet is going with where it faces
-			local move = entry.Pos - previous
-			local right = Vector3.new(math.cos(entry.Yaw), 0, -math.sin(entry.Yaw))
-			local roll = math.clamp(-move:Dot(right) / math.max(dt, 1e-3) * 0.02, -0.35, 0.35)
-			entry.Roll = (entry.Roll or 0) + (roll - (entry.Roll or 0)) * turn
-			entry.CF = CFrame.new(entry.Pos) * CFrame.Angles(0, entry.Yaw, 0) * CFrame.Angles(pitch, 0, entry.Roll)
-			if entry.Visible then
-				pet:SetCFrame(entry.CF)
-				pet:Animate(t, dt, speed, entry.Detailed == true)
+			local slot = slots[i]
+			if pet and slot then
+				local spot = base * Vector3.new(slot[1] * owner.BodyScale, 0, slot[3] * owner.BodyScale)
+				local bob = math.sin(t * 2 + pet.Phase) * 0.3
+				local target = Vector3.new(spot.X, groundY + 1.2 + PetConfig.FloatHeight + slot[2] - pet.Bottom + bob, spot.Z)
+				if not entry.Pos or (entry.Pos - target).Magnitude > 60 then
+					entry.Pos = target
+					entry.Yaw = targetYaw
+					pet:ClearTrails()
+				end
+				local previous = entry.Pos
+				entry.Pos = previous:Lerp(target, follow)
+				entry.Yaw = PetLogic.LerpAngle(entry.Yaw, targetYaw, turn)
+				-- bank into turns: compare where the pet is going with where it faces
+				local move = entry.Pos - previous
+				local right = Vector3.new(math.cos(entry.Yaw), 0, -math.sin(entry.Yaw))
+				local roll = math.clamp(-move:Dot(right) / math.max(dt, 1e-3) * 0.02, -0.35, 0.35)
+				entry.Roll = (entry.Roll or 0) + (roll - (entry.Roll or 0)) * turn
+				entry.CF = CFrame.new(entry.Pos) * CFrame.Angles(0, entry.Yaw, 0) * CFrame.Angles(pitch, 0, entry.Roll)
+				if entry.Visible then
+					pet:SetCFrame(entry.CF)
+					pet:Animate(t, dt, speed, entry.Detailed == true)
+				end
 			end
 		end
 	end
@@ -493,8 +530,34 @@ local function update(dt: number)
 end
 
 ---------------------------------------------------------------------
--- A few times a second: what to show, how much effects, which outlines
+-- A few times a second: build near pets, what to show, effects, outlines
 ---------------------------------------------------------------------
+
+local function buildMissing(camPos: Vector3)
+	local budget = BUILDS_PER_TICK
+	for player, owner in pairs(owners) do
+		local character = player.Character
+		local rootPart = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if rootPart and character then
+			measureCharacter(owner, character, rootPart)
+			local near = player == localPlayer or (rootPart.Position - camPos).Magnitude < PetConfig.Fx.HideDistance
+			if near then
+				for _, entry in ipairs(owner.Pets) do
+					if not entry.Pet and not entry.Failed and budget > 0 then
+						budget -= 1
+						local ok, pet = pcall(PetBuilder.Build, entry.Id)
+						if ok then
+							entry.Pet = pet
+						else
+							warn("[Pets] Could not build " .. entry.Id .. ": " .. tostring(pet))
+							entry.Failed = true
+						end
+					end
+				end
+			end
+		end
+	end
+end
 
 local function lod()
 	local camera = Workspace.CurrentCamera
@@ -502,12 +565,14 @@ local function lod()
 		return
 	end
 	local camPos = camera.CFrame.Position
+	buildMissing(camPos)
+
 	local fx = PetConfig.Fx
 	local list = {}
 	for player, owner in pairs(owners) do
 		local mine = player == localPlayer
 		for _, entry in ipairs(owner.Pets) do
-			if entry.Pos and not entry.NoOwner then
+			if entry.Pet and entry.Pos and not entry.NoOwner then
 				table.insert(list, { Entry = entry, Distance = (entry.Pos - camPos).Magnitude, Mine = mine })
 			end
 		end
@@ -520,7 +585,7 @@ local function lod()
 	end)
 
 	local particleSlots = fx.MaxParticlePets
-	local outlines = fx.OutlineBudget
+	local outlines = if fxSetting == "High" then fx.OutlineBudget elseif fxSetting == "Low" then fx.OutlineBudgetLow else 0
 	local baseRate = if fxSetting == "High" then 1 elseif fxSetting == "Low" then fx.LowRate else 0
 	for _, item in ipairs(list) do
 		local entry, distance = item.Entry, item.Distance
@@ -539,7 +604,8 @@ local function lod()
 			local rate = baseRate * (if item.Mine then 1 else fx.OtherPlayersRate)
 			entry.Pet:SetFx(level, rate)
 			entry.Detailed = distance < fx.RingDistance
-			local outline = outlines > 0 and distance < fx.RingDistance
+			-- on "Low" only your own pets get outlines
+			local outline = outlines > 0 and distance < fx.RingDistance and (fxSetting == "High" or item.Mine)
 			if outline then
 				outlines -= 1
 			end
@@ -686,6 +752,11 @@ local function toast(text: string, color: Color3?)
 	if not ui.Toasts then
 		return
 	end
+	ui.ToastList = ui.ToastList or {}
+	while #ui.ToastList >= 4 do
+		local oldest = table.remove(ui.ToastList, 1)
+		oldest:Destroy()
+	end
 	local item = UIKit.text({
 		Text = text,
 		RichText = true,
@@ -700,10 +771,18 @@ local function toast(text: string, color: Color3?)
 	UIKit.corner(item, 12)
 	UIKit.make("UIPadding", { PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 16), Parent = item })
 	local stroke = UIKit.stroke(item, C.Border, 2)
+	table.insert(ui.ToastList, item)
 	task.delay(3, function()
+		if not item.Parent then
+			return
+		end
 		UIKit.tween(item, 0.35, { TextTransparency = 1, BackgroundTransparency = 1 })
 		UIKit.tween(stroke, 0.35, { Transparency = 1 })
 		task.wait(0.4)
+		local index = table.find(ui.ToastList, item)
+		if index then
+			table.remove(ui.ToastList, index)
+		end
 		item:Destroy()
 	end)
 end
@@ -743,17 +822,27 @@ local function currencyValue(): any
 	if not stats then
 		return nil
 	end
-	local value = stats:FindFirstChild(PetConfig.CurrencyName)
-	if value then
-		return value
+	local names = { PetConfig.CurrencyName }
+	for _, name in ipairs(PetConfig.CurrencyFallbacks or {}) do
+		table.insert(names, name)
 	end
-	for _, name in ipairs(PetConfig.CurrencyFallbacks) do
-		value = stats:FindFirstChild(name)
-		if value then
+	for _, name in ipairs(names) do
+		local value = stats:FindFirstChild(name)
+		if value and (value:IsA("IntValue") or value:IsA("NumberValue")) then
 			return value
 		end
 	end
 	return nil
+end
+
+-- "You have 12,450 Coins" (from leaderstats, or from the server when coins live elsewhere)
+local function balanceText(): string
+	local value = currencyValue()
+	local amount = if value then value.Value elseif data then data.Balance else nil
+	if type(amount) ~= "number" then
+		return ""
+	end
+	return ("You have %s %s"):format(PetLogic.FormatNumber(amount), PetConfig.CurrencyName)
 end
 
 ---------------------------------------------------------------------
@@ -830,8 +919,7 @@ local function refresh()
 	refreshDetail()
 
 	if currentEgg and ui.EggBalance then
-		local value = currencyValue()
-		ui.EggBalance.Text = if value then ("You have %s %s"):format(PetLogic.FormatNumber(value.Value), PetConfig.CurrencyName) else ""
+		ui.EggBalance.Text = balanceText()
 	end
 end
 
@@ -955,6 +1043,10 @@ local function hatch(count: number)
 	closeInventory()
 	local played = pcall(Cutscene.Play, eggId, result.Results, gui.Parent)
 	if not played then
+		local leftover = gui.Parent and gui.Parent:FindFirstChild("PetHatch")
+		if leftover then
+			leftover:Destroy()
+		end
 		for _, r in ipairs(result.Results) do
 			toast("You got " .. PetConfig.Pets[r.Pet].Name .. "!")
 		end
@@ -1426,11 +1518,10 @@ function PetUI.Start(deps: { Renderer: any, Cutscene: any })
 				local character = player.Character
 				local rootPart = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 				local part = currentEgg.Part
-				if not rootPart or not part or not part:IsA("BasePart") or (rootPart.Position - part.Position).Magnitude > PetConfig.EggRange + 6 then
+				if not rootPart or not part or not part:IsA("BasePart") or (rootPart.Position - part.Position).Magnitude > PetConfig.EggRange + 3 then
 					closeEgg()
-				elseif data then
-					local value = currencyValue()
-					ui.EggBalance.Text = if value then ("You have %s %s"):format(PetLogic.FormatNumber(value.Value), PetConfig.CurrencyName) else ""
+				else
+					ui.EggBalance.Text = balanceText()
 				end
 			end
 		end
