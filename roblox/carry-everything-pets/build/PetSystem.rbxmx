@@ -1,0 +1,1018 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Item class="Folder" referent="RBX2253B6FD1D52D5B4FC2431C47AD54666">
+		<Properties>
+			<string name="Name">PetSystem</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX62A768EEADCA7724A3CF2E92FF5637A4">
+			<Properties>
+				<string name="Name">EggStands</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	EggStands  (ServerScriptService > PetSystem > EggStands, a ModuleScript)
+
+	Builds one stand per egg: a pedestal with a glowing trim, the blocky egg,
+	a sign with the name and price, and a ProximityPrompt ("Open").
+
+	Where the eggs stand:
+	  - If Workspace has a Folder "PetEggs" with Parts named like the eggs
+	    (StarterEgg, InfernoEgg, CosmicEgg), each egg stands on its Part.
+	    The Part becomes invisible; its front (-Z) is where the sign faces.
+	  - Otherwise the eggs stand in a row about 24 studs in front of the spawn.
+]]
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("PetShared")
+local PetConfig = require(Shared:WaitForChild("PetConfig"))
+local PetBuilder = require(Shared:WaitForChild("PetBuilder"))
+local PetLogic = require(Shared:WaitForChild("PetLogic"))
+
+local EggStands = {}
+
+local positions: { [string]: Vector3 } = {}
+local EGG_SCALE = 1.1
+local TAG = "PetEggStand"
+
+local function flatLook(cf: CFrame): Vector3
+	local look = Vector3.new(cf.LookVector.X, 0, cf.LookVector.Z)
+	if look.Magnitude < 0.01 then
+		return Vector3.new(0, 0, -1)
+	end
+	return look.Unit
+end
+
+local function findSpawn(): BasePart?
+	for _, item in ipairs(Workspace:GetDescendants()) do
+		if item:IsA("SpawnLocation") and item.Enabled then
+			return item
+		end
+	end
+	return nil
+end
+
+local function groundBelow(position: Vector3, ignore: { Instance }): Vector3
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = ignore
+	local hit = Workspace:Raycast(position + Vector3.new(0, 12, 0), Vector3.new(0, -120, 0), params)
+	if hit then
+		return hit.Position
+	end
+	return position
+end
+
+local function block(stand: Model, name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material?): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cf
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = stand
+	return part
+end
+
+local function label(parent: Instance, text: string, color: Color3, position: UDim2, size: UDim2): TextLabel
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Size = size
+	l.Position = position
+	l.Font = Enum.Font.FredokaOne
+	l.Text = text
+	l.TextColor3 = color
+	l.TextScaled = true
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2.5
+	stroke.Color = Color3.fromRGB(10, 12, 24)
+	stroke.Parent = l
+	l.Parent = parent
+	return l
+end
+
+local function buildStand(eggId: string, cf: CFrame): Model
+	local egg = PetConfig.Eggs[eggId]
+	local glow = egg.Colors.Spots[1]
+	local stand = Instance.new("Model")
+	stand.Name = eggId .. "Stand"
+
+	local base = block(stand, "Base", Vector3.new(9, 1, 9), cf * CFrame.new(0, 0.5, 0), Color3.fromRGB(43, 47, 69))
+	local top = block(stand, "Top", Vector3.new(6.5, 1.2, 6.5), cf * CFrame.new(0, 1.6, 0), Color3.fromRGB(59, 63, 85))
+	for _, side in ipairs({ -1, 1 }) do
+		local a = block(stand, "Trim", Vector3.new(6.9, 0.25, 0.25), cf * CFrame.new(0, 2.25, side * 3.35), glow, Enum.Material.Neon)
+		local b = block(stand, "Trim", Vector3.new(0.25, 0.25, 6.9), cf * CFrame.new(side * 3.35, 2.25, 0), glow, Enum.Material.Neon)
+		a.CanCollide = false
+		b.CanCollide = false
+	end
+	stand.PrimaryPart = base
+
+	local eggModel = PetBuilder.BuildEgg(eggId, EGG_SCALE)
+	eggModel.Name = "Egg"
+	-- the egg's PrimaryPart (middle layer) sits 9 "pixels" above the egg's bottom
+	eggModel:PivotTo(cf * CFrame.new(0, 2.25 + 9 * 0.25 * EGG_SCALE, 0))
+	for _, part in ipairs(eggModel:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = false
+			part.CanQuery = false
+		end
+	end
+	eggModel.Parent = stand
+
+	local light = Instance.new("PointLight")
+	light.Color = glow
+	light.Range = 14
+	light.Brightness = 1.2
+	light.Parent = eggModel.PrimaryPart
+
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Texture = PetConfig.Textures.Sparkle
+	sparkles.Color = ColorSequence.new(glow, egg.Colors.Spots[2] or glow)
+	sparkles.Lifetime = NumberRange.new(1, 1.6)
+	sparkles.Speed = NumberRange.new(1, 2.2)
+	sparkles.SpreadAngle = Vector2.new(35, 35)
+	sparkles.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+	sparkles.Transparency = NumberSequence.new(0.1, 1)
+	sparkles.LightEmission = 1
+	sparkles.LightInfluence = 0
+	sparkles.Rate = 5
+	sparkles.Parent = top
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PetEggPrompt"
+	prompt.ActionText = "Open"
+	prompt.ObjectText = egg.Name
+	prompt.HoldDuration = 0
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.MaxActivationDistance = math.max(8, PetConfig.EggRange - 3)
+	prompt.RequiresLineOfSight = false
+	prompt:SetAttribute("EggId", eggId)
+	prompt.Parent = top
+
+	local sign = Instance.new("BillboardGui")
+	sign.Name = "EggSign"
+	sign.Adornee = eggModel.PrimaryPart
+	sign.Size = UDim2.fromScale(8, 2.8)
+	sign.StudsOffsetWorldSpace = Vector3.new(0, 4.6, 0)
+	sign.MaxDistance = 90
+	sign.LightInfluence = 0
+	sign.Parent = top
+	label(sign, egg.Name, Color3.new(1, 1, 1), UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.56))
+	label(sign, PetLogic.Commas(egg.Price) .. " " .. PetConfig.CurrencyName, Color3.fromRGB(255, 213, 74), UDim2.fromScale(0, 0.58), UDim2.fromScale(1, 0.42))
+
+	stand:SetAttribute("EggId", eggId)
+	CollectionService:AddTag(stand, TAG)
+	pcall(function()
+		stand.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	end)
+	return stand
+end
+
+function EggStands.Build()
+	local container = Workspace:FindFirstChild("PetEggStands")
+	if container then
+		container:Destroy()
+	end
+	container = Instance.new("Folder")
+	container.Name = "PetEggStands"
+	container.Parent = Workspace
+
+	local markers = Workspace:FindFirstChild("PetEggs")
+	local spawn = findSpawn()
+	local count = #PetConfig.EggOrder
+	local usedAuto = false
+
+	for i, eggId in ipairs(PetConfig.EggOrder) do
+		local cf: CFrame
+		local marker = markers and markers:FindFirstChild(eggId)
+		if marker and marker:IsA("BasePart") then
+			local bottom = marker.Position - Vector3.new(0, marker.Size.Y / 2, 0)
+			cf = CFrame.lookAt(bottom, bottom + flatLook(marker.CFrame))
+			marker.Transparency = 1
+			marker.CanCollide = false
+			marker.CanQuery = false
+			marker.CanTouch = false
+		elseif marker and marker:IsA("Model") then
+			local pivot = marker:GetPivot()
+			cf = CFrame.lookAt(pivot.Position, pivot.Position + flatLook(pivot))
+		else
+			usedAuto = true
+			local origin, forward
+			if spawn then
+				forward = flatLook(spawn.CFrame)
+				origin = spawn.Position + forward * 24
+			else
+				forward = Vector3.new(0, 0, -1)
+				origin = Vector3.new(0, 0, -30)
+			end
+			local right = forward:Cross(Vector3.yAxis)
+			local spot = origin + right * ((i - (count + 1) / 2) * 13)
+			local ground = groundBelow(spot, { container })
+			-- the sign faces back towards the spawn
+			cf = CFrame.lookAt(ground, ground - Vector3.new(forward.X, 0, forward.Z))
+		end
+		local stand = buildStand(eggId, cf)
+		stand.Parent = container
+		positions[eggId] = cf.Position + Vector3.new(0, 2, 0)
+	end
+
+	if usedAuto then
+		print("[Pets] The eggs stand in a row in front of the spawn. To choose the spot: make a Folder 'PetEggs' in Workspace with Parts named StarterEgg, InfernoEgg and CosmicEgg.")
+	end
+end
+
+function EggStands.GetPosition(eggId: string): Vector3?
+	return positions[eggId]
+end
+
+return EggStands
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX883614D16D4D55CC8FA7F386DFF0D8D4">
+			<Properties>
+				<string name="Name">PetServer</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	PetServer  (ServerScriptService > PetSystem > PetServer, a Script)
+
+	Starts the pet system: makes the remotes, builds the egg stands,
+	loads and saves every player's pets.
+	All the work is in the PetService ModuleScript next to this Script.
+]]
+
+local PetService = require(script.Parent:WaitForChild("PetService"))
+
+PetService.Start()
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBXB1E76F920C909BB6859520F5FAC89371">
+			<Properties>
+				<string name="Name">PetService</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	PetService  (ServerScriptService > PetSystem > PetService, a ModuleScript)
+
+	The server side of the pet system. It owns everything that matters:
+	coins spent on eggs, the odds, the pet list, equipping and saving.
+	Players' devices only ask; the server checks every request.
+
+	Other server scripts in your game can use it:
+
+		local PetService = require(game.ServerScriptService.PetSystem.PetService)
+		PetService.GetMultiplier(player)            --> 1 + power of the equipped pets
+		PetService.GivePet(player, "Phoenix", 1)    --> gives pets (quests, codes, rewards)
+		PetService.GetEquipped(player)              --> { "Phoenix", "ShadowCat", ... }
+		PetService.SetBonusSlots(player, 1)         --> extra equip slots (rebirths, VIP ...)
+		PetService.SetCurrencyAdapter({ Get = ..., Spend = ..., Give = ... })
+		PetService.Changed.Event:Connect(function(player) ... end)
+
+	The multiplier is also on the player: player:GetAttribute("PetMultiplier")
+]]
+
+local DataStoreService = game:GetService("DataStoreService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("PetShared")
+local PetConfig = require(Shared:WaitForChild("PetConfig"))
+local PetLogic = require(Shared:WaitForChild("PetLogic"))
+local EggStands = require(script.Parent:WaitForChild("EggStands"))
+
+local PetService = {}
+PetService.Changed = Instance.new("BindableEvent") -- fires with (player) after any pet change
+
+local profiles: { [Player]: any } = {}
+local store: DataStore? = nil
+local remotes: any = nil
+local currencyAdapter: any = nil
+local random = Random.new()
+local started = false
+
+---------------------------------------------------------------------
+-- Coins
+---------------------------------------------------------------------
+
+local function currencyValue(player: Player): any
+	local stats = player:FindFirstChild("leaderstats")
+	if not stats then
+		return nil
+	end
+	local names = { PetConfig.CurrencyName }
+	for _, name in ipairs(PetConfig.CurrencyFallbacks) do
+		table.insert(names, name)
+	end
+	for _, name in ipairs(names) do
+		local value = stats:FindFirstChild(name)
+		if value and (value:IsA("IntValue") or value:IsA("NumberValue")) then
+			return value
+		end
+	end
+	return nil
+end
+
+function PetService.GetBalance(player: Player): number
+	if currencyAdapter and currencyAdapter.Get then
+		local ok, value = pcall(currencyAdapter.Get, player)
+		return if ok then (tonumber(value) or 0) else 0
+	end
+	local value = currencyValue(player)
+	return if value then value.Value else 0
+end
+
+local function trySpend(player: Player, amount: number): boolean
+	if currencyAdapter and currencyAdapter.Spend then
+		local ok, result = pcall(currencyAdapter.Spend, player, amount)
+		return ok and result == true
+	end
+	local value = currencyValue(player)
+	if not value or value.Value < amount then
+		return false
+	end
+	value.Value -= amount
+	return true
+end
+
+local function giveCoins(player: Player, amount: number)
+	if currencyAdapter and currencyAdapter.Give then
+		pcall(currencyAdapter.Give, player, amount)
+		return
+	end
+	local value = currencyValue(player)
+	if value then
+		value.Value += amount
+	end
+end
+
+-- For games that keep coins in their own data instead of leaderstats.
+-- adapter = { Get = function(player) return coins end,
+--             Spend = function(player, amount) return true/false end,
+--             Give = function(player, amount) end }   (Give is only used by the test command)
+function PetService.SetCurrencyAdapter(adapter)
+	currencyAdapter = adapter
+end
+
+-- Studio only: if the game has no coins value, make one so the eggs can be tested.
+local function ensureTestCurrency(player: Player)
+	if not RunService:IsStudio() then
+		return
+	end
+	task.delay(4, function()
+		if player.Parent == nil or currencyAdapter or currencyValue(player) then
+			return
+		end
+		local stats = player:FindFirstChild("leaderstats")
+		if not stats then
+			stats = Instance.new("Folder")
+			stats.Name = "leaderstats"
+			stats.Parent = player
+		end
+		local coins = Instance.new("IntValue")
+		coins.Name = PetConfig.CurrencyName
+		coins.Value = PetConfig.StudioTestCoins
+		coins.Parent = stats
+		print(("[Pets] Studio test: made leaderstats.%s with %d coins (only in Studio)."):format(PetConfig.CurrencyName, PetConfig.StudioTestCoins))
+	end)
+end
+
+---------------------------------------------------------------------
+-- Game passes and slots
+---------------------------------------------------------------------
+
+local function ownsPass(player: Player, passId: number?): boolean
+	if not passId or passId == 0 then
+		return false
+	end
+	local ok, owns = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, passId)
+	end)
+	return ok and owns == true
+end
+
+local function refreshPasses(player: Player, profile)
+	local passes = PetConfig.GamePasses
+	profile.Passes = {
+		ExtraSlots = ownsPass(player, passes.ExtraSlots),
+		CrystalKing = ownsPass(player, passes.CrystalKing),
+		TripleHatch = passes.TripleHatch == 0 or ownsPass(player, passes.TripleHatch),
+	}
+end
+
+local function maxEquip(profile): number
+	local extra = if profile.Passes.ExtraSlots then PetConfig.ExtraSlotsAmount else 0
+	return PetConfig.MaxEquipped + extra + (profile.BonusSlots or 0)
+end
+
+---------------------------------------------------------------------
+-- Sending the state to the player
+---------------------------------------------------------------------
+
+local function notify(player: Player, text: string)
+	if remotes then
+		remotes.Update:FireClient(player, "Toast", text)
+	end
+end
+
+local function publish(player: Player, profile)
+	local data = profile.Data
+	local limit = maxEquip(profile)
+	while #data.Equipped > limit do
+		table.remove(data.Equipped)
+	end
+	local types = PetLogic.EquippedTypes(data, PetConfig.Pets)
+	local multiplier = PetLogic.Multiplier(types, PetConfig.Pets)
+	player:SetAttribute("PetMultiplier", multiplier)
+	player:SetAttribute("PetsEquipped", table.concat(types, ","))
+	player:SetAttribute("PetFormation", data.Formation)
+	player:SetAttribute("PetCount", #data.Pets)
+	local counts, equipped = PetLogic.Counts(data)
+	if remotes then
+		remotes.Update:FireClient(player, "Data", {
+			Counts = counts,
+			Equipped = equipped,
+			EquippedTotal = #data.Equipped,
+			MaxEquip = limit,
+			Storage = #data.Pets,
+			MaxStorage = PetConfig.MaxStorage,
+			Multiplier = multiplier,
+			Discovered = data.Discovered,
+			Formation = data.Formation,
+			Saving = profile.CanSave,
+			TripleHatch = profile.Passes.TripleHatch == true,
+		})
+	end
+	PetService.Changed:Fire(player)
+end
+
+local function changed(player: Player, profile)
+	profile.Version += 1
+	publish(player, profile)
+end
+
+---------------------------------------------------------------------
+-- Pets
+---------------------------------------------------------------------
+
+local function addPet(profile, petId: string, ignoreStorage: boolean?): boolean
+	local data = profile.Data
+	if not ignoreStorage and #data.Pets >= PetConfig.MaxStorage then
+		return false
+	end
+	local id = "p" .. data.NextId
+	data.NextId += 1
+	table.insert(data.Pets, { Id = id, Pet = petId })
+	data.Discovered[petId] = true
+	return true
+end
+
+local function fillEmptySlots(profile)
+	local data = profile.Data
+	local limit = maxEquip(profile)
+	if #data.Equipped >= limit then
+		return
+	end
+	local set = PetLogic.EquippedSet(data)
+	local free = {}
+	for _, pet in ipairs(data.Pets) do
+		if not set[pet.Id] then
+			table.insert(free, pet)
+		end
+	end
+	for _, pet in ipairs(PetLogic.SortStrongest(free, PetConfig.Pets)) do
+		if #data.Equipped >= limit then
+			break
+		end
+		table.insert(data.Equipped, pet.Id)
+	end
+end
+
+local function grantExclusives(profile): boolean
+	if profile.Passes.CrystalKing and not profile.Data.Granted.CrystalKing then
+		addPet(profile, "CrystalKing", true)
+		profile.Data.Granted.CrystalKing = true
+		return true
+	end
+	return false
+end
+
+local function announce(player: Player, petId: string)
+	local def = PetConfig.Pets[petId]
+	local rarity = def and PetConfig.Rarities[def.Rarity]
+	if rarity and rarity.Order >= PetConfig.AnnounceFromOrder and remotes then
+		remotes.Update:FireAllClients("Announce", { Name = player.DisplayName, Pet = petId })
+	end
+end
+
+local function hatch(player: Player, profile, eggId: any, amount: any)
+	if type(eggId) ~= "string" or not PetConfig.Eggs[eggId] then
+		return false, "Unknown egg"
+	end
+	local egg = PetConfig.Eggs[eggId]
+	local count = if amount == 3 then 3 else 1
+	if count == 3 and not profile.Passes.TripleHatch then
+		return false, "Opening 3 at once needs the Triple Hatch pass"
+	end
+	local now = os.clock()
+	if now - profile.LastHatch < PetConfig.HatchCooldown then
+		return false, "Not so fast!"
+	end
+	local eggPosition = EggStands.GetPosition(eggId)
+	local character = player.Character
+	local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+	if eggPosition and (not rootPart or ((rootPart :: BasePart).Position - eggPosition).Magnitude > PetConfig.EggRange + 4) then
+		return false, "Walk closer to the egg"
+	end
+	if #profile.Data.Pets + count > PetConfig.MaxStorage then
+		return false, ("Your pet storage is full (%d/%d). Delete some pets first."):format(#profile.Data.Pets, PetConfig.MaxStorage)
+	end
+	local cost = egg.Price * count
+	if not trySpend(player, cost) then
+		return false, "You need " .. PetLogic.Commas(cost) .. " " .. PetConfig.CurrencyName
+	end
+	profile.LastHatch = now
+
+	local results = {}
+	for _ = 1, count do
+		local petId = PetLogic.PickWeighted(egg.Odds, random:NextNumber())
+		local isNew = not profile.Data.Discovered[petId]
+		addPet(profile, petId, true)
+		table.insert(results, { Pet = petId, New = isNew })
+	end
+	profile.Data.Hatched += count
+	if PetConfig.AutoEquipNew then
+		fillEmptySlots(profile)
+	end
+	changed(player, profile)
+	for _, result in ipairs(results) do
+		announce(player, result.Pet)
+	end
+	return true, { Results = results, Balance = PetService.GetBalance(player) }
+end
+
+local function handle(player: Player, profile, action: string, arg: any)
+	local data = profile.Data
+	if action == "GetData" then
+		publish(player, profile)
+		return true
+	elseif action == "Hatch" then
+		return hatch(player, profile, arg, nil)
+	elseif action == "Hatch3" then
+		return hatch(player, profile, arg, 3)
+	elseif action == "Equip" then
+		if type(arg) ~= "string" or not PetConfig.Pets[arg] then
+			return false, "Unknown pet"
+		end
+		if #data.Equipped >= maxEquip(profile) then
+			return false, ("All %d slots are full. Unequip a pet first."):format(maxEquip(profile))
+		end
+		local id = PetLogic.FindOfType(data, arg, false)
+		if not id then
+			return false, "No more of this pet to equip"
+		end
+		table.insert(data.Equipped, id)
+		changed(player, profile)
+		return true
+	elseif action == "Unequip" then
+		if type(arg) ~= "string" then
+			return false, "Unknown pet"
+		end
+		local id = PetLogic.FindOfType(data, arg, true)
+		if not id then
+			return false, "This pet is not equipped"
+		end
+		PetLogic.RemoveId(data.Equipped, id)
+		changed(player, profile)
+		return true
+	elseif action == "EquipBest" then
+		data.Equipped = PetLogic.BestIds(data, PetConfig.Pets, maxEquip(profile))
+		changed(player, profile)
+		return true
+	elseif action == "UnequipAll" then
+		table.clear(data.Equipped)
+		changed(player, profile)
+		return true
+	elseif action == "Delete" then
+		if type(arg) ~= "string" or not PetConfig.Pets[arg] then
+			return false, "Unknown pet"
+		end
+		local rarity = PetConfig.Rarities[PetConfig.Pets[arg].Rarity]
+		if rarity and rarity.NoDelete then
+			return false, "Exclusive pets can't be deleted"
+		end
+		local id = PetLogic.FindOfType(data, arg, false) or PetLogic.FindOfType(data, arg, true)
+		if not id then
+			return false, "You don't have this pet"
+		end
+		PetLogic.RemoveId(data.Equipped, id)
+		for i, pet in ipairs(data.Pets) do
+			if pet.Id == id then
+				table.remove(data.Pets, i)
+				break
+			end
+		end
+		changed(player, profile)
+		return true
+	elseif action == "SetFormation" then
+		if type(arg) ~= "string" or not table.find(PetConfig.Formations, arg) then
+			return false, "Unknown formation"
+		end
+		data.Formation = arg
+		changed(player, profile)
+		return true
+	elseif action == "BuyPass" then
+		local passId = type(arg) == "string" and PetConfig.GamePasses[arg]
+		if not passId or passId == 0 then
+			return false, "Not for sale yet"
+		end
+		MarketplaceService:PromptGamePassPurchase(player, passId)
+		return true
+	end
+	return false, "Unknown request"
+end
+
+local function onRequest(player: Player, action: any, arg: any)
+	if type(action) ~= "string" then
+		return false, "Bad request"
+	end
+	local profile = profiles[player]
+	if not profile or not profile.Ready then
+		return false, "Your pets are still loading..."
+	end
+	local now = os.clock()
+	if now - profile.WindowStart > 1 then
+		profile.WindowStart = now
+		profile.Requests = 0
+	end
+	profile.Requests += 1
+	if profile.Requests > 12 then
+		return false, "Too many clicks, wait a second"
+	end
+	return handle(player, profile, action, arg)
+end
+
+---------------------------------------------------------------------
+-- Saving
+---------------------------------------------------------------------
+
+local function dataKey(player: Player): string
+	return "Player_" .. player.UserId
+end
+
+local function loadData(player: Player): (any, boolean, boolean)
+	local fresh = PetLogic.NewData(PetConfig.DefaultFormation)
+	if not store then
+		return fresh, false, false
+	end
+	local dataStore = store :: DataStore
+	for attempt = 1, 3 do
+		local ok, result = pcall(function()
+			return dataStore:GetAsync(dataKey(player))
+		end)
+		if ok then
+			return PetLogic.Sanitize(result, PetConfig.Pets, PetConfig.Formations, PetConfig.DefaultFormation), true, false
+		end
+		local message = tostring(result)
+		if string.find(message, "Studio", 1, true) or string.find(message, "publish", 1, true) or string.find(message, "403", 1, true) then
+			warn("[Pets] Saving is off here. In Studio: Home > Game Settings > Security > Enable Studio Access to API Services. (" .. message .. ")")
+			return fresh, false, false
+		end
+		warn(("[Pets] Loading %s's pets failed (try %d): %s"):format(player.Name, attempt, message))
+		task.wait(attempt * 2)
+	end
+	return fresh, false, true
+end
+
+local function savePayload(data)
+	local pets = {}
+	for _, pet in ipairs(data.Pets) do
+		table.insert(pets, { Id = pet.Id, Pet = pet.Pet })
+	end
+	return {
+		Version = 1,
+		Pets = pets,
+		Equipped = table.clone(data.Equipped),
+		NextId = data.NextId,
+		Discovered = table.clone(data.Discovered),
+		Formation = data.Formation,
+		Hatched = data.Hatched,
+		Granted = table.clone(data.Granted),
+	}
+end
+
+local function saveData(player: Player, profile): boolean
+	if not store or not profile.CanSave then
+		return false
+	end
+	local dataStore = store :: DataStore
+	local version = profile.Version
+	local payload = savePayload(profile.Data)
+	for attempt = 1, 3 do
+		local ok, err = pcall(function()
+			dataStore:UpdateAsync(dataKey(player), function()
+				return payload
+			end)
+		end)
+		if ok then
+			profile.SavedVersion = version
+			return true
+		end
+		warn(("[Pets] Saving %s's pets failed (try %d): %s"):format(player.Name, attempt, tostring(err)))
+		task.wait(attempt)
+	end
+	return false
+end
+
+local function needsSave(profile): boolean
+	return profile.Ready and profile.CanSave and profile.SavedVersion ~= profile.Version
+end
+
+---------------------------------------------------------------------
+-- Test commands (Studio, or the UserIds in PetConfig.Admins)
+---------------------------------------------------------------------
+
+local function isAdmin(player: Player): boolean
+	return RunService:IsStudio() or table.find(PetConfig.Admins, player.UserId) ~= nil
+end
+
+local function onChat(player: Player, message: string)
+	local prefix = string.lower(PetConfig.CommandPrefix)
+	if string.sub(string.lower(message), 1, #prefix) ~= prefix or not isAdmin(player) then
+		return
+	end
+	local profile = profiles[player]
+	if not profile or not profile.Ready then
+		return
+	end
+	local args = {}
+	for word in string.gmatch(string.sub(message, #prefix + 1), "%S+") do
+		table.insert(args, word)
+	end
+	local command = string.lower(args[1] or "")
+	if command == "coins" then
+		local amount = tonumber(args[2]) or 100000
+		giveCoins(player, amount)
+		notify(player, "Test: +" .. PetLogic.Commas(amount) .. " " .. PetConfig.CurrencyName)
+	elseif command == "give" then
+		local amount = tonumber(args[#args])
+		local last = if amount then #args - 1 else #args
+		local words = {}
+		for i = 2, last do
+			table.insert(words, args[i])
+		end
+		local petId = PetLogic.FindPetId(table.concat(words, " "), PetConfig.Pets)
+		if not petId then
+			notify(player, "Test: no pet called '" .. table.concat(words, " ") .. "'")
+			return
+		end
+		local given = PetService.GivePet(player, petId, math.clamp(amount or 1, 1, 50))
+		notify(player, ("Test: got %d x %s"):format(given, PetConfig.Pets[petId].Name))
+	elseif command == "reset" then
+		profile.Data = PetLogic.NewData(PetConfig.DefaultFormation)
+		changed(player, profile)
+		notify(player, "Test: all pets removed")
+	elseif command == "slots" then
+		PetService.SetBonusSlots(player, tonumber(args[2]) or 0)
+		notify(player, "Test: bonus slots set")
+	else
+		notify(player, "Test commands: " .. PetConfig.CommandPrefix .. " coins 100000 | give Phoenix 2 | reset | slots 2")
+	end
+end
+
+---------------------------------------------------------------------
+-- Players joining and leaving
+---------------------------------------------------------------------
+
+local function onPlayerAdded(player: Player)
+	if profiles[player] then
+		return
+	end
+	local profile = {
+		Data = PetLogic.NewData(PetConfig.DefaultFormation),
+		Ready = false,
+		CanSave = false,
+		Version = 0,
+		SavedVersion = 0,
+		LastHatch = 0,
+		Requests = 0,
+		WindowStart = 0,
+		Passes = {},
+		BonusSlots = 0,
+	}
+	profiles[player] = profile
+	player:SetAttribute("PetMultiplier", 1)
+	player:SetAttribute("PetsEquipped", "")
+	player:SetAttribute("PetFormation", PetConfig.DefaultFormation)
+	player.Chatted:Connect(function(message)
+		onChat(player, message)
+	end)
+	ensureTestCurrency(player)
+
+	local data, canSave, failed = loadData(player)
+	if player.Parent == nil then
+		profiles[player] = nil
+		return
+	end
+	profile.Data = data
+	profile.CanSave = canSave
+	refreshPasses(player, profile)
+
+	local dirty = false
+	if #data.Pets == 0 and data.Hatched == 0 and not data.Granted.Starter then
+		for _, petId in ipairs(PetConfig.StartingPets) do
+			if PetConfig.Pets[petId] then
+				addPet(profile, petId, true)
+			end
+		end
+		data.Granted.Starter = true
+		dirty = #PetConfig.StartingPets > 0
+	end
+	if grantExclusives(profile) then
+		dirty = true
+	end
+	if dirty and PetConfig.AutoEquipNew then
+		fillEmptySlots(profile)
+	end
+	profile.Ready = true
+	if dirty then
+		changed(player, profile)
+	else
+		publish(player, profile)
+	end
+	if failed then
+		notify(player, "Your pets could not load. Please rejoin; nothing is saved until then.")
+	end
+end
+
+local function onPlayerRemoving(player: Player)
+	local profile = profiles[player]
+	if profile and needsSave(profile) then
+		saveData(player, profile)
+	end
+	profiles[player] = nil
+end
+
+---------------------------------------------------------------------
+-- Public API
+---------------------------------------------------------------------
+
+function PetService.GetMultiplier(player: Player): number
+	local value = player:GetAttribute("PetMultiplier")
+	return if type(value) == "number" then value else 1
+end
+
+function PetService.GetEquipped(player: Player): { string }
+	local profile = profiles[player]
+	if not profile then
+		return {}
+	end
+	return PetLogic.EquippedTypes(profile.Data, PetConfig.Pets)
+end
+
+function PetService.GetOwnedCounts(player: Player): { [string]: number }
+	local profile = profiles[player]
+	if not profile then
+		return {}
+	end
+	local counts = PetLogic.Counts(profile.Data)
+	return counts
+end
+
+-- Gives pets (for quests, codes, rewards). Returns how many were given (storage can be full).
+function PetService.GivePet(player: Player, petId: string, amount: number?): number
+	local profile = profiles[player]
+	if not profile or not profile.Ready or not PetConfig.Pets[petId] then
+		return 0
+	end
+	local given = 0
+	for _ = 1, amount or 1 do
+		if addPet(profile, petId, false) then
+			given += 1
+		end
+	end
+	if given > 0 then
+		if PetConfig.AutoEquipNew then
+			fillEmptySlots(profile)
+		end
+		changed(player, profile)
+	end
+	return given
+end
+
+-- Extra equip slots from your own systems (rebirths, VIP ...). Not saved by the pet system.
+function PetService.SetBonusSlots(player: Player, slots: number)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	profile.BonusSlots = math.max(0, math.floor(slots))
+	if profile.Ready then
+		publish(player, profile)
+	end
+end
+
+function PetService.IsReady(player: Player): boolean
+	local profile = profiles[player]
+	return profile ~= nil and profile.Ready
+end
+
+---------------------------------------------------------------------
+-- Start (called once by PetServer)
+---------------------------------------------------------------------
+
+function PetService.Start()
+	if started then
+		return
+	end
+	started = true
+
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(PetConfig.DataStoreName)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[Pets] Saving is off: " .. tostring(result))
+	end
+
+	local folder = ReplicatedStorage:FindFirstChild("PetRemotes")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "PetRemotes"
+		folder.Parent = ReplicatedStorage
+	end
+	local request = folder:FindFirstChild("PetRequest") or Instance.new("RemoteFunction")
+	request.Name = "PetRequest"
+	request.Parent = folder
+	local update = folder:FindFirstChild("PetUpdate") or Instance.new("RemoteEvent")
+	update.Name = "PetUpdate"
+	update.Parent = folder
+	remotes = { Request = request, Update = update }
+	request.OnServerInvoke = onRequest
+
+	EggStands.Build()
+
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+		local profile = profiles[player]
+		if not purchased or not profile or not profile.Ready then
+			return
+		end
+		refreshPasses(player, profile)
+		-- right after buying, Roblox can still say "not owned" for a moment
+		local passes = PetConfig.GamePasses
+		if passId == passes.ExtraSlots then
+			profile.Passes.ExtraSlots = true
+		elseif passId == passes.CrystalKing then
+			profile.Passes.CrystalKing = true
+		elseif passId == passes.TripleHatch then
+			profile.Passes.TripleHatch = true
+		end
+		grantExclusives(profile)
+		fillEmptySlots(profile)
+		changed(player, profile)
+	end)
+
+	Players.PlayerAdded:Connect(onPlayerAdded)
+	Players.PlayerRemoving:Connect(onPlayerRemoving)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(onPlayerAdded, player)
+	end
+
+	task.spawn(function()
+		while true do
+			task.wait(PetConfig.AutosaveSeconds)
+			for player, profile in pairs(profiles) do
+				if needsSave(profile) then
+					saveData(player, profile)
+					task.wait(0.5)
+				end
+			end
+		end
+	end)
+
+	game:BindToClose(function()
+		local pending = 0
+		for player, profile in pairs(profiles) do
+			if needsSave(profile) then
+				pending += 1
+				task.spawn(function()
+					saveData(player, profile)
+					pending -= 1
+				end)
+			end
+		end
+		local begin = os.clock()
+		while pending > 0 and os.clock() - begin < 25 do
+			task.wait(0.1)
+		end
+	end)
+end
+
+return PetService
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>

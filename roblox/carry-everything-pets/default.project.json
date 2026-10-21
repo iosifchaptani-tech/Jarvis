@@ -1,0 +1,23 @@
+{
+  "name": "CarryEverythingPets",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "PetShared": {
+        "$path": "src/ReplicatedStorage/PetShared"
+      }
+    },
+    "ServerScriptService": {
+      "PetSystem": {
+        "$path": "src/ServerScriptService/PetSystem"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "PetClient": {
+          "$path": "src/StarterPlayerScripts/PetClient"
+        }
+      }
+    }
+  }
+}

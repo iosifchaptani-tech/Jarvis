@@ -1,0 +1,2129 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Item class="Folder" referent="RBXC7397104A2402AF13AA6591DB1895126">
+		<Properties>
+			<string name="Name">PetShared</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBXE90BFA2F10D9649159BF8B4BC311A2AB">
+			<Properties>
+				<string name="Name">PetBuilder</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	PetBuilder  (ReplicatedStorage > PetShared > PetBuilder, a ModuleScript)
+
+	Builds a real 3D pet from the lines in PetModels and adds its aura:
+	  - neon outline (Highlight)
+	  - energy rings (curved Beams on Attachments that spin and tilt)
+	  - an aura shell (ForceField ball)
+	  - particles (ParticleEmitters with their own preset per effect)
+	  - lightning (Beams that flash between moving Attachments)
+	  - orbiting stars / crystals / diamonds
+	  - rainbow Trails
+
+	Used on each player's device (the pets that follow players, the menu pictures)
+	and by the server (the eggs on their stands).
+
+	Pet object:
+	  pet.Model, pet.Root           the Model and its anchored Root part
+	  pet:SetCFrame(cframe)         move the whole pet
+	  pet:Animate(t, dt, speed, detailed)
+	  pet:SetFx(level, rateMultiplier)   0 = no effects, 1 = rings only, 2 = everything
+	  pet:SetOutline(on)
+	  pet:Destroy()
+]]
+
+local PetConfig = require(script.Parent:WaitForChild("PetConfig"))
+local PetModels = require(script.Parent:WaitForChild("PetModels"))
+local PetLogic = require(script.Parent:WaitForChild("PetLogic"))
+
+local PetBuilder = {}
+
+local MATERIALS = {
+	P = Enum.Material.SmoothPlastic,
+	N = Enum.Material.Neon,
+	G = Enum.Material.Glass,
+	I = Enum.Material.Ice,
+}
+
+local SHAPES = {
+	Box = Enum.ParticleEmitterShape.Box,
+	Sphere = Enum.ParticleEmitterShape.Sphere,
+}
+local STYLES = {
+	Volume = Enum.ParticleEmitterShapeStyle.Volume,
+	Surface = Enum.ParticleEmitterShapeStyle.Surface,
+}
+local IN_OUT = {
+	Outward = Enum.ParticleEmitterShapeInOut.Outward,
+	Inward = Enum.ParticleEmitterShapeInOut.Inward,
+}
+local DIRECTIONS = {
+	Top = Enum.NormalId.Top,
+	Front = Enum.NormalId.Front,
+}
+
+-- Particle looks. Sizes and speeds are in studs and get multiplied by the pet size.
+local PRESETS = {
+	Sparkles = {
+		Texture = "Sparkle", Lifetime = { 0.7, 1.3 }, Speed = { 0.3, 1.2 }, Spread = 180,
+		Size = { { 0, 0.3 }, { 0.5, 0.42 }, { 1, 0 } }, Transparency = { { 0, 0.1 }, { 1, 1 } },
+		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -90, 90 }, Accel = Vector3.new(0, 0.6, 0), Drag = 1,
+		Shape = "Sphere", Style = "Volume", HostScale = 1.15,
+	},
+	Stars = {
+		Texture = "Sparkle", Lifetime = { 1.0, 1.8 }, Speed = { 0.1, 0.5 }, Spread = 180,
+		Size = { { 0, 0 }, { 0.35, 0.5 }, { 1, 0 } }, Transparency = { { 0, 0.6 }, { 0.35, 0 }, { 1, 1 } },
+		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -40, 40 },
+		Shape = "Sphere", Style = "Volume", HostScale = 1.45,
+	},
+	Snow = {
+		Texture = "Sparkle", Lifetime = { 1.2, 2.0 }, Speed = { 0.1, 0.4 }, Spread = 180,
+		Size = { { 0, 0.16 }, { 1, 0.1 } }, Transparency = { { 0, 0.15 }, { 0.8, 0.35 }, { 1, 1 } },
+		Light = 0.7, Rotation = { 0, 360 }, RotSpeed = { -60, 60 }, Accel = Vector3.new(0, -1.4, 0),
+		Shape = "Sphere", Style = "Volume", HostScale = 1.25,
+	},
+	Flames = {
+		Texture = "Fire", Lifetime = { 0.45, 0.8 }, Speed = { 0.8, 1.8 }, Spread = 25,
+		Size = { { 0, 0.8 }, { 0.6, 0.55 }, { 1, 0.1 } }, Transparency = { { 0, 0.35 }, { 0.5, 0.45 }, { 1, 1 } },
+		Light = 0.85, Rotation = { -180, 180 }, RotSpeed = { -60, 60 }, Accel = Vector3.new(0, 3, 0),
+		Shape = "Box", Style = "Volume",
+	},
+	DarkFlames = {
+		Texture = "Fire", Lifetime = { 0.5, 0.9 }, Speed = { 0.6, 1.4 }, Spread = 25,
+		Size = { { 0, 0.9 }, { 0.6, 0.6 }, { 1, 0.15 } }, Transparency = { { 0, 0.25 }, { 0.6, 0.4 }, { 1, 1 } },
+		Light = 0.1, Rotation = { -180, 180 }, RotSpeed = { -60, 60 }, Accel = Vector3.new(0, 2.5, 0),
+		Shape = "Box", Style = "Volume",
+	},
+	Smoke = {
+		Texture = "Smoke", Lifetime = { 1.5, 2.5 }, Speed = { 0.2, 0.5 }, Spread = 30,
+		Size = { { 0, 0.8 }, { 1, 2.2 } }, Transparency = { { 0, 0.7 }, { 1, 1 } },
+		Light = 0, LightInfluence = 0.3, Rotation = { 0, 360 }, RotSpeed = { -20, 20 }, Accel = Vector3.new(0, 0.4, 0),
+		Shape = "Box", Style = "Volume",
+	},
+	Embers = {
+		Texture = "Spark", Lifetime = { 0.8, 1.4 }, Speed = { 1.2, 2.6 }, Spread = 35,
+		Size = { { 0, 0.14 }, { 1, 0.04 } }, Transparency = { { 0, 0 }, { 0.7, 0.2 }, { 1, 1 } },
+		Light = 1, Accel = Vector3.new(0, 1, 0), Drag = 0.5,
+		Shape = "Box", Style = "Volume",
+	},
+	Pillar = {
+		Texture = "Sparkle", Lifetime = { 1.0, 1.6 }, Speed = { 2.5, 4.5 }, Spread = 4,
+		Size = { { 0, 0.3 }, { 1, 0 } }, Transparency = { { 0, 0.2 }, { 1, 1 } },
+		Light = 1, Shape = "Box", Style = "Volume",
+	},
+	Diamonds = {
+		Texture = "Sparkle", Lifetime = { 0.8, 1.4 }, Speed = { 0.4, 1.0 }, Spread = 180,
+		Size = { { 0, 0 }, { 0.3, 0.55 }, { 1, 0 } }, Transparency = { { 0, 0 }, { 1, 0.8 } },
+		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -180, 180 },
+		Shape = "Sphere", Style = "Volume", HostScale = 1.35,
+	},
+	Nebula = {
+		Texture = "Smoke", Lifetime = { 2.5, 3.5 }, Speed = { 0.1, 0.3 }, Spread = 180,
+		Size = { { 0, 1.4 }, { 0.5, 2.4 }, { 1, 2.8 } }, Transparency = { { 0, 1 }, { 0.3, 0.55 }, { 0.7, 0.6 }, { 1, 1 } },
+		Light = 1, Rotation = { 0, 360 }, RotSpeed = { -15, 15 },
+		Shape = "Sphere", Style = "Volume", HostScale = 1.3,
+	},
+	VoidPull = {
+		Texture = "Sparkle", Lifetime = { 0.7, 1.0 }, Speed = { 2.5, 3.5 }, Spread = 0,
+		Size = { { 0, 0.35 }, { 1, 0 } }, Transparency = { { 0, 0.2 }, { 1, 0.9 } },
+		Light = 1, Shape = "Sphere", Style = "Surface", InOut = "Inward", HostScale = 2.0,
+	},
+	Breath = {
+		Texture = "Fire", Lifetime = { 0.35, 0.6 }, Speed = { 2, 3.2 }, Spread = 12,
+		Size = { { 0, 0.25 }, { 1, 0.7 } }, Transparency = { { 0, 0.3 }, { 1, 1 } },
+		Light = 0.9, Direction = "Front", Shape = "Box", Style = "Volume",
+	},
+}
+
+local RAINBOW = {
+	Color3.fromRGB(255, 77, 109),
+	Color3.fromRGB(255, 176, 32),
+	Color3.fromRGB(255, 225, 77),
+	Color3.fromRGB(74, 222, 128),
+	Color3.fromRGB(56, 189, 248),
+	Color3.fromRGB(167, 139, 250),
+}
+
+---------------------------------------------------------------------
+-- Small helpers
+---------------------------------------------------------------------
+
+local function trySet(instance: Instance, property: string, value: any)
+	pcall(function()
+		(instance :: any)[property] = value
+	end)
+end
+
+local function plain(part: BasePart)
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false
+	part.CastShadow = false
+	part.Massless = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+end
+
+local function hiddenPart(name: string, parent: Instance): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = Vector3.new(0.2, 0.2, 0.2)
+	part.Transparency = 1
+	plain(part)
+	part.Parent = parent
+	return part
+end
+
+local function weld(part0: BasePart, part1: BasePart, c0: CFrame): Weld
+	local w = Instance.new("Weld")
+	w.Part0 = part0
+	w.Part1 = part1
+	w.C0 = c0
+	w.C1 = CFrame.identity
+	w.Parent = part1
+	return w
+end
+
+local function numberSequence(points: { { number } }, multiply: number?): NumberSequence
+	local m = multiply or 1
+	local keys = {}
+	for _, p in ipairs(points) do
+		table.insert(keys, NumberSequenceKeypoint.new(p[1], p[2] * m))
+	end
+	return NumberSequence.new(keys)
+end
+
+local function rainbowSequence(fromHue: number?, toHue: number?): ColorSequence
+	if fromHue and toHue then
+		local keys = {}
+		for i = 0, 4 do
+			local a = i / 4
+			local h = (fromHue + (toHue - fromHue) * a) % 1
+			table.insert(keys, ColorSequenceKeypoint.new(a, Color3.fromHSV(h, 0.75, 1)))
+		end
+		return ColorSequence.new(keys)
+	end
+	local keys = {}
+	for i, c in ipairs(RAINBOW) do
+		table.insert(keys, ColorSequenceKeypoint.new((i - 1) / (#RAINBOW - 1), c))
+	end
+	return ColorSequence.new(keys)
+end
+
+local function colorSequence(colors: any): ColorSequence
+	if colors == "Rainbow" then
+		return rainbowSequence()
+	end
+	if typeof(colors) == "Color3" then
+		return ColorSequence.new(colors)
+	end
+	if type(colors) == "table" and colors[1] then
+		return ColorSequence.new(colors[1], colors[2] or colors[1])
+	end
+	return ColorSequence.new(Color3.new(1, 1, 1))
+end
+
+local function angles(rot: { number }): CFrame
+	return CFrame.Angles(math.rad(rot[1]), math.rad(rot[2]), math.rad(rot[3]))
+end
+
+---------------------------------------------------------------------
+-- Model data (read once per pet type)
+---------------------------------------------------------------------
+
+local modelCache = {}
+
+local function modelData(petId: string)
+	if modelCache[petId] then
+		return modelCache[petId]
+	end
+	local source = PetModels[petId]
+	assert(source, "PetModels has no pet called " .. tostring(petId))
+	local parts = PetLogic.ParseModel(source.Parts)
+	local minV = Vector3.new(math.huge, math.huge, math.huge)
+	local maxV = -minV
+	for _, p in ipairs(parts) do
+		local cf = CFrame.new(p.Pos[1], p.Pos[2], p.Pos[3]) * angles(p.Rot)
+		local half = Vector3.new(p.Size[1], p.Size[2], p.Size[3]) / 2
+		for _, sx in ipairs({ -1, 1 }) do
+			for _, sy in ipairs({ -1, 1 }) do
+				for _, sz in ipairs({ -1, 1 }) do
+					local corner = cf * Vector3.new(half.X * sx, half.Y * sy, half.Z * sz)
+					minV = minV:Min(corner)
+					maxV = maxV:Max(corner)
+				end
+			end
+		end
+	end
+	local data = {
+		Parts = parts,
+		Pivots = PetLogic.ExpandPivots(source.Pivots),
+		WingAxis = source.WingAxis or "Z",
+		Min = minV,
+		Max = maxV,
+		Center = (minV + maxV) / 2,
+	}
+	modelCache[petId] = data
+	return data
+end
+
+-- Size information for a pet at a given scale (used for spacing and the menu pictures).
+function PetBuilder.GetInfo(petId: string, scale: number?)
+	local data = modelData(petId)
+	local s = scale or 1
+	local size = (data.Max - data.Min) * s
+	return {
+		Size = size,
+		Center = data.Center * s,
+		Bottom = data.Min.Y * s,
+		Radius = math.max(size.X, size.Z) / 2,
+	}
+end
+
+function PetBuilder.DefaultScale(petId: string): number
+	local def = PetConfig.Pets[petId]
+	return PetConfig.PetScale * ((def and def.Scale) or 1)
+end
+
+---------------------------------------------------------------------
+-- The pet object
+---------------------------------------------------------------------
+
+local Pet = {}
+Pet.__index = Pet
+
+function PetBuilder.Build(petId: string, options: { Scale: number?, Fx: boolean? }?)
+	local opts = options or {}
+	local def = PetConfig.Pets[petId]
+	assert(def, "PetConfig has no pet called " .. tostring(petId))
+	local data = modelData(petId)
+	local scale = opts.Scale or PetBuilder.DefaultScale(petId)
+
+	local model = Instance.new("Model")
+	model.Name = petId
+
+	local root = Instance.new("Part")
+	root.Name = "Root"
+	root.Size = Vector3.new(0.3, 0.3, 0.3)
+	root.Transparency = 1
+	plain(root)
+	root.Anchored = true
+	root.CFrame = CFrame.identity
+	root.Parent = model
+	model.PrimaryPart = root
+
+	local body = Instance.new("Model")
+	body.Name = "Body"
+	body.Parent = model
+
+	local self = setmetatable({}, Pet)
+	self.Id = petId
+	self.Def = def
+	self.Model = model
+	self.Body = body
+	self.Root = root
+	self.Scale = scale
+	self.WingAxis = data.WingAxis
+	self.Phase = math.random() * math.pi * 2
+	self.Hinges = {}
+	self.PartsByName = {}
+	self.Emitters = {}
+	self.Beams = {}
+	self.Rings = {}
+	self.Bolts = {}
+	self.Trails = {}
+	self.Hosts = {}
+	self.FxKey = -1
+	self.BoltsOn = false
+
+	local sizeV = (data.Max - data.Min) * scale
+	self.Size = sizeV
+	self.Center = data.Center * scale
+	self.Bottom = data.Min.Y * scale
+	self.Radius = math.max(sizeV.X, sizeV.Z) / 2
+
+	-- Hinges for the moving groups (head, tail, wings).
+	for group, p in pairs(data.Pivots) do
+		local base = CFrame.new(p[1] * scale, p[2] * scale, p[3] * scale)
+		local hinge = hiddenPart("Hinge" .. group, body)
+		hinge.CFrame = base
+		self.Hinges[group] = { Weld = weld(root, hinge, base), Base = base, Part = hinge }
+	end
+
+	-- The visible parts.
+	for _, p in ipairs(data.Parts) do
+		local part: BasePart
+		if p.Shape == "W" then
+			part = Instance.new("WedgePart")
+		else
+			part = Instance.new("Part")
+		end
+		part.Name = p.Name
+		part.Size = Vector3.new(p.Size[1], p.Size[2], p.Size[3]) * scale
+		part.Color = Color3.fromHex(p.Color)
+		part.Material = MATERIALS[p.Mat] or Enum.Material.SmoothPlastic
+		part.Transparency = p.Transparency
+		if p.Mat == "G" then
+			part.Reflectance = 0.12
+		end
+		plain(part)
+		local localCF = CFrame.new(p.Pos[1] * scale, p.Pos[2] * scale, p.Pos[3] * scale) * angles(p.Rot)
+		part.CFrame = localCF
+		local hinge = self.Hinges[p.Group]
+		if hinge then
+			weld(hinge.Part, part, hinge.Base:Inverse() * localCF)
+		else
+			weld(root, part, localCF)
+		end
+		part.Parent = body
+		self.PartsByName[p.Name] = part
+	end
+
+	if opts.Fx ~= false then
+		self:_buildAura()
+	end
+	return self
+end
+
+function Pet:_host(scaleFactor: number): Part
+	local key = math.floor(scaleFactor * 100)
+	if self.Hosts[key] then
+		return self.Hosts[key]
+	end
+	local host = hiddenPart("AuraVolume" .. key, self.Model)
+	local s = self.Size * 0.85 * scaleFactor
+	host.Size = Vector3.new(math.max(s.X, 0.5), math.max(s.Y, 0.5), math.max(s.Z, 0.5))
+	host.CFrame = CFrame.new(self.Center)
+	weld(self.Root, host, CFrame.new(self.Center))
+	self.Hosts[key] = host
+	return host
+end
+
+function Pet:_groundHost(radius: number): Part
+	if self.GroundHost then
+		return self.GroundHost
+	end
+	local host = hiddenPart("AuraGround", self.Model)
+	host.Size = Vector3.new(radius * 2, 0.2, radius * 2)
+	local cf = CFrame.new(0, self.Bottom - 0.15, 0)
+	host.CFrame = cf
+	weld(self.Root, host, cf)
+	self.GroundHost = host
+	return host
+end
+
+function Pet:_buildAura()
+	local aura = self.Def.Aura or {}
+	local scale = self.Scale
+
+	local outline = Instance.new("Highlight")
+	outline.Name = "Outline"
+	outline.Adornee = self.Body
+	outline.DepthMode = Enum.HighlightDepthMode.Occluded
+	outline.FillTransparency = 1
+	outline.OutlineTransparency = 0
+	if typeof(aura.Outline) == "Color3" then
+		outline.OutlineColor = aura.Outline
+	else
+		outline.OutlineColor = Color3.new(1, 1, 1)
+	end
+	outline.Enabled = false
+	outline.Parent = self.Model
+	self.Outline = outline
+	self.HueCycle = aura.HueCycle == true or aura.Outline == "Rainbow"
+
+	local biggestRing = self.Radius
+	for _, ring in ipairs(aura.Rings or {}) do
+		biggestRing = math.max(biggestRing, ring.Radius * scale)
+	end
+	self.AuraRadius = biggestRing
+
+	if aura.Shell then
+		local shell = Instance.new("Part")
+		shell.Name = "AuraShell"
+		shell.Shape = Enum.PartType.Ball
+		local d = math.max(self.Size.X, self.Size.Y, self.Size.Z) * (aura.Shell.Size or 1.2)
+		shell.Size = Vector3.new(d, d, d)
+		shell.Material = Enum.Material.ForceField
+		shell.Color = aura.Shell.Color
+		shell.Transparency = aura.Shell.Transparency or 0.4
+		plain(shell)
+		shell.CFrame = CFrame.new(self.Center)
+		weld(self.Root, shell, CFrame.new(self.Center))
+		shell.Parent = self.Model
+		self.Shell = shell
+		self.ShellTransparency = shell.Transparency
+	end
+
+	for i, ring in ipairs(aura.Rings or {}) do
+		self:_buildRing(i, ring)
+	end
+	for _, spec in ipairs(aura.Particles or {}) do
+		self:_buildParticles(spec)
+	end
+	if aura.Lightning then
+		self:_buildLightning(aura.Lightning)
+	end
+	if aura.Orbiters then
+		self:_buildOrbiters(aura.Orbiters)
+	end
+	if aura.Trails then
+		self:_buildTrails(aura.Trails)
+	end
+end
+
+-- A ring = 4 curved Beams between 4 Attachments on a hidden holder part.
+-- Each Beam fades from bright to clear, so the spinning ring looks like 4 comets.
+function Pet:_buildRing(index: number, ring)
+	local scale = self.Scale
+	local radius = ring.Radius * scale
+	local base = CFrame.new(0, (ring.Y or 0) * scale, 0)
+	local holder = hiddenPart("Ring" .. index, self.Model)
+	holder.CFrame = base
+	local ringWeld = weld(self.Root, holder, base)
+
+	local segments = 4
+	local curve = 4 / 3 * math.tan(math.rad(360 / segments) / 4) * radius
+	local attachments = {}
+	for s = 0, segments - 1 do
+		local a = math.rad(s * 360 / segments)
+		local position = Vector3.new(math.cos(a) * radius, 0, math.sin(a) * radius)
+		local tangent = Vector3.new(-math.sin(a), 0, math.cos(a))
+		local att = Instance.new("Attachment")
+		att.Name = "RingPoint" .. s
+		att.CFrame = CFrame.fromMatrix(position, tangent, Vector3.yAxis)
+		att.Parent = holder
+		attachments[s + 1] = att
+	end
+
+	local forward = (ring.Spin or 0) >= 0
+	local width = (ring.Width or 0.15) * scale
+	for s = 1, segments do
+		local beam = Instance.new("Beam")
+		beam.Name = "RingBeam" .. s
+		beam.Attachment0 = attachments[s]
+		beam.Attachment1 = attachments[s % segments + 1]
+		beam.CurveSize0 = curve
+		beam.CurveSize1 = curve
+		if ring.Colors == "Rainbow" then
+			beam.Color = rainbowSequence((s - 1) / segments, s / segments)
+		else
+			beam.Color = colorSequence(ring.Colors)
+		end
+		if forward then
+			-- spinning towards Attachment1: the bright head is at the front
+			beam.Transparency = numberSequence({ { 0, 0.9 }, { 0.4, 0.35 }, { 1, 0 } })
+			beam.Width0 = width * 0.35
+			beam.Width1 = width
+		else
+			beam.Transparency = numberSequence({ { 0, 0 }, { 0.6, 0.35 }, { 1, 0.9 } })
+			beam.Width0 = width
+			beam.Width1 = width * 0.35
+		end
+		beam.FaceCamera = true
+		beam.LightEmission = 1
+		beam.LightInfluence = 0
+		beam.Segments = 12
+		trySet(beam, "Brightness", 2)
+		beam.Parent = holder
+		table.insert(self.Beams, beam)
+	end
+
+	table.insert(self.Rings, {
+		Weld = ringWeld,
+		Base = base,
+		Tilt = math.rad(ring.Tilt or 0),
+		Spin = math.rad(ring.Spin or 0),
+		Precess = math.rad(ring.Precess or 0),
+		Phase = math.random() * math.pi * 2,
+	})
+end
+
+function Pet:_buildParticles(spec)
+	local preset = PRESETS[spec.Preset]
+	if not preset then
+		warn("[Pets] Unknown particle preset: " .. tostring(spec.Preset))
+		return
+	end
+	local scale = self.Scale
+	local where = spec.Where or "Body"
+	local hosts = {}
+	local fromModelPart = false
+	if where == "Ground" then
+		table.insert(hosts, self:_groundHost(math.max(self.Radius * 1.1, 1)))
+	elseif string.sub(where, 1, 5) == "Part:" then
+		local part = self.PartsByName[string.sub(where, 6)]
+		if part then
+			table.insert(hosts, part)
+			fromModelPart = true
+		end
+	elseif string.sub(where, 1, 6) == "Parts:" then
+		for name in string.gmatch(string.sub(where, 7), "[^,%s]+") do
+			local part = self.PartsByName[name]
+			if part then
+				table.insert(hosts, part)
+				fromModelPart = true
+			end
+		end
+	end
+	if #hosts == 0 then
+		table.insert(hosts, self:_host(preset.HostScale or 1))
+		fromModelPart = false
+	end
+
+	local rate = (spec.Rate or 5) / #hosts
+	local sizeScale = scale * (spec.Size or 1)
+	for _, host in ipairs(hosts) do
+		local e = Instance.new("ParticleEmitter")
+		e.Name = spec.Preset
+		e.Texture = PetConfig.Textures[preset.Texture] or PetConfig.Textures.Sparkle
+		e.Color = colorSequence(spec.Colors)
+		e.Lifetime = NumberRange.new(preset.Lifetime[1], preset.Lifetime[2])
+		e.Speed = NumberRange.new(preset.Speed[1] * scale, preset.Speed[2] * scale)
+		e.SpreadAngle = Vector2.new(preset.Spread, preset.Spread)
+		e.Size = numberSequence(preset.Size, sizeScale)
+		e.Transparency = numberSequence(preset.Transparency)
+		e.LightEmission = preset.Light or 1
+		e.LightInfluence = preset.LightInfluence or 0
+		if preset.Rotation then
+			e.Rotation = NumberRange.new(preset.Rotation[1], preset.Rotation[2])
+		end
+		if preset.RotSpeed then
+			e.RotSpeed = NumberRange.new(preset.RotSpeed[1], preset.RotSpeed[2])
+		end
+		e.Acceleration = (preset.Accel or Vector3.zero) * scale
+		e.Drag = preset.Drag or 0
+		e.EmissionDirection = DIRECTIONS[preset.Direction or "Top"]
+		if not fromModelPart then
+			trySet(e, "Shape", SHAPES[preset.Shape or "Box"])
+			trySet(e, "ShapeStyle", STYLES[preset.Style or "Volume"])
+			trySet(e, "ShapeInOut", IN_OUT[preset.InOut or "Outward"])
+		end
+		trySet(e, "Brightness", 1.5)
+		e.Rate = rate
+		e.Enabled = false
+		e.Parent = host
+		table.insert(self.Emitters, { Emitter = e, Rate = rate })
+	end
+end
+
+-- Lightning: each bolt is 6 Attachments joined by 5 straight Beams.
+-- Every strike moves the Attachments to a new zig-zag path for a split second.
+function Pet:_buildLightning(spec)
+	local holder = hiddenPart("Lightning", self.Model)
+	holder.CFrame = CFrame.new(self.Center)
+	weld(self.Root, holder, CFrame.new(self.Center))
+	for _ = 1, spec.Bolts or 2 do
+		local atts, beams = {}, {}
+		for i = 1, 6 do
+			local att = Instance.new("Attachment")
+			att.Parent = holder
+			atts[i] = att
+		end
+		for i = 1, 5 do
+			local beam = Instance.new("Beam")
+			beam.Attachment0 = atts[i]
+			beam.Attachment1 = atts[i + 1]
+			beam.Width0 = 0.18 * self.Scale
+			beam.Width1 = 0.12 * self.Scale
+			beam.Color = ColorSequence.new(Color3.new(1, 1, 1), spec.Color)
+			beam.LightEmission = 1
+			beam.LightInfluence = 0
+			beam.FaceCamera = true
+			beam.Segments = 1
+			trySet(beam, "Brightness", 3)
+			beam.Enabled = false
+			beam.Parent = holder
+			beams[i] = beam
+		end
+		table.insert(self.Bolts, {
+			Atts = atts,
+			Beams = beams,
+			Every = spec.Every or { 0.6, 1.4 },
+			Next = math.random() * 1.5,
+			Off = 0,
+		})
+	end
+	self.BoltRadius = math.max(self.Radius, self.Size.Y / 2) + 1.4 * self.Scale
+end
+
+function Pet:_buildOrbiters(spec)
+	local scale = self.Scale
+	local holder = hiddenPart("Orbit", self.Model)
+	local base = CFrame.new(0, (spec.Y or 0.5) * scale, 0)
+	holder.CFrame = base
+	local orbitWeld = weld(self.Root, holder, base)
+	local radius = (spec.Radius or 2.5) * scale
+	local size = (spec.Size or 0.3) * scale
+	for i = 1, spec.Count or 5 do
+		local a = (i - 1) / (spec.Count or 5) * math.pi * 2
+		local part = Instance.new("Part")
+		part.Name = "Orbiter" .. i
+		local rot
+		if spec.Kind == "Crystal" then
+			part.Size = Vector3.new(size * 0.45, size * 1.3, size * 0.45)
+			rot = CFrame.Angles(0, math.rad(45), math.rad(12))
+		elseif spec.Kind == "Diamond" then
+			part.Size = Vector3.new(size, size, size)
+			rot = CFrame.Angles(math.rad(45), 0, math.rad(45))
+		else
+			part.Size = Vector3.new(size, size, size)
+			rot = CFrame.Angles(math.rad(45), math.rad(45), 0)
+		end
+		part.Material = Enum.Material.Neon
+		part.Color = spec.Color or Color3.new(1, 1, 1)
+		plain(part)
+		local localCF = CFrame.new(math.cos(a) * radius, math.sin(a * 3) * 0.15 * scale, math.sin(a) * radius) * rot
+		part.CFrame = base * localCF
+		weld(holder, part, localCF)
+		part.Parent = self.Model
+	end
+	self.Orbit = {
+		Weld = orbitWeld,
+		Base = base,
+		Tilt = math.rad(spec.Tilt or 0),
+		Speed = math.rad(spec.Speed or 45),
+		Bob = spec.Kind == "Crystal",
+	}
+end
+
+function Pet:_buildTrails(spec)
+	for _, name in ipairs(spec.Parts or {}) do
+		local part = self.PartsByName[name]
+		if part then
+			local half = part.Size.X * 0.4
+			local a0 = Instance.new("Attachment")
+			a0.Position = Vector3.new(-half, 0, 0)
+			a0.Parent = part
+			local a1 = Instance.new("Attachment")
+			a1.Position = Vector3.new(half, 0, 0)
+			a1.Parent = part
+			local trail = Instance.new("Trail")
+			trail.Attachment0 = a0
+			trail.Attachment1 = a1
+			trail.Lifetime = 0.55
+			trail.MinLength = 0.05
+			trail.FaceCamera = true
+			trail.LightEmission = 1
+			trail.LightInfluence = 0
+			trail.Color = if spec.Rainbow then rainbowSequence() else colorSequence(spec.Colors)
+			trail.Transparency = numberSequence({ { 0, 0.15 }, { 1, 1 } })
+			trail.WidthScale = numberSequence({ { 0, 1 }, { 1, 0.2 } })
+			trail.Enabled = false
+			trail.Parent = part
+			table.insert(self.Trails, trail)
+		end
+	end
+end
+
+---------------------------------------------------------------------
+-- Every frame
+---------------------------------------------------------------------
+
+function Pet:SetCFrame(cf: CFrame)
+	self.Root.CFrame = cf
+end
+
+local function strike(self, bolt)
+	local r = self.BoltRadius or 3
+	local dir = Vector3.new(math.random() * 2 - 1, math.random() * 1.2 - 0.4, math.random() * 2 - 1)
+	if dir.Magnitude < 0.05 then
+		dir = Vector3.xAxis
+	end
+	dir = dir.Unit
+	local side = dir:Cross(Vector3.yAxis)
+	if side.Magnitude < 0.05 then
+		side = Vector3.xAxis
+	end
+	side = side.Unit
+	local up = side:Cross(dir).Unit
+	local startPos = dir * r * 0.25
+	local endPos = dir * r * 1.15
+	for i, att in ipairs(bolt.Atts) do
+		local f = (i - 1) / (#bolt.Atts - 1)
+		local p = startPos:Lerp(endPos, f)
+		if i > 1 and i < #bolt.Atts then
+			local j = r * 0.18
+			p += side * (math.random() * 2 - 1) * j + up * (math.random() * 2 - 1) * j
+		end
+		att.Position = p
+	end
+	for _, beam in ipairs(bolt.Beams) do
+		beam.Enabled = true
+	end
+end
+
+-- t: time in seconds, dt: frame time, speed: how fast the owner moves,
+-- detailed: false for far pets (only cheap work is done).
+function Pet:Animate(t: number, dt: number, speed: number, detailed: boolean)
+	if detailed then
+		local phase = self.Phase
+		local flap
+		if self.WingAxis == "Y" then
+			flap = math.rad(16 * math.sin(t * 4 + phase) + 6)
+		else
+			flap = math.rad(22 * math.sin(t * (6 + math.min(speed, 24) * 0.15) + phase) + 8)
+		end
+		for group, hinge in pairs(self.Hinges) do
+			local rot
+			if group == "WingL" then
+				rot = if self.WingAxis == "Y" then CFrame.Angles(0, flap, 0) else CFrame.Angles(0, 0, flap)
+			elseif group == "WingR" then
+				rot = if self.WingAxis == "Y" then CFrame.Angles(0, -flap, 0) else CFrame.Angles(0, 0, -flap)
+			elseif group == "Tail" then
+				rot = CFrame.Angles(0, math.rad(12) * math.sin(t * 3 + phase), 0)
+			elseif group == "Head" then
+				rot = CFrame.Angles(math.rad(4) * math.sin(t * 2 + phase), 0, 0)
+			end
+			if rot then
+				hinge.Weld.C0 = hinge.Base * rot
+			end
+		end
+	end
+
+	local level = self.FxLevel or 0
+	if level >= 1 then
+		for _, ring in ipairs(self.Rings) do
+			ring.Weld.C0 = ring.Base
+				* CFrame.Angles(0, ring.Precess * t + ring.Phase, 0)
+				* CFrame.Angles(ring.Tilt, 0, 0)
+				* CFrame.Angles(0, ring.Spin * t, 0)
+		end
+		local orbit = self.Orbit
+		if orbit then
+			local bob = if orbit.Bob then math.sin(t * 2) * 0.25 * self.Scale else 0
+			orbit.Weld.C0 = orbit.Base * CFrame.new(0, bob, 0) * CFrame.Angles(orbit.Tilt, 0, 0) * CFrame.Angles(0, orbit.Speed * t, 0)
+		end
+	end
+
+	if self.BoltsOn then
+		for _, bolt in ipairs(self.Bolts) do
+			if bolt.Off > 0 then
+				bolt.Off -= dt
+				if bolt.Off <= 0 then
+					for _, beam in ipairs(bolt.Beams) do
+						beam.Enabled = false
+					end
+				end
+			end
+			bolt.Next -= dt
+			if bolt.Next <= 0 then
+				strike(self, bolt)
+				bolt.Off = 0.09 + math.random() * 0.06
+				bolt.Next = bolt.Every[1] + math.random() * (bolt.Every[2] - bolt.Every[1])
+			end
+		end
+	end
+
+	if self.HueCycle and level >= 1 then
+		local h = (t * 0.12) % 1
+		if self.Shell then
+			self.Shell.Color = Color3.fromHSV(h, 0.5, 1)
+		end
+		if self.Outline then
+			self.Outline.OutlineColor = Color3.fromHSV(h, 0.65, 1)
+		end
+	end
+end
+
+-- level: 0 = no effects, 1 = rings + shell, 2 = everything. rateMultiplier scales the particles.
+function Pet:SetFx(level: number, rateMultiplier: number)
+	local key = level * 1000 + math.floor(rateMultiplier * 100 + 0.5)
+	if key == self.FxKey then
+		return
+	end
+	self.FxKey = key
+	self.FxLevel = level
+	local particles = level >= 2 and rateMultiplier > 0
+	for _, item in ipairs(self.Emitters) do
+		item.Emitter.Rate = item.Rate * rateMultiplier
+		item.Emitter.Enabled = particles
+	end
+	for _, beam in ipairs(self.Beams) do
+		beam.Enabled = level >= 1
+	end
+	for _, trail in ipairs(self.Trails) do
+		trail.Enabled = level >= 2
+	end
+	self.BoltsOn = level >= 2 and #self.Bolts > 0
+	if not self.BoltsOn then
+		for _, bolt in ipairs(self.Bolts) do
+			for _, beam in ipairs(bolt.Beams) do
+				beam.Enabled = false
+			end
+		end
+	end
+	if self.Shell then
+		self.Shell.Transparency = if level >= 1 then self.ShellTransparency else 1
+	end
+end
+
+function Pet:SetOutline(on: boolean)
+	if self.Outline and self.Outline.Enabled ~= on then
+		self.Outline.Enabled = on
+	end
+end
+
+-- A short burst when the pet appears.
+function Pet:Poof()
+	local host = self:_host(1)
+	local e = Instance.new("ParticleEmitter")
+	e.Texture = PetConfig.Textures.Sparkle
+	local aura = self.Def.Aura or {}
+	e.Color = if typeof(aura.Outline) == "Color3" then ColorSequence.new(aura.Outline) else rainbowSequence()
+	e.Lifetime = NumberRange.new(0.4, 0.7)
+	e.Speed = NumberRange.new(4 * self.Scale, 8 * self.Scale)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Size = numberSequence({ { 0, 0.6 }, { 1, 0 } }, self.Scale)
+	e.LightEmission = 1
+	e.LightInfluence = 0
+	e.Drag = 4
+	e.Rate = 0
+	e.Parent = host
+	e:Emit(24)
+	task.delay(1, function()
+		e:Destroy()
+	end)
+end
+
+function Pet:Destroy()
+	self.Model:Destroy()
+end
+
+---------------------------------------------------------------------
+-- Blocky eggs (for the egg stands and the hatch animation)
+---------------------------------------------------------------------
+
+local EGG_WIDTHS = { 6, 10, 12, 14, 16, 16, 16, 16, 14, 10 } -- top to bottom, in "pixels"
+
+-- Returns a Model whose bottom centre is at (0, 0, 0). Height = 5 studs * scale.
+function PetBuilder.BuildEgg(eggId: string, scale: number?): Model
+	local egg = PetConfig.Eggs[eggId]
+	assert(egg, "PetConfig has no egg called " .. tostring(eggId))
+	local s = scale or 1
+	local px = 0.25 * s
+	local model = Instance.new("Model")
+	model.Name = eggId
+	local count = #EGG_WIDTHS
+	local middle
+	for i, w in ipairs(EGG_WIDTHS) do
+		local layer = Instance.new("Part")
+		layer.Name = "Layer" .. i
+		layer.Size = Vector3.new(w * px, 2 * px, w * px)
+		layer.CFrame = CFrame.new(0, (count - i) * 2 * px + px, 0)
+		layer.Color = egg.Colors.Base
+		layer.Material = Enum.Material.SmoothPlastic
+		plain(layer)
+		layer.Anchored = true
+		layer.Parent = model
+		if i == 6 then
+			middle = layer
+		end
+	end
+	-- glowing spots: { layer, side, offset along the side }
+	local spots = { { 3, "F", 1 }, { 5, "R", -2 }, { 6, "F", -4 }, { 8, "L", 2 }, { 7, "B", 3 }, { 2, "B", -1 }, { 9, "F", 3 } }
+	for n, spot in ipairs(spots) do
+		local layerIndex, side, offset = spot[1], spot[2], spot[3]
+		local hw = EGG_WIDTHS[layerIndex] * px / 2
+		local y = (count - layerIndex) * 2 * px + px
+		local part = Instance.new("Part")
+		part.Name = "Spot" .. n
+		part.Material = Enum.Material.Neon
+		part.Color = egg.Colors.Spots[(n % #egg.Colors.Spots) + 1]
+		local depth = 0.12 * s
+		if side == "F" or side == "B" then
+			part.Size = Vector3.new(2 * px, 1.6 * px, depth)
+			local z = (hw + depth / 2 - 0.02 * s) * (if side == "F" then -1 else 1)
+			part.CFrame = CFrame.new(offset * px, y, z)
+		else
+			part.Size = Vector3.new(depth, 1.6 * px, 2 * px)
+			local x = (hw + depth / 2 - 0.02 * s) * (if side == "L" then -1 else 1)
+			part.CFrame = CFrame.new(x, y, offset * px)
+		end
+		plain(part)
+		part.Anchored = true
+		part.Parent = model
+	end
+	local shine = Instance.new("Part")
+	shine.Name = "Shine"
+	shine.Material = Enum.Material.Neon
+	shine.Color = Color3.new(1, 1, 1)
+	shine.Transparency = 0.25
+	shine.Size = Vector3.new(2 * px, 4 * px, 0.1 * s)
+	local hw5 = EGG_WIDTHS[5] * px / 2 -- layers 5 and 6 are equally wide
+	shine.CFrame = CFrame.new(-4 * px, (count - 5) * 2 * px, -hw5 - 0.03 * s)
+	plain(shine)
+	shine.Anchored = true
+	shine.Parent = model
+	model.PrimaryPart = middle
+	return model
+end
+
+return PetBuilder
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBXFC57DEADCFA728A9ABA5C72C26536A3B">
+			<Properties>
+				<string name="Name">PetConfig</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	PetConfig  (ReplicatedStorage > PetShared > PetConfig, a ModuleScript)
+
+	Every number you may want to change is in this file:
+	prices, odds, equip slots, game passes, pet power, auras and effects.
+	The server and every player's device read the same file.
+]]
+
+local function hex(code: string): Color3
+	return Color3.fromHex(code)
+end
+
+local PetConfig = {}
+
+---------------------------------------------------------------------
+-- 1. YOUR GAME
+---------------------------------------------------------------------
+
+-- The name of your coins value inside leaderstats (an IntValue or NumberValue).
+PetConfig.CurrencyName = "Coins"
+-- Also tried, in this order, when CurrencyName is not found.
+PetConfig.CurrencyFallbacks = { "Coins", "Cash", "Money", "Gold" }
+-- Only in Studio: if your game has no coins value yet, make leaderstats > Coins
+-- with this many coins so you can test the eggs. Never happens in the live game.
+PetConfig.StudioTestCoins = 1000000
+
+---------------------------------------------------------------------
+-- 2. PETS PER PLAYER
+---------------------------------------------------------------------
+
+PetConfig.MaxEquipped = 4 -- pets that follow you at the same time
+PetConfig.MaxStorage = 50 -- pets you can own
+PetConfig.AutoEquipNew = true -- new pets fill empty equip slots by themselves
+PetConfig.StartingPets = {} -- for example { "SnowFox" } to give every new player a pet
+
+---------------------------------------------------------------------
+-- 3. GAME PASSES  (0 = turned off)
+---------------------------------------------------------------------
+
+PetConfig.GamePasses = {
+	ExtraSlots = 0, -- owners get ExtraSlotsAmount more equip slots
+	CrystalKing = 0, -- owners get the Crystal King (Exclusive) pet
+	TripleHatch = 0, -- if 0, everyone can open 3 eggs at once
+}
+PetConfig.ExtraSlotsAmount = 2
+
+---------------------------------------------------------------------
+-- 4. LOOK AND MOVEMENT
+---------------------------------------------------------------------
+
+PetConfig.PetScale = 0.75 -- size of all pets (1 = model size)
+PetConfig.FloatHeight = 0.6 -- how high pets float, compared to your waist
+PetConfig.FollowSmoothness = 9 -- higher = pets catch up faster
+PetConfig.Formations = { "Arc", "Circle", "V" }
+PetConfig.DefaultFormation = "Arc"
+
+-- Where the orange PETS button sits (move it if it covers one of your own buttons).
+PetConfig.PetsButtonAnchor = Vector2.new(0, 0.5)
+PetConfig.PetsButtonPosition = UDim2.new(0, 12, 0.5, -10)
+
+---------------------------------------------------------------------
+-- 5. PERFORMANCE (keeps phones smooth)
+---------------------------------------------------------------------
+
+PetConfig.Fx = {
+	ParticleDistance = 85, -- particles and lightning stop further away than this (studs from the camera)
+	RingDistance = 140, -- energy rings stop further away than this
+	HideDistance = 260, -- whole pets hide further away than this
+	MaxParticlePets = 14, -- only the nearest pets this many get particles
+	OutlineBudget = 24, -- neon outlines at once (Roblox shows at most 31)
+	OtherPlayersRate = 0.5, -- other players' pets use half the particles
+	LowRate = 0.4, -- particle amount on the "Low" effects setting
+	PhonesStartLow = true, -- phones and tablets start on "Low"
+}
+
+PetConfig.Textures = {
+	Sparkle = "rbxasset://textures/particles/sparkles_main.dds",
+	Fire = "rbxasset://textures/particles/fire_main.dds",
+	Smoke = "rbxasset://textures/particles/smoke_main.dds",
+	Spark = "rbxasset://textures/particles/fire_sparks_main.dds",
+}
+
+---------------------------------------------------------------------
+-- 6. SAVING AND TESTING
+---------------------------------------------------------------------
+
+PetConfig.DataStoreName = "CarryEverything_Pets_v1"
+PetConfig.AutosaveSeconds = 120
+PetConfig.HatchCooldown = 0.9 -- seconds between two egg openings
+PetConfig.EggRange = 14 -- how close (studs) you must stand to open an egg
+
+-- Chat test commands: "!pet coins 100000", "!pet give Phoenix 2", "!pet reset".
+-- They work for everyone in Studio, and in the live game only for these UserIds.
+PetConfig.Admins = {}
+PetConfig.CommandPrefix = "!pet"
+
+-- Rarity Legendary and up: the whole server sees "X hatched a Mythic Demon Dragon!"
+PetConfig.AnnounceFromOrder = 4
+
+---------------------------------------------------------------------
+-- 7. RARITIES
+---------------------------------------------------------------------
+
+PetConfig.Rarities = {
+	Common = { Order = 1, Color = hex("#E6EEF7") },
+	Rare = { Order = 2, Color = hex("#3DA9FF") },
+	Epic = { Order = 3, Color = hex("#C36BFF") },
+	Legendary = { Order = 4, Color = hex("#FFC21A") },
+	Mythic = { Order = 5, Color = hex("#FF4040") },
+	Celestial = { Order = 6, Color = hex("#5CF2FF") },
+	Galaxy = { Order = 7, Color = hex("#FF6AD5"), Gradient = { hex("#8B7CFF"), hex("#FF6AD5") } },
+	Void = { Order = 8, Color = hex("#9D5CFF"), Gradient = { hex("#6B21A8"), hex("#C77DFF") } },
+	Rainbow = {
+		Order = 9,
+		Color = hex("#F9A8D4"),
+		Gradient = { hex("#FF4D6D"), hex("#FFB020"), hex("#FFE14D"), hex("#4ADE80"), hex("#38BDF8"), hex("#A78BFA") },
+	},
+	Exclusive = { Order = 10, Color = hex("#9FD8FF"), Gradient = { hex("#E0F7FF"), hex("#3B82F6") }, NoDelete = true },
+}
+
+---------------------------------------------------------------------
+-- 8. PETS
+-- Power: added to the multiplier while the pet is equipped.
+--   Multiplier = 1 + the Power of every equipped pet.
+-- Scale: size of this pet compared to the others.
+-- Aura:
+--   Outline   neon outline color (or "Rainbow")
+--   Rings     energy rings made of Beams: Radius, Width, Tilt (degrees), Y (height),
+--             Colors {from, to} or "Rainbow", Spin and Precess (degrees per second)
+--   Shell     glowing ForceField ball: Color, Transparency, Size (times the pet size)
+--   Particles { Preset, Colors, Rate (per second), Where }
+--             Presets: Sparkles, Stars, Snow, Flames, DarkFlames, Smoke, Embers,
+--                      Pillar, Diamonds, Nebula, VoidPull, Breath
+--             Where: "Body" (default), "Ground", or "Part:<part name>" / "Parts:<a>,<b>"
+--   Lightning { Color, Bolts, Every = {min, max} seconds }
+--   Orbiters  { Kind = "Star" | "Crystal" | "Diamond", Count, Radius, Y, Tilt, Speed, Color, Size }
+--   Trails    { Parts = {...}, Rainbow = true }
+--   HueCycle  true = shell and outline slowly cycle through all colors
+---------------------------------------------------------------------
+
+PetConfig.Pets = {
+	SnowFox = {
+		Name = "Snow Fox",
+		Rarity = "Common",
+		Power = 0.5,
+		Scale = 1.0,
+		Description = "A white fox with ice-blue eyes and a glowing tail tip.",
+		Aura = {
+			Outline = hex("#FFFFFF"),
+			Rings = {
+				{ Radius = 1.9, Width = 0.14, Tilt = 12, Y = 0, Colors = { hex("#FFFFFF"), hex("#BDF4FF") }, Spin = 120, Precess = 25 },
+			},
+			Particles = {
+				{ Preset = "Sparkles", Colors = { hex("#FFFFFF"), hex("#CFF4FF") }, Rate = 6 },
+				{ Preset = "Snow", Colors = { hex("#FFFFFF"), hex("#E6FBFF") }, Rate = 3 },
+			},
+		},
+	},
+
+	IceDragon = {
+		Name = "Ice Dragon",
+		Rarity = "Rare",
+		Power = 1.5,
+		Scale = 1.05,
+		Description = "A blue dragon with ice horns, crystal spikes and see-through wings.",
+		Aura = {
+			Outline = hex("#3DA9FF"),
+			Rings = {
+				{ Radius = 2.3, Width = 0.16, Tilt = 18, Y = 0.1, Colors = { hex("#9CFFFF"), hex("#3DA9FF") }, Spin = 140, Precess = 30 },
+				{ Radius = 2.7, Width = 0.12, Tilt = -32, Y = 0.1, Colors = { hex("#E6FBFF"), hex("#7FD8FF") }, Spin = -100, Precess = -20 },
+			},
+			Particles = {
+				{ Preset = "Flames", Colors = { hex("#7FF3FF"), hex("#1E90FF") }, Rate = 9 },
+				{ Preset = "Snow", Colors = { hex("#E6FBFF"), hex("#BDF4FF") }, Rate = 6 },
+				{ Preset = "Breath", Colors = { hex("#CFFFFF"), hex("#7FD8FF") }, Rate = 4, Where = "Part:snout" },
+			},
+		},
+	},
+
+	ShadowCat = {
+		Name = "Shadow Cat",
+		Rarity = "Epic",
+		Power = 4,
+		Scale = 1.05,
+		Description = "A purple cat with big glowing eyes, slit pupils and neon whiskers.",
+		Aura = {
+			Outline = hex("#C36BFF"),
+			Rings = {
+				{ Radius = 2.0, Width = 0.15, Tilt = 20, Y = 0.1, Colors = { hex("#E879F9"), hex("#7C3AED") }, Spin = 150, Precess = 35 },
+				{ Radius = 2.4, Width = 0.1, Tilt = -25, Y = 0.1, Colors = { hex("#C084FC"), hex("#4C1D95") }, Spin = -120, Precess = -25 },
+			},
+			Shell = { Color = hex("#7C3AED"), Transparency = 0.55, Size = 1.12 },
+			Particles = {
+				{ Preset = "DarkFlames", Colors = { hex("#6B21A8"), hex("#12061F") }, Rate = 12 },
+				{ Preset = "Smoke", Colors = { hex("#2E1065"), hex("#4C1D95") }, Rate = 3, Where = "Ground" },
+				{ Preset = "Sparkles", Colors = { hex("#F0ABFC"), hex("#E879F9") }, Rate = 3, Where = "Parts:eyeL,eyeR" },
+			},
+		},
+	},
+
+	Phoenix = {
+		Name = "Phoenix",
+		Rarity = "Legendary",
+		Power = 10,
+		Scale = 1.1,
+		Description = "A golden bird with huge fiery wings, a flame crest and long tail feathers.",
+		Aura = {
+			Outline = hex("#FFC21A"),
+			Rings = {
+				{ Radius = 2.6, Width = 0.2, Tilt = 15, Y = 0.2, Colors = { hex("#FFE066"), hex("#FF7A00") }, Spin = 160, Precess = 40 },
+				{ Radius = 3.1, Width = 0.14, Tilt = -35, Y = 0.2, Colors = { hex("#FFF7CC"), hex("#FFB21A") }, Spin = -120, Precess = -25 },
+				{ Radius = 3.6, Width = 0.25, Tilt = 0, Y = -1.6, Colors = { hex("#FFD000"), hex("#FF5A00") }, Spin = 60, Precess = 0 },
+			},
+			Shell = { Color = hex("#FFB21A"), Transparency = 0.35, Size = 1.25 },
+			Particles = {
+				{ Preset = "Flames", Colors = { hex("#FFD000"), hex("#FF3D00") }, Rate = 9, Where = "Parts:wing2L,wing2R" },
+				{ Preset = "Flames", Colors = { hex("#FFE066"), hex("#FF5A00") }, Rate = 6, Where = "Parts:wing3L,wing3R" },
+				{ Preset = "Embers", Colors = { hex("#FFE066"), hex("#FF9500") }, Rate = 8 },
+				{ Preset = "Sparkles", Colors = { hex("#FFF7CC"), hex("#FFD000") }, Rate = 6 },
+				{ Preset = "Pillar", Colors = { hex("#FFF7CC"), hex("#FFB21A") }, Rate = 6, Where = "Ground" },
+			},
+			Lightning = { Color = hex("#FFE066"), Bolts = 2, Every = { 0.6, 1.4 } },
+		},
+	},
+
+	DemonDragon = {
+		Name = "Demon Dragon",
+		Rarity = "Mythic",
+		Power = 25,
+		Scale = 1.15,
+		Description = "A black dragon with red neon spikes, horn tips, claws and a glowing mouth.",
+		Aura = {
+			Outline = hex("#FF4040"),
+			Rings = {
+				{ Radius = 2.8, Width = 0.2, Tilt = 20, Y = 0.2, Colors = { hex("#FF2D2D"), hex("#3B0000") }, Spin = -170, Precess = 35 },
+				{ Radius = 3.3, Width = 0.14, Tilt = -30, Y = 0.2, Colors = { hex("#FF7A00"), hex("#FF0000") }, Spin = 130, Precess = -25 },
+				{ Radius = 3.8, Width = 0.28, Tilt = 0, Y = -1.7, Colors = { hex("#FF1E1E"), hex("#2A0000") }, Spin = 70, Precess = 0 },
+			},
+			Shell = { Color = hex("#FF0000"), Transparency = 0.4, Size = 1.25 },
+			Particles = {
+				{ Preset = "Flames", Colors = { hex("#FF7A00"), hex("#FF0000") }, Rate = 16 },
+				{ Preset = "Flames", Colors = { hex("#FF5A00"), hex("#7A0000") }, Rate = 10, Where = "Ground" },
+				{ Preset = "Smoke", Colors = { hex("#1A0000"), hex("#3B0000") }, Rate = 4, Where = "Ground" },
+				{ Preset = "Embers", Colors = { hex("#FF5A00"), hex("#FF2D2D") }, Rate = 8 },
+			},
+			Lightning = { Color = hex("#FF1E1E"), Bolts = 3, Every = { 0.3, 0.9 } },
+		},
+	},
+
+	Angel = {
+		Name = "Angel",
+		Rarity = "Celestial",
+		Power = 60,
+		Scale = 1.15,
+		Description = "A white angel with a golden halo, cyan eyes and glowing cyan wings.",
+		Aura = {
+			Outline = hex("#5CF2FF"),
+			Rings = {
+				{ Radius = 0.75, Width = 0.12, Tilt = 0, Y = 2.37, Colors = { hex("#FFE066"), hex("#FFF7CC") }, Spin = 90, Precess = 0 },
+				{ Radius = 2.6, Width = 0.16, Tilt = 70, Y = 0.5, Colors = { hex("#5CF2FF"), hex("#FFFFFF") }, Spin = 140, Precess = 30 },
+				{ Radius = 2.6, Width = 0.16, Tilt = -70, Y = 0.5, Colors = { hex("#CFFAFE"), hex("#22D3EE") }, Spin = -140, Precess = 30 },
+				{ Radius = 3.5, Width = 0.22, Tilt = 0, Y = -1.5, Colors = { hex("#FFFFFF"), hex("#5CF2FF") }, Spin = 50, Precess = 0 },
+			},
+			Shell = { Color = hex("#5CF2FF"), Transparency = 0.45, Size = 1.25 },
+			Particles = {
+				{ Preset = "Stars", Colors = { hex("#FFFFFF"), hex("#5CF2FF") }, Rate = 8 },
+				{ Preset = "Sparkles", Colors = { hex("#CFFAFE"), hex("#FFFFFF") }, Rate = 4, Where = "Parts:wing2L,wing2R" },
+				{ Preset = "Pillar", Colors = { hex("#FFFFFF"), hex("#A5F3FC") }, Rate = 6, Where = "Ground" },
+			},
+			Orbiters = { Kind = "Star", Count = 5, Radius = 2.2, Y = 0.6, Tilt = 10, Speed = 50, Color = hex("#FFF7CC"), Size = 0.28 },
+		},
+	},
+
+	GalaxyWolf = {
+		Name = "Galaxy Wolf",
+		Rarity = "Galaxy",
+		Power = 150,
+		Scale = 1.2,
+		Description = "A cosmic wolf with a nebula stripe, star spots and glowing paws.",
+		Aura = {
+			Outline = hex("#FF6AD5"),
+			Rings = {
+				{ Radius = 2.8, Width = 0.18, Tilt = 22, Y = 0.2, Colors = { hex("#8B7CFF"), hex("#FF6AD5") }, Spin = 120, Precess = 35 },
+				{ Radius = 3.2, Width = 0.12, Tilt = -40, Y = 0.2, Colors = { hex("#38BDF8"), hex("#A855F7") }, Spin = -100, Precess = -30 },
+				{ Radius = 3.8, Width = 0.25, Tilt = 0, Y = -1.6, Colors = { hex("#C026D3"), hex("#3B82F6") }, Spin = 40, Precess = 0 },
+			},
+			Shell = { Color = hex("#8B5CF6"), Transparency = 0.4, Size = 1.3 },
+			Particles = {
+				{ Preset = "Nebula", Colors = { hex("#7C3AED"), hex("#EC4899") }, Rate = 3 },
+				{ Preset = "Stars", Colors = { hex("#FFFFFF"), hex("#F0ABFC") }, Rate = 8 },
+				{ Preset = "Sparkles", Colors = { hex("#FF6AD5"), hex("#8B7CFF") }, Rate = 5 },
+			},
+			Orbiters = { Kind = "Star", Count = 7, Radius = 2.6, Y = 0.4, Tilt = 25, Speed = 60, Color = hex("#FFFFFF"), Size = 0.25 },
+		},
+	},
+
+	VoidBeast = {
+		Name = "Void Beast",
+		Rarity = "Void",
+		Power = 400,
+		Scale = 1.25,
+		Description = "A hunched dark monster with three glowing eyes, claws and back crystals.",
+		Aura = {
+			Outline = hex("#9D5CFF"),
+			Rings = {
+				{ Radius = 2.9, Width = 0.2, Tilt = 25, Y = 0.2, Colors = { hex("#9D4EDD"), hex("#1A0B2E") }, Spin = -150, Precess = 40 },
+				{ Radius = 3.4, Width = 0.16, Tilt = -20, Y = 0.2, Colors = { hex("#C77DFF"), hex("#3B0A6B") }, Spin = 110, Precess = -30 },
+				{ Radius = 4.0, Width = 0.3, Tilt = 0, Y = -1.7, Colors = { hex("#6B21A8"), hex("#000000") }, Spin = -50, Precess = 0 },
+			},
+			Shell = { Color = hex("#3B0A6B"), Transparency = 0.25, Size = 1.3 },
+			Particles = {
+				{ Preset = "Flames", Colors = { hex("#C77DFF"), hex("#6B21A8") }, Rate = 14 },
+				{ Preset = "VoidPull", Colors = { hex("#B57BFF"), hex("#E0B3FF") }, Rate = 10 },
+				{ Preset = "Smoke", Colors = { hex("#1A0033"), hex("#3B0A6B") }, Rate = 4, Where = "Ground" },
+			},
+			Lightning = { Color = hex("#B57BFF"), Bolts = 2, Every = { 0.5, 1.2 } },
+			Orbiters = { Kind = "Crystal", Count = 5, Radius = 2.6, Y = 0.8, Tilt = 12, Speed = 35, Color = hex("#8B3DFF"), Size = 0.5 },
+		},
+	},
+
+	RainbowPegasus = {
+		Name = "Rainbow Pegasus",
+		Rarity = "Rainbow",
+		Power = 1000,
+		Scale = 1.25,
+		Description = "A white winged horse with a rainbow mane and tail and glowing hooves.",
+		Aura = {
+			Outline = "Rainbow",
+			HueCycle = true,
+			Rings = {
+				{ Radius = 2.8, Width = 0.2, Tilt = 18, Y = 0.3, Colors = "Rainbow", Spin = 160, Precess = 40 },
+				{ Radius = 3.3, Width = 0.15, Tilt = -30, Y = 0.3, Colors = "Rainbow", Spin = -130, Precess = -30 },
+				{ Radius = 4.0, Width = 0.3, Tilt = 0, Y = -1.8, Colors = "Rainbow", Spin = 60, Precess = 0 },
+			},
+			Shell = { Color = hex("#F9A8D4"), Transparency = 0.45, Size = 1.3 },
+			Particles = {
+				{ Preset = "Sparkles", Colors = "Rainbow", Rate = 12 },
+				{ Preset = "Stars", Colors = { hex("#FFFFFF"), hex("#A78BFA") }, Rate = 5 },
+				{ Preset = "Pillar", Colors = "Rainbow", Rate = 6, Where = "Ground" },
+			},
+			Trails = { Parts = { "wing3L", "wing3R", "hoofFL", "hoofFR", "hoofBL", "hoofBR" }, Rainbow = true },
+		},
+	},
+
+	CrystalKing = {
+		Name = "Crystal King",
+		Rarity = "Exclusive",
+		Power = 2500,
+		Scale = 1.3,
+		Description = "A crystal king with a diamond chest gem, a crystal crown and shard wings.",
+		Aura = {
+			Outline = hex("#9FD8FF"),
+			Rings = {
+				{ Radius = 2.8, Width = 0.18, Tilt = 60, Y = 0.5, Colors = { hex("#E0F7FF"), hex("#3B82F6") }, Spin = 150, Precess = 30 },
+				{ Radius = 2.8, Width = 0.18, Tilt = -60, Y = 0.5, Colors = { hex("#BAE6FD"), hex("#60A5FA") }, Spin = -150, Precess = 30 },
+				{ Radius = 3.4, Width = 0.14, Tilt = 0, Y = 0.5, Colors = { hex("#7DF9FF"), hex("#FFFFFF") }, Spin = 90, Precess = 0 },
+				{ Radius = 4.2, Width = 0.3, Tilt = 0, Y = -1.9, Colors = { hex("#7DF9FF"), hex("#1D4ED8") }, Spin = 50, Precess = 0 },
+			},
+			Shell = { Color = hex("#7DD3FC"), Transparency = 0.4, Size = 1.3 },
+			Particles = {
+				{ Preset = "Diamonds", Colors = { hex("#E0F7FF"), hex("#7DF9FF") }, Rate = 10 },
+				{ Preset = "Sparkles", Colors = { hex("#FFFFFF"), hex("#BAE6FD") }, Rate = 6 },
+				{ Preset = "Pillar", Colors = { hex("#E0F7FF"), hex("#7DF9FF") }, Rate = 6, Where = "Ground" },
+			},
+			Orbiters = { Kind = "Diamond", Count = 6, Radius = 2.8, Y = 0.5, Tilt = 15, Speed = 45, Color = hex("#7DF9FF"), Size = 0.4 },
+		},
+	},
+}
+
+-- The order pets are shown in the menu (weakest first).
+PetConfig.PetOrder = {
+	"SnowFox",
+	"IceDragon",
+	"ShadowCat",
+	"Phoenix",
+	"DemonDragon",
+	"Angel",
+	"GalaxyWolf",
+	"VoidBeast",
+	"RainbowPegasus",
+	"CrystalKing",
+}
+
+---------------------------------------------------------------------
+-- 9. EGGS
+-- Odds are percentages; they are shown to players before they pay.
+---------------------------------------------------------------------
+
+PetConfig.Eggs = {
+	StarterEgg = {
+		Name = "Starter Egg",
+		Price = 250,
+		Colors = { Base = hex("#E6F6FF"), Shade = hex("#BFE3F5"), Spots = { hex("#7FE7FF"), hex("#3DA9FF") } },
+		Odds = {
+			{ "SnowFox", 70 },
+			{ "IceDragon", 24 },
+			{ "ShadowCat", 5.5 },
+			{ "Phoenix", 0.5 },
+		},
+	},
+	InfernoEgg = {
+		Name = "Inferno Egg",
+		Price = 5000,
+		Colors = { Base = hex("#FF6B1A"), Shade = hex("#D9480F"), Spots = { hex("#FFD000"), hex("#FFF3B0") } },
+		Odds = {
+			{ "IceDragon", 50 },
+			{ "ShadowCat", 35 },
+			{ "Phoenix", 12 },
+			{ "DemonDragon", 2.8 },
+			{ "Angel", 0.2 },
+		},
+	},
+	CosmicEgg = {
+		Name = "Cosmic Egg",
+		Price = 100000,
+		Colors = { Base = hex("#3A2785"), Shade = hex("#24175A"), Spots = { hex("#FF6AD5"), hex("#7DF9FF") } },
+		Odds = {
+			{ "Phoenix", 55 },
+			{ "DemonDragon", 30 },
+			{ "Angel", 12 },
+			{ "GalaxyWolf", 2.5 },
+			{ "VoidBeast", 0.45 },
+			{ "RainbowPegasus", 0.05 },
+		},
+	},
+}
+
+PetConfig.EggOrder = { "StarterEgg", "InfernoEgg", "CosmicEgg" }
+
+return PetConfig
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBXA918DEB14333960ECCFAE1365C979E34">
+			<Properties>
+				<string name="Name">PetLogic</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	PetLogic  (ReplicatedStorage > PetShared > PetLogic, a ModuleScript)
+
+	Plain math and rules with no Roblox objects in them, so they can be tested
+	outside Roblox (see tests/test_logic.luau):
+	odds, Equip Best, the multiplier, saved-data cleaning, formations,
+	number formatting and reading the pet model lines.
+]]
+
+local PetLogic = {}
+
+---------------------------------------------------------------------
+-- Model lines (PetModels)
+---------------------------------------------------------------------
+
+local function swapSide(name: string): string
+	local swapped, count = string.gsub(name, "L$", "R")
+	if count == 0 then
+		return name .. "R"
+	end
+	return swapped
+end
+
+-- Turns the text lines of a model into a list of part descriptions.
+-- Parts flagged "M" get a mirrored copy for the right side.
+function PetLogic.ParseModel(text: string): { any }
+	local parts = {}
+	for line in string.gmatch(text, "[^\n]+") do
+		local t = {}
+		for token in string.gmatch(line, "%S+") do
+			table.insert(t, token)
+		end
+		if #t >= 14 then
+			local part = {
+				Name = t[1],
+				Size = { tonumber(t[2]) or 1, tonumber(t[3]) or 1, tonumber(t[4]) or 1 },
+				Pos = { tonumber(t[5]) or 0, tonumber(t[6]) or 0, tonumber(t[7]) or 0 },
+				Rot = { tonumber(t[8]) or 0, tonumber(t[9]) or 0, tonumber(t[10]) or 0 },
+				Color = t[11],
+				Mat = t[12],
+				Shape = t[13],
+				Group = t[14],
+				Transparency = 0,
+				Mirror = false,
+			}
+			for i = 15, #t do
+				local flag = t[i]
+				if flag == "M" then
+					part.Mirror = true
+				elseif string.sub(flag, 1, 1) == "T" then
+					part.Transparency = (tonumber(string.sub(flag, 2)) or 0) / 100
+				end
+			end
+			table.insert(parts, part)
+			if part.Mirror then
+				local group = part.Group
+				if string.sub(group, -1) == "L" then
+					group = string.sub(group, 1, -2) .. "R"
+				end
+				table.insert(parts, {
+					Name = swapSide(part.Name),
+					Size = part.Size,
+					Pos = { -part.Pos[1], part.Pos[2], part.Pos[3] },
+					Rot = { part.Rot[1], -part.Rot[2], -part.Rot[3] },
+					Color = part.Color,
+					Mat = part.Mat,
+					Shape = part.Shape,
+					Group = group,
+					Transparency = part.Transparency,
+					Mirror = false,
+				})
+			end
+		end
+	end
+	return parts
+end
+
+-- Adds the right-side pivot for every left-side group (WingL -> WingR).
+function PetLogic.ExpandPivots(pivots: { [string]: { number } }): { [string]: { number } }
+	local out = {}
+	for name, p in pairs(pivots) do
+		out[name] = p
+		if string.sub(name, -1) == "L" then
+			out[string.sub(name, 1, -2) .. "R"] = { -p[1], p[2], p[3] }
+		end
+	end
+	return out
+end
+
+---------------------------------------------------------------------
+-- Odds
+---------------------------------------------------------------------
+
+-- odds = { { "SnowFox", 70 }, { "IceDragon", 24 }, ... }, roll = a number from 0 up to (not including) 1
+function PetLogic.PickWeighted(odds: { { any } }, roll: number): string
+	local total = 0
+	for _, entry in ipairs(odds) do
+		total += entry[2]
+	end
+	local left = roll * total
+	for _, entry in ipairs(odds) do
+		left -= entry[2]
+		if left < 0 then
+			return entry[1]
+		end
+	end
+	return odds[#odds][1]
+end
+
+function PetLogic.OddsTotal(odds: { { any } }): number
+	local total = 0
+	for _, entry in ipairs(odds) do
+		total += entry[2]
+	end
+	return total
+end
+
+-- "12%", "0.5%", "0.05%"
+function PetLogic.FormatPercent(value: number): string
+	if value >= 10 or value == math.floor(value) then
+		return string.format("%d%%", math.floor(value + 0.5))
+	end
+	local text = string.format("%.2f", value)
+	text = string.gsub(text, "0+$", "")
+	text = string.gsub(text, "%.$", "")
+	return text .. "%"
+end
+
+---------------------------------------------------------------------
+-- Owned pets
+-- data.Pets = { { Id = "p1", Pet = "SnowFox" }, ... }, data.Equipped = { "p1", ... }
+---------------------------------------------------------------------
+
+local function idNumber(id: string): number
+	return tonumber(string.match(id, "%d+") or "0") or 0
+end
+
+local function powerOf(pets, petId: string): number
+	local def = pets[petId]
+	return def and def.Power or 0
+end
+
+-- Strongest first; same power: oldest first (so results never jump around).
+function PetLogic.SortStrongest(list: { any }, pets): { any }
+	local copy = table.clone(list)
+	table.sort(copy, function(a, b)
+		local pa, pb = powerOf(pets, a.Pet), powerOf(pets, b.Pet)
+		if pa ~= pb then
+			return pa > pb
+		end
+		return idNumber(a.Id) < idNumber(b.Id)
+	end)
+	return copy
+end
+
+function PetLogic.BestIds(data, pets, maxEquipped: number): { string }
+	local sorted = PetLogic.SortStrongest(data.Pets, pets)
+	local out = {}
+	for i = 1, math.min(maxEquipped, #sorted) do
+		table.insert(out, sorted[i].Id)
+	end
+	return out
+end
+
+function PetLogic.EquippedSet(data): { [string]: boolean }
+	local set = {}
+	for _, id in ipairs(data.Equipped) do
+		set[id] = true
+	end
+	return set
+end
+
+-- Pet types of the equipped pets, strongest first: { "Phoenix", "Phoenix", "ShadowCat" }
+function PetLogic.EquippedTypes(data, pets): { string }
+	local set = PetLogic.EquippedSet(data)
+	local list = {}
+	for _, pet in ipairs(data.Pets) do
+		if set[pet.Id] then
+			table.insert(list, pet)
+		end
+	end
+	local out = {}
+	for _, pet in ipairs(PetLogic.SortStrongest(list, pets)) do
+		table.insert(out, pet.Pet)
+	end
+	return out
+end
+
+function PetLogic.Multiplier(petTypes: { string }, pets): number
+	local total = 1
+	for _, petId in ipairs(petTypes) do
+		total += powerOf(pets, petId)
+	end
+	return total
+end
+
+-- counts[petId] = owned, equipped[petId] = equipped
+function PetLogic.Counts(data): ({ [string]: number }, { [string]: number })
+	local set = PetLogic.EquippedSet(data)
+	local counts, equipped = {}, {}
+	for _, pet in ipairs(data.Pets) do
+		counts[pet.Pet] = (counts[pet.Pet] or 0) + 1
+		if set[pet.Id] then
+			equipped[pet.Pet] = (equipped[pet.Pet] or 0) + 1
+		end
+	end
+	return counts, equipped
+end
+
+-- One pet of this type: prefer one that is (or is not) equipped.
+function PetLogic.FindOfType(data, petId: string, wantEquipped: boolean?): string?
+	local set = PetLogic.EquippedSet(data)
+	local fallback = nil
+	for i = #data.Pets, 1, -1 do
+		local pet = data.Pets[i]
+		if pet.Pet == petId then
+			local isEquipped = set[pet.Id] == true
+			if wantEquipped == nil or isEquipped == wantEquipped then
+				return pet.Id
+			end
+			fallback = fallback or pet.Id
+		end
+	end
+	if wantEquipped == nil then
+		return fallback
+	end
+	return nil
+end
+
+function PetLogic.RemoveId(list: { string }, id: string): boolean
+	for i, value in ipairs(list) do
+		if value == id then
+			table.remove(list, i)
+			return true
+		end
+	end
+	return false
+end
+
+function PetLogic.NewData(defaultFormation: string)
+	return {
+		Version = 1,
+		Pets = {},
+		Equipped = {},
+		NextId = 1,
+		Discovered = {},
+		Formation = defaultFormation,
+		Hatched = 0,
+		Granted = {},
+	}
+end
+
+-- Cleans saved data: unknown pets and broken entries are dropped, nothing crashes.
+function PetLogic.Sanitize(raw: any, pets, formations: { string }, defaultFormation: string)
+	local data = PetLogic.NewData(defaultFormation)
+	if type(raw) ~= "table" then
+		return data
+	end
+	local seen = {}
+	local highest = 0
+	if type(raw.Pets) == "table" then
+		for _, entry in ipairs(raw.Pets) do
+			if type(entry) == "table" and type(entry.Id) == "string" and type(entry.Pet) == "string" then
+				if pets[entry.Pet] and not seen[entry.Id] then
+					seen[entry.Id] = true
+					table.insert(data.Pets, { Id = entry.Id, Pet = entry.Pet })
+					highest = math.max(highest, idNumber(entry.Id))
+				end
+			end
+		end
+	end
+	if type(raw.Equipped) == "table" then
+		local used = {}
+		for _, id in ipairs(raw.Equipped) do
+			if type(id) == "string" and seen[id] and not used[id] and #data.Equipped < 12 then
+				used[id] = true
+				table.insert(data.Equipped, id)
+			end
+		end
+	end
+	local nextId = tonumber(raw.NextId) or 1
+	data.NextId = math.max(math.floor(nextId), highest + 1)
+	if type(raw.Discovered) == "table" then
+		for petId, value in pairs(raw.Discovered) do
+			if type(petId) == "string" and pets[petId] and value == true then
+				data.Discovered[petId] = true
+			end
+		end
+	end
+	for _, pet in ipairs(data.Pets) do
+		data.Discovered[pet.Pet] = true
+	end
+	if type(raw.Formation) == "string" and table.find(formations, raw.Formation) then
+		data.Formation = raw.Formation
+	end
+	data.Hatched = math.max(0, math.floor(tonumber(raw.Hatched) or 0))
+	if type(raw.Granted) == "table" then
+		for key, value in pairs(raw.Granted) do
+			if type(key) == "string" and value == true then
+				data.Granted[key] = true
+			end
+		end
+	end
+	return data
+end
+
+---------------------------------------------------------------------
+-- Formations
+-- Offsets around the player, in the player's own space:
+-- x = right, y = up, z = BEHIND the player (positive z is behind).
+---------------------------------------------------------------------
+
+function PetLogic.FormationSlots(formation: string, count: number, spacing: number, t: number): { { number } }
+	local slots = {}
+	if count <= 0 then
+		return slots
+	end
+	spacing = math.max(spacing, 1)
+
+	if formation == "Circle" then
+		local radius = 3.2 + spacing * 0.9 + math.max(0, count - 4) * 0.45 * spacing
+		for i = 1, count do
+			local a = math.rad((i - 1) * 360 / count + t * 22)
+			table.insert(slots, { math.sin(a) * radius, 0, math.cos(a) * radius })
+		end
+	elseif formation == "V" then
+		local gap = 1.6 + spacing * 0.95
+		local base = 3.0 + spacing * 0.8
+		local index = 1
+		if count % 2 == 1 then
+			table.insert(slots, { 0, 0.4, base })
+			index = 2
+		end
+		local k = 1
+		while index <= count do
+			local z = base + k * gap * 0.75
+			table.insert(slots, { k * gap, 0.4 + k * 0.35, z })
+			index += 1
+			if index <= count then
+				table.insert(slots, { -k * gap, 0.4 + k * 0.35, z })
+				index += 1
+			end
+			k += 1
+		end
+	else -- "Arc": rows behind the player, 3 in the first row, then 4, 5 ...
+		local placed = 0
+		local row = 0
+		while placed < count do
+			local capacity = 3 + row
+			local n = math.min(capacity, count - placed)
+			local radius = 3.0 + spacing * 0.95 + row * (1.2 + spacing * 0.85)
+			local spread = math.min(150, 48 * (n - 1))
+			for i = 1, n do
+				local angle
+				if n == 1 then
+					angle = if row == 0 then 32 else 0
+				else
+					angle = -spread / 2 + (i - 1) * spread / (n - 1)
+				end
+				local a = math.rad(angle)
+				table.insert(slots, { math.sin(a) * radius, row * 0.6, math.cos(a) * radius })
+			end
+			placed += n
+			row += 1
+		end
+	end
+	return slots
+end
+
+---------------------------------------------------------------------
+-- Text
+---------------------------------------------------------------------
+
+local function commas(n: number): string
+	local text = tostring(math.floor(math.abs(n)))
+	local out = string.reverse((string.gsub(string.reverse(text), "(%d%d%d)", "%1,")))
+	if string.sub(out, 1, 1) == "," then
+		out = string.sub(out, 2)
+	end
+	if n < 0 then
+		out = "-" .. out
+	end
+	return out
+end
+PetLogic.Commas = commas
+
+local SUFFIXES = { { 1e15, "Qa" }, { 1e12, "T" }, { 1e9, "B" }, { 1e6, "M" } }
+
+-- 950 -> "950", 12500 -> "12,500", 2500000 -> "2.5M"
+function PetLogic.FormatNumber(n: number): string
+	for _, s in ipairs(SUFFIXES) do
+		if math.abs(n) >= s[1] then
+			local value = math.floor(n / s[1] * 10) / 10
+			local text = string.format("%.1f", value)
+			text = string.gsub(text, "%.0$", "")
+			return text .. s[2]
+		end
+	end
+	return commas(n)
+end
+
+-- 1 -> "x1", 26.5 -> "x26.5", 12345 -> "x12,345"
+function PetLogic.FormatMultiplier(n: number): string
+	if n >= 1000 then
+		return "x" .. PetLogic.FormatNumber(math.floor(n))
+	end
+	local rounded = math.floor(n * 10 + 0.5) / 10
+	local text = string.format("%.1f", rounded)
+	text = string.gsub(text, "%.0$", "")
+	return "x" .. text
+end
+
+-- "+0.5x", "+10x", "+2,500x"
+function PetLogic.FormatPower(n: number): string
+	if n == math.floor(n) then
+		return "+" .. commas(n) .. "x"
+	end
+	return "+" .. tostring(n) .. "x"
+end
+
+-- "snow fox", "SnowFox", "snowfox" all find "SnowFox"
+function PetLogic.FindPetId(input: string, pets): string?
+	local function key(s: string): string
+		return string.lower((string.gsub(s, "[%s_%-]", "")))
+	end
+	local wanted = key(input)
+	for petId, def in pairs(pets) do
+		if key(petId) == wanted or key(def.Name or "") == wanted then
+			return petId
+		end
+	end
+	return nil
+end
+
+-- Shortest turn from angle a to angle b (radians), smoothed by alpha.
+function PetLogic.LerpAngle(a: number, b: number, alpha: number): number
+	local diff = (b - a + math.pi) % (2 * math.pi) - math.pi
+	return a + diff * alpha
+end
+
+return PetLogic
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBXE1882D0C211C46EDA6549AD61A407EDF">
+			<Properties>
+				<string name="Name">PetModels</string>
+				<ProtectedString name="Source"><![CDATA[--[[
+	PetModels  (ReplicatedStorage > PetShared > PetModels, a ModuleScript)
+
+	The 10 blocky pet models. Each line is one Part:
+	  name  sizeX sizeY sizeZ  posX posY posZ  rotX rotY rotZ  color  material  shape  group  [flags]
+
+	  material  P = SmoothPlastic, N = Neon, G = Glass, I = Ice
+	  shape     B = Block, W = Wedge (flat bottom, upright back, slope to the front)
+	  group     "-" = body; Head nods, Tail wags, WingL/WingR flap
+	  flags     M = also make the mirrored right-side part (name ...L becomes ...R)
+	            T25 = 25 % see-through
+
+	Sizes are in studs at scale 1. The front of every pet is -Z (where it looks).
+	The same lines draw the pets on the design canvas, so both always match.
+
+	Pivots: the hinge point of each moving group. WingR is mirrored from WingL.
+	WingAxis: "Z" = wings at the sides flap up and down, "Y" = back wings sweep.
+]]
+
+local PetModels = {}
+
+PetModels.SnowFox = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.55, -0.85 }, Tail = { 0, 0.25, 1.15 } },
+	Parts = [[
+body 1.6 1.3 2.2 0 0 0.1 0 0 0 F4F8FF P B -
+chest 1.2 0.9 0.4 0 -0.05 -1.05 0 0 0 FFFFFF P B -
+collar 1.7 0.22 0.5 0 0.38 -0.92 0 0 0 BDF4FF N B -
+legFL 0.42 0.5 0.42 -0.5 -0.8 -0.65 0 0 0 E9F1FA P B - M
+legBL 0.42 0.5 0.42 -0.5 -0.8 0.75 0 0 0 E9F1FA P B - M
+head 1.6 1.4 1.4 0 0.85 -1.15 0 0 0 F8FBFF P B Head
+snout 0.8 0.55 0.6 0 0.55 -2.0 0 0 0 FFFFFF P B Head
+nose 0.3 0.22 0.12 0 0.78 -2.32 0 0 0 2B2F3A P B Head
+eyeL 0.32 0.36 0.08 -0.4 1.05 -1.88 0 0 0 7FE7FF N B Head M
+cheekL 0.3 0.5 0.6 -0.9 0.55 -1.2 0 0 0 FFFFFF P B Head M
+earL 0.25 0.75 0.5 -0.5 1.85 -1.15 0 90 0 F4F8FF P W Head M
+innerEarL 0.1 0.5 0.3 -0.45 1.78 -1.31 0 90 0 FFB8D9 P W Head M
+tail1 0.7 0.7 1.0 0 0.35 1.6 -20 0 0 F4F8FF P B Tail
+tail2 0.85 0.85 0.9 0 0.75 2.3 -35 0 0 FFFFFF P B Tail
+tailTip 0.6 0.6 0.5 0 1.1 2.8 -45 0 0 E6FBFF N B Tail
+]],
+}
+
+PetModels.IceDragon = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.6, -1.0 }, Tail = { 0, 0.0, 1.3 }, WingL = { -0.85, 0.65, 0.0 } },
+	Parts = [[
+body 1.8 1.5 2.4 0 0 0.1 0 0 0 3A8DFF P B -
+belly 1.3 1.1 0.2 0 -0.1 -1.12 0 0 0 BFE9FF P B -
+spike1 0.2 0.55 0.55 0 1.0 -0.45 0 0 0 9CFFFF N W -
+spike2 0.2 0.6 0.6 0 1.02 0.35 0 0 0 9CFFFF N W -
+spike3 0.2 0.5 0.5 0 0.97 1.05 0 0 0 9CFFFF N W -
+legFL 0.5 0.6 0.5 -0.6 -0.95 -0.7 0 0 0 2F7AE6 P B - M
+legBL 0.5 0.6 0.5 -0.6 -0.95 0.8 0 0 0 2F7AE6 P B - M
+head 1.5 1.3 1.5 0 0.95 -1.35 0 0 0 4A9BFF P B Head
+snout 1.1 0.6 0.8 0 0.6 -2.4 0 0 0 5AA8FF P B Head
+eyeL 0.3 0.3 0.08 -0.45 1.15 -2.12 0 0 0 9CFFFF N B Head M
+browL 0.5 0.14 0.2 -0.45 1.4 -2.05 0 0 -15 1F5FCC P B Head M
+hornL 0.2 0.8 0.45 -0.45 1.85 -1.0 25 0 0 E6FBFF I W Head M
+wingBoneL 1.6 0.18 0.25 -1.65 0.95 -0.1 0 0 -20 2F6FDB P B WingL M
+wingMemL 1.5 0.08 1.1 -1.6 0.85 0.45 0 0 -20 7FD8FF N B WingL M T25
+wingMem2L 1.0 0.08 0.8 -2.45 1.2 0.5 0 0 -25 BDF4FF N B WingL M T25
+wingTipL 0.6 0.15 0.15 -2.6 1.35 -0.1 0 0 -30 E6FBFF N B WingL M
+tail1 0.8 0.7 1.0 0 0.0 1.75 0 0 0 3A8DFF P B Tail
+tail2 0.6 0.5 0.9 0 0.15 2.6 -8 0 0 3A8DFF P B Tail
+tail3 0.4 0.35 0.7 0 0.3 3.3 -12 0 0 4A9BFF P B Tail
+tailFin 0.15 0.6 0.6 0 0.65 3.4 0 0 0 9CFFFF N W Tail
+]],
+}
+
+PetModels.ShadowCat = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.45, -0.75 }, Tail = { 0, 0.3, 1.1 } },
+	Parts = [[
+body 1.5 1.2 2.0 0 0 0.1 0 0 0 5B2A86 P B -
+collar 1.6 0.2 0.45 0 0.25 -0.82 0 0 0 1A0B2E P B -
+gem 0.26 0.26 0.12 0 0.08 -1.08 0 0 45 F0ABFC N B -
+legFL 0.4 0.45 0.4 -0.45 -0.8 -0.55 0 0 0 3B1A5C P B - M
+legBL 0.4 0.45 0.4 -0.45 -0.8 0.65 0 0 0 3B1A5C P B - M
+head 1.5 1.3 1.3 0 0.8 -1.0 0 0 0 6A2FA0 P B Head
+muzzle 0.7 0.4 0.25 0 0.45 -1.72 0 0 0 8B4FC4 P B Head
+nose 0.22 0.16 0.08 0 0.62 -1.87 0 0 0 FF6AD5 P B Head
+eyeL 0.4 0.42 0.08 -0.38 0.95 -1.68 0 0 0 F0ABFC N B Head M
+pupilL 0.08 0.32 0.04 -0.38 0.95 -1.73 0 0 0 1A0B2E P B Head M
+whiskerL 0.55 0.05 0.05 -0.65 0.5 -1.74 0 0 -10 E9D5FF N B Head M
+earL 0.25 0.7 0.55 -0.5 1.75 -0.95 0 90 0 4A1F70 P W Head M
+innerEarL 0.1 0.45 0.3 -0.45 1.68 -1.12 0 90 0 E879F9 N W Head M
+tail1 0.35 0.35 0.8 0 0.4 1.45 0 0 0 5B2A86 P B Tail
+tail2 0.35 0.9 0.35 0 0.95 1.7 0 0 0 5B2A86 P B Tail
+tailTip 0.4 0.45 0.4 0 1.55 1.7 0 0 0 C026D3 N B Tail
+]],
+}
+
+PetModels.Phoenix = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.75, -0.4 }, Tail = { 0, -0.1, 0.95 }, WingL = { -0.7, 0.4, 0.0 } },
+	Parts = [[
+body 1.5 1.6 1.8 0 0 0.1 0 0 0 FFB21A P B -
+chest 1.1 1.1 0.2 0 -0.1 -0.85 0 0 0 FFE08A P B -
+legL 0.2 0.45 0.2 -0.35 -0.95 0 0 0 0 FF7A00 P B - M
+head 1.2 1.1 1.1 0 1.15 -0.65 0 0 0 FFC233 P B Head
+beak 0.45 0.35 0.55 0 1.0 -1.45 0 0 0 FF7A00 P W Head
+eyeL 0.22 0.26 0.08 -0.33 1.25 -1.22 0 0 0 FFF7CC N B Head M
+crest1 0.15 0.7 0.6 0 1.95 -0.5 0 0 0 FF5A00 N W Head
+crest2 0.15 0.5 0.45 0 1.85 -0.05 0 0 0 FFD000 N W Head
+wing1L 1.3 0.18 1.1 -1.3 0.55 0.1 0 0 -15 FF9500 P B WingL M
+wing2L 1.2 0.14 0.9 -2.4 0.85 0.15 0 0 -22 FF5A00 N B WingL M
+wing3L 0.9 0.12 0.6 -3.25 1.2 0.2 0 0 -30 FFD000 N B WingL M
+tail1 0.35 0.1 1.6 0 -0.25 1.7 15 0 0 FF7A00 N B Tail
+tail2L 0.3 0.1 1.4 -0.4 -0.2 1.6 15 -20 0 FF5A00 N B Tail M
+tail3 0.25 0.1 0.6 0 -0.6 2.55 25 0 0 FFD000 N B Tail
+]],
+}
+
+PetModels.DemonDragon = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.65, -1.05 }, Tail = { 0, 0, 1.35 }, WingL = { -0.9, 0.7, 0.0 } },
+	Parts = [[
+body 1.9 1.6 2.5 0 0 0.1 0 0 0 1A1A1F P B -
+belly 1.3 1.1 0.2 0 -0.1 -1.17 0 0 0 8B0F14 P B -
+spike1 0.2 0.6 0.55 0 1.05 -0.6 0 0 0 FF2D2D N W -
+spike2 0.2 0.7 0.65 0 1.1 0.2 0 0 0 FF2D2D N W -
+spike3 0.2 0.55 0.5 0 1.02 1.0 0 0 0 FF2D2D N W -
+legFL 0.55 0.65 0.55 -0.65 -1.0 -0.75 0 0 0 141418 P B - M
+legBL 0.55 0.65 0.55 -0.65 -1.0 0.85 0 0 0 141418 P B - M
+clawFL 0.6 0.15 0.25 -0.65 -1.3 -1.05 0 0 0 FF2D2D N B - M
+head 1.6 1.35 1.6 0 1.0 -1.4 0 0 0 222228 P B Head
+snout 1.2 0.65 0.9 0 0.62 -2.45 0 0 0 2A2A30 P B Head
+mouth 1.0 0.1 0.12 0 0.4 -2.9 0 0 0 FF3B1F N B Head
+eyeL 0.38 0.2 0.08 -0.45 1.15 -2.22 0 0 -12 FF1E1E N B Head M
+hornL 0.3 0.75 0.3 -0.55 1.95 -1.1 20 0 15 0D0D10 P B Head M
+hornTipL 0.22 0.6 0.22 -0.72 2.5 -0.85 45 0 25 FF2D2D N B Head M
+wingBoneL 1.8 0.2 0.25 -1.8 1.0 -0.1 0 0 -22 111114 P B WingL M
+wingMemL 1.7 0.08 1.3 -1.75 0.9 0.55 0 0 -22 8B0000 P B WingL M
+wingMem2L 1.2 0.08 0.9 -2.75 1.3 0.55 0 0 -28 B3121B P B WingL M
+wingClawL 0.5 0.18 0.18 -2.85 1.55 -0.1 0 0 -35 FF2D2D N B WingL M
+tail1 0.85 0.75 1.1 0 0 1.85 0 0 0 1A1A1F P B Tail
+tail2 0.65 0.55 1.0 0 0.15 2.85 -8 0 0 1A1A1F P B Tail
+tail3 0.45 0.4 0.8 0 0.3 3.7 -12 0 0 222228 P B Tail
+tailBlade 0.15 0.75 0.7 0 0.6 3.95 0 0 0 FF2D2D N W Tail
+]],
+}
+
+PetModels.Angel = {
+	WingAxis = "Y",
+	Pivots = { Head = { 0, 0.75, 0 }, WingL = { -0.45, 0.45, 0.45 } },
+	Parts = [[
+robe 1.3 1.1 1.0 0 -0.55 0 0 0 0 FFFFFF P B -
+robeTop 1.1 0.65 0.85 0 0.25 0 0 0 0 F8FCFF P B -
+sash 1.14 0.16 0.89 0 -0.02 0 0 0 0 5CF2FF N B -
+hem 1.34 0.12 1.04 0 -1.06 0 0 0 0 FFE066 N B -
+armL 0.3 0.75 0.3 -0.72 0.05 -0.05 0 0 -15 FFFFFF P B - M
+handL 0.3 0.25 0.3 -0.84 -0.4 -0.05 0 0 -15 FDE7D6 P B - M
+head 1.3 1.2 1.2 0 1.17 0 0 0 0 FDE7D6 P B Head
+hair 1.42 0.45 1.32 0 1.72 0.05 0 0 0 FFF3C4 P B Head
+hairBack 1.42 0.9 0.3 0 1.32 0.6 0 0 0 FFF3C4 P B Head
+bangL 0.35 0.25 0.2 -0.45 1.52 -0.6 0 0 0 FFF3C4 P B Head M
+eyeL 0.2 0.28 0.06 -0.3 1.15 -0.62 0 0 0 5CF2FF N B Head M
+blushL 0.22 0.08 0.04 -0.45 0.97 -0.61 0 0 0 FFB3C7 P B Head M
+smile 0.24 0.06 0.04 0 0.89 -0.61 0 0 0 C2410C P B Head
+haloF 1.0 0.12 0.12 0 2.37 -0.44 0 0 0 FFE066 N B Head
+haloB 1.0 0.12 0.12 0 2.37 0.44 0 0 0 FFE066 N B Head
+haloSideL 0.12 0.12 0.76 -0.44 2.37 0 0 0 0 FFE066 N B Head M
+wing1L 1.3 0.9 0.15 -1.0 0.75 0.6 0 20 -15 A5F3FC N B WingL M T10
+wing2L 1.0 0.65 0.12 -1.75 1.15 0.75 0 25 -25 22D3EE N B WingL M T10
+wing3L 0.6 0.4 0.1 -2.3 1.5 0.85 0 25 -35 CFFAFE N B WingL M
+]],
+}
+
+PetModels.GalaxyWolf = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.6, -1.1 }, Tail = { 0, 0.3, 1.3 } },
+	Parts = [[
+body 1.7 1.35 2.5 0 0 0.1 0 0 0 2A1B5E P B -
+mane 1.85 1.0 0.6 0 0.4 -0.95 0 0 0 4C2FA8 P B -
+chest 1.3 0.9 0.3 0 -0.15 -1.3 0 0 0 6D3BD8 P B -
+stripe 0.7 0.1 2.2 0 0.71 0.25 0 0 0 C026D3 N B - T15
+starA 0.16 0.16 0.16 -0.86 0.25 -0.2 0 0 45 FFFFFF N B - M
+starB 0.14 0.14 0.14 -0.86 -0.2 0.7 0 0 45 F0ABFC N B - M
+legFL 0.45 0.6 0.45 -0.55 -0.95 -0.8 0 0 0 22164F P B - M
+legBL 0.45 0.6 0.45 -0.55 -0.95 0.9 0 0 0 22164F P B - M
+pawFL 0.5 0.15 0.5 -0.55 -1.25 -0.8 0 0 0 7DF9FF N B - M
+pawBL 0.5 0.15 0.5 -0.55 -1.25 0.9 0 0 0 7DF9FF N B - M
+head 1.5 1.3 1.4 0 0.95 -1.5 0 0 0 33227A P B Head
+snout 0.85 0.6 0.85 0 0.65 -2.6 0 0 0 3B2A8A P B Head
+nose 0.3 0.2 0.12 0 0.88 -3.06 0 0 0 0B0620 P B Head
+eyeL 0.34 0.24 0.08 -0.4 1.15 -2.22 0 0 -8 7DF9FF N B Head M
+earL 0.25 0.85 0.5 -0.5 1.95 -1.35 0 90 0 2A1B5E P W Head M
+innerEarL 0.1 0.55 0.3 -0.45 1.88 -1.51 0 90 0 EC4899 N W Head M
+tail1 0.6 0.6 1.0 0 0.45 1.75 -20 0 0 3B2A8A P B Tail
+tail2 0.7 0.7 0.9 0 0.85 2.45 -30 0 0 6D3BD8 P B Tail
+tail3 0.5 0.5 0.5 0 1.2 3.0 -40 0 0 EC4899 N B Tail
+]],
+}
+
+PetModels.VoidBeast = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 0.5, -0.9 }, Tail = { 0, -0.2, 1.0 } },
+	Parts = [[
+body 2.0 1.7 2.0 0 0 0.1 0 0 0 0E0A1A P B -
+hump 1.6 0.8 1.2 0 0.95 -0.1 0 0 0 150F26 P B -
+crystal1 0.3 0.9 0.7 0 1.7 -0.2 0 0 0 8B3DFF N W -
+crystal2L 0.25 0.7 0.55 -0.5 1.55 0.25 0 0 20 B57BFF N W - M
+armL 0.6 1.2 0.6 -1.15 -0.3 -0.6 15 0 -10 150F26 P B - M
+clawL 0.7 0.25 0.35 -1.25 -0.95 -0.95 0 0 0 9D4EDD N B - M
+legBL 0.5 0.6 0.6 -0.7 -1.05 0.6 0 0 0 0E0A1A P B - M
+head 1.4 1.1 1.2 0 0.6 -1.45 0 0 0 120C22 P B Head
+jaw 1.2 0.35 0.9 0 -0.02 -1.55 0 0 0 0A0712 P B Head
+mouth 1.0 0.1 0.1 0 0.19 -2.02 0 0 0 C77DFF N B Head
+eyeL 0.25 0.25 0.08 -0.38 0.72 -2.07 0 0 0 C77DFF N B Head M
+eye3 0.25 0.25 0.08 0 0.98 -2.07 0 0 45 E0B3FF N B Head
+hornL 0.25 0.8 0.25 -0.55 1.25 -1.3 -20 0 25 2A1D45 P B Head M
+hornTipL 0.18 0.45 0.18 -0.82 1.68 -1.48 -40 0 35 8B3DFF N B Head M
+tail1 0.6 0.5 0.9 0 -0.3 1.45 0 0 0 0E0A1A P B Tail
+tail2 0.4 0.35 0.8 0 -0.4 2.2 0 0 0 150F26 P B Tail
+tailGem 0.35 0.35 0.35 0 -0.4 2.75 45 45 0 B57BFF N B Tail
+]],
+}
+
+PetModels.RainbowPegasus = {
+	WingAxis = "Z",
+	Pivots = { Head = { 0, 1.3, -1.25 }, Tail = { 0, 0.3, 1.2 }, WingL = { -0.8, 0.5, -0.2 } },
+	Parts = [[
+body 1.6 1.4 2.4 0 0 0.1 0 0 0 FFFFFF P B -
+neck 0.8 1.2 0.8 0 0.9 -1.05 -25 0 0 FFFFFF P B -
+mane1 0.3 0.5 0.5 0 2.05 -1.05 -25 0 0 FF4D6D N B -
+mane2 0.3 0.5 0.5 0 1.68 -0.82 -25 0 0 FFB020 N B -
+mane3 0.3 0.45 0.45 0 1.32 -0.64 -25 0 0 FFE14D N B -
+mane4 0.3 0.4 0.45 0 0.98 -0.47 -25 0 0 4ADE80 N B -
+legFL 0.4 0.9 0.4 -0.5 -1.1 -0.85 0 0 0 FFFFFF P B - M
+legBL 0.4 0.9 0.4 -0.5 -1.1 0.85 0 0 0 FFFFFF P B - M
+hoofFL 0.46 0.2 0.46 -0.5 -1.6 -0.85 0 0 0 A78BFA N B - M
+hoofBL 0.46 0.2 0.46 -0.5 -1.6 0.85 0 0 0 38BDF8 N B - M
+head 0.95 0.95 1.5 0 1.75 -1.75 0 0 0 FFFFFF P B Head
+muzzle 0.85 0.6 0.55 0 1.52 -2.6 0 0 0 FFE4F1 P B Head
+eyeL 0.06 0.28 0.28 -0.48 1.9 -1.95 0 0 0 38BDF8 N B Head M
+earL 0.12 0.35 0.25 -0.3 2.35 -1.3 0 90 0 FFFFFF P W Head M
+forelock 0.3 0.35 0.35 0 2.25 -1.9 0 0 0 F472B6 N B Head
+wing1L 1.4 0.15 1.0 -1.45 0.75 -0.1 0 0 -18 FFFFFF P B WingL M
+wing2L 1.2 0.12 0.8 -2.55 1.1 0.0 0 0 -25 F9A8D4 N B WingL M
+wing3L 0.8 0.1 0.55 -3.3 1.45 0.05 0 0 -32 C4B5FD N B WingL M
+tail1L 0.3 0.3 1.0 -0.15 0.1 1.65 30 0 0 F472B6 N B Tail M
+tail2 0.3 0.3 1.1 0 0.05 1.75 38 0 0 FACC15 N B Tail
+tail3 0.3 0.3 0.9 0 -0.25 1.6 48 0 0 38BDF8 N B Tail
+]],
+}
+
+PetModels.CrystalKing = {
+	WingAxis = "Y",
+	Pivots = { Head = { 0, 0.7, 0 }, WingL = { -0.55, 0.6, 0.5 } },
+	Parts = [[
+torso 1.5 1.5 1.2 0 0 0 0 0 0 1D4ED8 G B -
+chestGem 0.7 0.7 0.2 0 0.1 -0.62 0 0 45 7DF9FF N B -
+belt 1.56 0.18 1.26 0 -0.55 0 0 0 0 BFE6FF N B -
+shoulderL 0.65 0.65 0.65 -0.95 0.55 0 0 45 0 60A5FA G B - M
+armL 0.4 0.9 0.4 -0.95 -0.15 0 0 0 0 1E3A8A P B - M
+fistL 0.45 0.45 0.45 -0.95 -0.75 -0.05 45 45 0 7DD3FC N B - M
+base 0.9 0.9 0.9 0 -1.05 0 45 0 45 3B82F6 G B -
+head 1.3 1.2 1.2 0 1.35 0 0 0 0 2563EB G B Head
+visor 1.1 0.3 0.06 0 1.35 -0.62 0 0 0 0B1640 P B Head
+eyeL 0.3 0.16 0.07 -0.3 1.35 -0.66 0 0 0 E0F7FF N B Head M
+crownBase 1.4 0.25 1.3 0 2.05 0 0 0 0 93C5FD G B Head
+crownF 0.28 0.55 0.28 0 2.42 -0.5 0 45 0 7DF9FF N B Head
+crownFL 0.22 0.42 0.22 -0.52 2.36 -0.45 0 45 0 BAE6FF N B Head M
+crownBL 0.22 0.42 0.22 -0.52 2.36 0.45 0 45 0 BAE6FF N B Head M
+crownB 0.25 0.48 0.25 0 2.4 0.5 0 45 0 7DF9FF N B Head
+wingShard1L 0.25 1.8 0.25 -1.19 1.37 0.7 0 0 40 7DF9FF N B WingL M T10
+wingShard2L 0.2 1.4 0.2 -1.3 0.87 0.75 0 0 70 38BDF8 N B WingL M T10
+wingShard3L 0.2 1.1 0.2 -1.18 0.43 0.75 0 0 105 BAE6FF N B WingL M T10
+wingSheetL 1.1 1.0 0.05 -1.1 0.95 0.8 0 0 20 BAE6FF N B WingL M T55
+]],
+}
+
+return PetModels
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>
