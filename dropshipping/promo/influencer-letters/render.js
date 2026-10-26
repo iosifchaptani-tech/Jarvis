@@ -7,14 +7,15 @@ const path = require('path');
 const outDir = process.argv[2];
 const en = fs.readFileSync(path.join(__dirname, 'letter.html'), 'utf8');
 const de = fs.readFileSync(path.join(__dirname, 'letter-de.html'), 'utf8');
-// To add a new promoter code: add one English and one German line here.
+// To add a new promoter code: add a line here. German letters (and 'ships to the EU' in letter.html)
+// only after the EU market is really live in Shopify: then remove the // below.
 const letters = [
   { template: en, name: 'Pivendo-letter', code: 'TEAM10-FHL3', uses: 'Works for the first 10 orders, once per customer' },
   { template: en, name: 'Pivendo-letter', code: 'DUO10-QQ3H', uses: 'Works for the first 2 orders, once per customer' },
   { template: en, name: 'Pivendo-letter', code: 'GIFT10-5LTH', uses: 'Works for 1 order' },
-  { template: de, name: 'Pivendo-Brief-DE', code: 'TEAM10-FHL3', uses: 'Gilt für die ersten 10 Bestellungen, einmal pro Kunde' },
-  { template: de, name: 'Pivendo-Brief-DE', code: 'DUO10-QQ3H', uses: 'Gilt für die ersten 2 Bestellungen, einmal pro Kunde' },
-  { template: de, name: 'Pivendo-Brief-DE', code: 'GIFT10-5LTH', uses: 'Gilt für 1 Bestellung' },
+  // { template: de, name: 'Pivendo-Brief-DE', code: 'TEAM10-FHL3', uses: 'Gilt für die ersten 10 Bestellungen, einmal pro Kunde' },
+  // { template: de, name: 'Pivendo-Brief-DE', code: 'DUO10-QQ3H', uses: 'Gilt für die ersten 2 Bestellungen, einmal pro Kunde' },
+  // { template: de, name: 'Pivendo-Brief-DE', code: 'GIFT10-5LTH', uses: 'Gilt für 1 Bestellung' },
 ];
 
 (async () => {
